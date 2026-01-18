@@ -15,6 +15,12 @@ import (
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
+var promptReader = bufio.NewReader(os.Stdin)
+
+func setPromptReader(r io.Reader) {
+	promptReader = bufio.NewReader(r)
+}
+
 type multiStringFlag []string
 
 func (m *multiStringFlag) String() string { return strings.Join(*m, ", ") }
@@ -474,8 +480,7 @@ func promptLine(label string) (string, error) {
 	if label != "" {
 		fmt.Fprintf(os.Stdout, "%s: ", label)
 	}
-	br := bufio.NewReader(os.Stdin)
-	line, err := br.ReadString('\n')
+	line, err := promptReader.ReadString('\n')
 	if err != nil && err != io.EOF {
 		return "", err
 	}
@@ -488,8 +493,7 @@ func promptLineDefault(label string, cur string) (string, error) {
 	} else {
 		fmt.Fprintf(os.Stdout, "%s: ", label)
 	}
-	br := bufio.NewReader(os.Stdin)
-	line, err := br.ReadString('\n')
+	line, err := promptReader.ReadString('\n')
 	if err != nil && err != io.EOF {
 		return "", err
 	}

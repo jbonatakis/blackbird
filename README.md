@@ -20,6 +20,13 @@ Go-first CLI for maintaining a durable, validated project work plan (Phase 1).
 
   - `blackbird set-status <id> <status>`
 
+- Pick a ready task and update status interactively (M4):
+
+  - `blackbird pick`
+  - `blackbird pick --blocked`
+  - `blackbird pick --all`
+  - `blackbird pick --include-non-leaf`
+
 - Manually edit the work graph (M3):
   - `blackbird add --title "..." [--parent <parentId|root>]`
   - `blackbird edit <id> --title "..." --description "..." --prompt "..."`

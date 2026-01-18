@@ -28,6 +28,7 @@ Usage:
   blackbird init
   blackbird validate
   blackbird list [--all] [--blocked] [--tree] [--features] [--status <status>]
+  blackbird pick [--include-non-leaf] [--all] [--blocked]
   blackbird show <id>
   blackbird set-status <id> <status>
   blackbird add [--id <id>] [--title <title>] [--description <text>] [--prompt <text>] [--notes <text>] [--ac <text> ...] [--parent <parentId|root>] [--index <n>]
@@ -64,6 +65,8 @@ func Run(args []string) error {
 		return runValidate()
 	case "list":
 		return runList(args[1:])
+	case "pick":
+		return runPick(args[1:])
 	case "show":
 		if len(args) != 2 {
 			return UsageError{Message: "show requires exactly 1 argument: <id>"}

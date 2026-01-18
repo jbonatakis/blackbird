@@ -93,3 +93,12 @@
 ## 2026-01-18 — Validation review (Phase 1, M3 follow-up)
 
 - Reviewed dedupe fix for forced delete detached IDs and the new test case.
+
+## 2026-01-18 — M4: pick interactive loop
+
+- Added `blackbird pick` command with a simple numbered selection loop and action prompts.
+- Default selection matches list readiness (ready leaf tasks); supports `--include-non-leaf`, `--all`, and `--blocked`.
+- Shows task details via existing `show` output and allows status transitions to `in_progress`, `done`, or `blocked`.
+- Prints an explanatory message when no ready tasks are available, with guidance to use `list --blocked` or `show`.
+- Added CLI tests for `pick` covering status updates and empty-state messaging.
+- Switched prompt input to a shared reader to avoid buffered stdin loss in tests.
