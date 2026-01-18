@@ -8,11 +8,31 @@ Go-first CLI for maintaining a durable, validated project work plan (Phase 1).
 
   - `blackbird init`
 
+- List ready work (leaf tasks whose deps are done):
+
+  - `blackbird list`
+
+- Show full details for a task:
+
+  - `blackbird show <id>`
+
+- Manually update a task status:
+
+  - `blackbird set-status <id> <status>`
+
 - Validate the current plan file:
 
   - `blackbird validate`
 
 The plan file lives at repo root as `blackbird.plan.json`.
+
+## Readiness rules (M2)
+
+- A task's deps are **satisfied** when **all deps have status `done`**.
+- A task is **actionable ("READY" in `list`)** when:
+  - status is `todo`
+  - and deps are satisfied
+- If a task is `blocked` but deps are satisfied, it remains **manually blocked** until you clear it (e.g. `set-status <id> todo`).
 
 ## Plan file schema (M1)
 
@@ -49,5 +69,5 @@ Root object:
 - parent/child relationships are consistent
 - hierarchy contains no cycles
 
-In M1, dependency edges are validated for existence only (dependency cycle detection comes later).
+In M2, dependency cycles are also rejected (deps must form a DAG).
 

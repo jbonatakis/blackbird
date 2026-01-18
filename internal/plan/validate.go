@@ -182,6 +182,14 @@ func Validate(g WorkGraph) []ValidationError {
 		}
 	}
 
+	// Dependency DAG cycle detection.
+	if cycle := DepCycle(g); len(cycle) > 0 {
+		errs = append(errs, ValidationError{
+			Path:    "$.items",
+			Message: fmt.Sprintf("dependency cycle detected: %s", joinCycle(cycle)),
+		})
+	}
+
 	return errs
 }
 

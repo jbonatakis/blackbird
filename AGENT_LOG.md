@@ -32,3 +32,24 @@
 
 - The project is now a git repo (no commits yet).
 - No `origin` remote is configured yet. `go.mod` is set to `github.com/jbonatakis/blackbird` (update if/when the canonical remote URL differs).
+
+## 2026-01-18 — Phase 1: when agent integration begins (milestones)
+
+- Phase 1 agent integration starts at **M5** (agent request/response schema + external runtime adapter via `BLACKBIRD_AGENT_CMD`).
+- The first user-visible, end-to-end agent-backed commands land in **M6** (`plan generate`, `plan refine`, `deps infer`).
+
+## 2026-01-18 — M2: deps + readiness + list/show/set-status
+
+- Added dependency DAG utilities in `internal/plan`:
+  - reverse deps (`Dependents`)
+  - unmet deps computation (`UnmetDeps`)
+  - dependency cycle detection with a readable cycle path (`DepCycle`)
+- Extended `Validate` to reject dependency cycles (deps must form a DAG).
+- Implemented CLI commands:
+  - `blackbird list` (default: actionable/ready leaf tasks)
+  - `blackbird show <id>` (deps + dependents + readiness explanation + prompt)
+  - `blackbird set-status <id> <status>` (updates status + `updatedAt`, writes atomically)
+- Readiness semantics decision:
+  - depsSatisfied means all deps are `done`
+  - a task is considered actionable (READY in list) only when `status==todo` and deps are satisfied
+  - `status==blocked` is treated as a manual override: even if deps are satisfied, it remains blocked until cleared

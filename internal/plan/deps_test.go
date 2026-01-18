@@ -5,22 +5,7 @@ import (
 	"time"
 )
 
-func TestValidate_EmptyGraphIsValid(t *testing.T) {
-	g := NewEmptyWorkGraph()
-	if errs := Validate(g); len(errs) != 0 {
-		t.Fatalf("expected no errors, got %v", errs)
-	}
-}
-
-func TestValidate_RejectsMissingSchemaVersion(t *testing.T) {
-	g := WorkGraph{Items: map[string]WorkItem{}}
-	errs := Validate(g)
-	if len(errs) == 0 {
-		t.Fatalf("expected errors")
-	}
-}
-
-func TestValidate_RejectsUnknownRefs(t *testing.T) {
+func TestUnmetDeps(t *testing.T) {
 	now := time.Now()
 	g := WorkGraph{
 		SchemaVersion: SchemaVersion,
@@ -31,49 +16,35 @@ func TestValidate_RejectsUnknownRefs(t *testing.T) {
 				Description:        "",
 				AcceptanceCriteria: []string{},
 				Prompt:             "",
-				ParentID:           ptr("NOPE"),
-				ChildIDs:           []string{"B"},
-				Deps:               []string{"C"},
-				Status:             StatusTodo,
+				ParentID:           nil,
+				ChildIDs:           []string{},
+				Deps:               []string{},
+				Status:             StatusDone,
 				CreatedAt:          now,
 				UpdatedAt:          now,
 			},
-		},
-	}
-
-	errs := Validate(g)
-	if len(errs) == 0 {
-		t.Fatalf("expected errors")
-	}
-}
-
-func TestValidate_ChildParentConsistency(t *testing.T) {
-	now := time.Now()
-	g := WorkGraph{
-		SchemaVersion: SchemaVersion,
-		Items: map[string]WorkItem{
-			"P": {
-				ID:                 "P",
-				Title:              "parent",
+			"B": {
+				ID:                 "B",
+				Title:              "B",
 				Description:        "",
 				AcceptanceCriteria: []string{},
 				Prompt:             "",
 				ParentID:           nil,
-				ChildIDs:           []string{"C"},
-				Deps:               []string{},
+				ChildIDs:           []string{},
+				Deps:               []string{"A"},
 				Status:             StatusTodo,
 				CreatedAt:          now,
 				UpdatedAt:          now,
 			},
 			"C": {
 				ID:                 "C",
-				Title:              "child",
+				Title:              "C",
 				Description:        "",
 				AcceptanceCriteria: []string{},
 				Prompt:             "",
-				ParentID:           nil, // should be P
+				ParentID:           nil,
 				ChildIDs:           []string{},
-				Deps:               []string{},
+				Deps:               []string{"B", "A"},
 				Status:             StatusTodo,
 				CreatedAt:          now,
 				UpdatedAt:          now,
@@ -81,13 +52,13 @@ func TestValidate_ChildParentConsistency(t *testing.T) {
 		},
 	}
 
-	errs := Validate(g)
-	if len(errs) == 0 {
-		t.Fatalf("expected errors")
+	unmet := UnmetDeps(g, g.Items["C"])
+	if len(unmet) != 1 || unmet[0] != "B" {
+		t.Fatalf("UnmetDeps(C) = %#v, want [\"B\"]", unmet)
 	}
 }
 
-func TestValidate_DetectsParentCycle(t *testing.T) {
+func TestDependents_Sorted(t *testing.T) {
 	now := time.Now()
 	g := WorkGraph{
 		SchemaVersion: SchemaVersion,
@@ -98,7 +69,7 @@ func TestValidate_DetectsParentCycle(t *testing.T) {
 				Description:        "",
 				AcceptanceCriteria: []string{},
 				Prompt:             "",
-				ParentID:           ptr("B"),
+				ParentID:           nil,
 				ChildIDs:           []string{},
 				Deps:               []string{},
 				Status:             StatusTodo,
@@ -111,9 +82,22 @@ func TestValidate_DetectsParentCycle(t *testing.T) {
 				Description:        "",
 				AcceptanceCriteria: []string{},
 				Prompt:             "",
-				ParentID:           ptr("A"),
+				ParentID:           nil,
 				ChildIDs:           []string{},
-				Deps:               []string{},
+				Deps:               []string{"A"},
+				Status:             StatusTodo,
+				CreatedAt:          now,
+				UpdatedAt:          now,
+			},
+			"C": {
+				ID:                 "C",
+				Title:              "C",
+				Description:        "",
+				AcceptanceCriteria: []string{},
+				Prompt:             "",
+				ParentID:           nil,
+				ChildIDs:           []string{},
+				Deps:               []string{"A"},
 				Status:             StatusTodo,
 				CreatedAt:          now,
 				UpdatedAt:          now,
@@ -121,13 +105,13 @@ func TestValidate_DetectsParentCycle(t *testing.T) {
 		},
 	}
 
-	errs := Validate(g)
-	if len(errs) == 0 {
-		t.Fatalf("expected errors")
+	got := Dependents(g, "A")
+	if len(got) != 2 || got[0] != "B" || got[1] != "C" {
+		t.Fatalf("Dependents(A) = %#v, want [\"B\", \"C\"]", got)
 	}
 }
 
-func TestValidate_DetectsDepCycle(t *testing.T) {
+func TestDepCycle(t *testing.T) {
 	now := time.Now()
 	g := WorkGraph{
 		SchemaVersion: SchemaVersion,
@@ -153,6 +137,19 @@ func TestValidate_DetectsDepCycle(t *testing.T) {
 				Prompt:             "",
 				ParentID:           nil,
 				ChildIDs:           []string{},
+				Deps:               []string{"C"},
+				Status:             StatusTodo,
+				CreatedAt:          now,
+				UpdatedAt:          now,
+			},
+			"C": {
+				ID:                 "C",
+				Title:              "C",
+				Description:        "",
+				AcceptanceCriteria: []string{},
+				Prompt:             "",
+				ParentID:           nil,
+				ChildIDs:           []string{},
 				Deps:               []string{"A"},
 				Status:             StatusTodo,
 				CreatedAt:          now,
@@ -161,10 +158,11 @@ func TestValidate_DetectsDepCycle(t *testing.T) {
 		},
 	}
 
-	errs := Validate(g)
-	if len(errs) == 0 {
-		t.Fatalf("expected errors")
+	cycle := DepCycle(g)
+	if len(cycle) == 0 {
+		t.Fatalf("expected a cycle")
+	}
+	if cycle[len(cycle)-1] != cycle[0] {
+		t.Fatalf("expected cycle closure, got %#v", cycle)
 	}
 }
-
-func ptr(s string) *string { return &s }
