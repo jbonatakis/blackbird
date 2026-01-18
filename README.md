@@ -20,6 +20,15 @@ Go-first CLI for maintaining a durable, validated project work plan (Phase 1).
 
   - `blackbird set-status <id> <status>`
 
+- Manually edit the work graph (M3):
+  - `blackbird add --title "..." [--parent <parentId|root>]`
+  - `blackbird edit <id> --title "..." --description "..." --prompt "..."`
+  - `blackbird move <id> --parent <parentId|root> [--index <n>]`
+  - `blackbird delete <id> [--cascade-children] [--force]`
+  - `blackbird deps add <id> <depId>`
+  - `blackbird deps remove <id> <depId>`
+  - `blackbird deps set <id> [<depId> ...]`
+
 - Validate the current plan file:
 
   - `blackbird validate`

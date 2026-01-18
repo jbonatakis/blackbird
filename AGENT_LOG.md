@@ -53,3 +53,26 @@
   - depsSatisfied means all deps are `done`
   - a task is considered actionable (READY in list) only when `status==todo` and deps are satisfied
   - `status==blocked` is treated as a manual override: even if deps are satisfied, it remains blocked until cleared
+
+## 2026-01-18 — M3: manual edit commands (CRUD + hierarchy + dep editing)
+
+- Added a runnable CLI entrypoint at `cmd/blackbird/main.go` (routes to `internal/cli.Run`).
+- Implemented manual graph editing commands in `internal/cli`:
+  - `add`, `edit <id>`, `delete <id>`, `move <id> --parent <parentId|root> [--index <n>]`
+  - `deps add/remove/set`
+- Added a small mutation layer in `internal/plan/mutate.go` to keep edits safe and consistent:
+  - updates `updatedAt` on all touched nodes
+  - rejects dependency cycles (typed error with a readable cycle path)
+  - rejects hierarchy cycles on move (typed error with a readable cycle path)
+  - delete safety semantics:
+    - default refuses delete when node has children or external dependents
+    - `--cascade-children` deletes subtree
+    - `--force` removes dep edges from remaining nodes that depended on deleted nodes (keeps plan valid)
+- Tightened validation: `depRationale` keys must reference existing IDs and also appear in `deps`.
+- Added unit tests covering cycle prevention and delete safety (`internal/plan/mutate_test.go`).
+
+## 2026-01-18 — Code review (Phase 1, M3)
+
+- Reviewed manual edit CLI + mutation layer for M3 readiness.
+- Noted issues around mutation side effects on failed dep edits and visibility of forced delete detachments.
+- Flagged missing tests for CLI-level CRUD/deps flows.

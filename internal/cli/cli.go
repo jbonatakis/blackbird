@@ -30,6 +30,13 @@ Usage:
   blackbird list [--all] [--blocked] [--tree] [--features] [--status <status>]
   blackbird show <id>
   blackbird set-status <id> <status>
+  blackbird add [--id <id>] [--title <title>] [--description <text>] [--prompt <text>] [--notes <text>] [--ac <text> ...] [--parent <parentId|root>] [--index <n>]
+  blackbird edit <id> [--title <title>] [--description <text>|--clear-description] [--prompt <text>|--clear-prompt] [--notes <text>] [--clear-notes] [--ac <text> ...] [--ac-clear]
+  blackbird delete <id> [--cascade-children] [--force]
+  blackbird move <id> --parent <parentId|root> [--index <n>]
+  blackbird deps add <id> <depId>
+  blackbird deps remove <id> <depId>
+  blackbird deps set <id> [<depId> ...]
 
 Statuses:
   todo | in_progress | blocked | done | skipped
@@ -67,6 +74,25 @@ func Run(args []string) error {
 			return UsageError{Message: "set-status requires exactly 2 arguments: <id> <status>"}
 		}
 		return runSetStatus(args[1], args[2])
+	case "add":
+		return runAdd(args[1:])
+	case "edit":
+		if len(args) < 2 {
+			return UsageError{Message: "edit requires an id: edit <id> [flags]"}
+		}
+		return runEdit(args[1], args[2:])
+	case "delete":
+		if len(args) < 2 {
+			return UsageError{Message: "delete requires an id: delete <id> [flags]"}
+		}
+		return runDelete(args[1], args[2:])
+	case "move":
+		if len(args) < 2 {
+			return UsageError{Message: "move requires an id: move <id> --parent <parentId|root> [--index <n>]"}
+		}
+		return runMove(args[1], args[2:])
+	case "deps":
+		return runDeps(args[1:])
 	default:
 		return UsageError{Message: fmt.Sprintf("unknown command: %q", args[0])}
 	}

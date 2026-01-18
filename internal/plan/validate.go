@@ -144,6 +144,13 @@ func Validate(g WorkGraph) []ValidationError {
 		for depID := range it.DepRationale {
 			if _, ok := g.Items[depID]; !ok {
 				errs = append(errs, ValidationError{Path: path + ".depRationale", Message: fmt.Sprintf("unknown dep id %q", depID)})
+				continue
+			}
+			if !contains(it.Deps, depID) {
+				errs = append(errs, ValidationError{
+					Path:    path + ".depRationale",
+					Message: fmt.Sprintf("depRationale key %q must also appear in deps", depID),
+				})
 			}
 		}
 	}
