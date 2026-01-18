@@ -183,6 +183,7 @@ func AddDep(g *WorkGraph, id string, depID string, now time.Time) error {
 		return nil
 	}
 	before := append([]string{}, it.Deps...)
+	beforeUpdatedAt := it.UpdatedAt
 	it.Deps = append(it.Deps, depID)
 	it.UpdatedAt = now
 	g.Items[id] = it
@@ -190,7 +191,7 @@ func AddDep(g *WorkGraph, id string, depID string, now time.Time) error {
 	if cycle := DepCycle(*g); len(cycle) > 0 {
 		// rollback
 		it.Deps = before
-		it.UpdatedAt = now
+		it.UpdatedAt = beforeUpdatedAt
 		g.Items[id] = it
 		return DepCycleError{Cycle: cycle}
 	}
@@ -254,6 +255,7 @@ func SetDeps(g *WorkGraph, id string, deps []string, now time.Time) error {
 
 	beforeDeps := append([]string{}, it.Deps...)
 	beforeRationale := copyRationale(it.DepRationale)
+	beforeUpdatedAt := it.UpdatedAt
 
 	it.Deps = out
 	if it.DepRationale != nil {
@@ -274,7 +276,7 @@ func SetDeps(g *WorkGraph, id string, deps []string, now time.Time) error {
 		// rollback
 		it.Deps = beforeDeps
 		it.DepRationale = beforeRationale
-		it.UpdatedAt = now
+		it.UpdatedAt = beforeUpdatedAt
 		g.Items[id] = it
 		return DepCycleError{Cycle: cycle}
 	}
@@ -327,6 +329,7 @@ func DeleteItem(g *WorkGraph, id string, cascadeChildren bool, force bool, now t
 	}
 
 	res := DeleteResult{}
+	detachedSet := map[string]bool{}
 
 	// If force, remove dep edges from remaining nodes.
 	if force {
@@ -344,7 +347,10 @@ func DeleteItem(g *WorkGraph, id string, cascadeChildren bool, force bool, now t
 					}
 					depItem.UpdatedAt = now
 					g.Items[depID] = depItem
-					res.DetachedIDs = append(res.DetachedIDs, depID)
+					if !detachedSet[depID] {
+						detachedSet[depID] = true
+						res.DetachedIDs = append(res.DetachedIDs, depID)
+					}
 				}
 			}
 		}
@@ -381,6 +387,7 @@ func DeleteItem(g *WorkGraph, id string, cascadeChildren bool, force bool, now t
 func parentCycleIfMove(g *WorkGraph, movingID string, newParentID string) []string {
 	chain := []string{newParentID}
 	cur := newParentID
+	visited := map[string]bool{cur: true}
 	for {
 		it, ok := g.Items[cur]
 		if !ok {
@@ -390,6 +397,10 @@ func parentCycleIfMove(g *WorkGraph, movingID string, newParentID string) []stri
 			return nil
 		}
 		parent := *it.ParentID
+		if visited[parent] {
+			// Invalid plan (cycle in parent pointers); avoid infinite loop.
+			return nil
+		}
 		if parent == movingID {
 			// cycle is movingID -> chain... -> movingID
 			cycle := append([]string{movingID}, chain...)
@@ -398,6 +409,7 @@ func parentCycleIfMove(g *WorkGraph, movingID string, newParentID string) []stri
 		}
 		chain = append(chain, parent)
 		cur = parent
+		visited[parent] = true
 	}
 }
 

@@ -283,6 +283,9 @@ func runDelete(id string, args []string) error {
 	}
 
 	fmt.Fprintf(os.Stdout, "deleted %d item(s)\n", len(res.DeletedIDs))
+	if len(res.DetachedIDs) > 0 {
+		fmt.Fprintf(os.Stdout, "detached deps from: %s\n", strings.Join(res.DetachedIDs, ", "))
+	}
 	return nil
 }
 

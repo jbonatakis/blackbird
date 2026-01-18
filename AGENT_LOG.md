@@ -76,3 +76,20 @@
 - Reviewed manual edit CLI + mutation layer for M3 readiness.
 - Noted issues around mutation side effects on failed dep edits and visibility of forced delete detachments.
 - Flagged missing tests for CLI-level CRUD/deps flows.
+- Logged findings in `specs/phase_1/CODE_REVIEW_M3.md`.
+
+## 2026-01-18 — Validation review (Phase 1, M3 fixes)
+
+- Reviewed user fixes for dep-edit rollback, delete output, and parent-cycle guard.
+- Checked new tests in `internal/plan/mutate_test.go` and `internal/cli/manual_test.go`.
+- Added a follow-up finding about duplicate detached IDs in forced deletes; logged in `specs/phase_1/code_reviews/CODE_REVIEW_M3.md`.
+- Fixed `DeleteItem` to dedupe detached IDs; added test coverage.
+- Re-checked `internal/plan/mutate.go` and `internal/cli/manual.go` to verify the findings match current code.
+- Fixed dep edit rollback to restore prior `updatedAt` on cycle errors.
+- Added tests covering `updatedAt` stability on failed dep edits.
+- `delete --force` now reports detached dependency IDs; added CLI test coverage.
+- Added parent-cycle guard in `parentCycleIfMove` with a test for invalid parent loops.
+
+## 2026-01-18 — Validation review (Phase 1, M3 follow-up)
+
+- Reviewed dedupe fix for forced delete detached IDs and the new test case.

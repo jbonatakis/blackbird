@@ -66,6 +66,56 @@ func TestAddDep_RejectsDepCycle(t *testing.T) {
 	}
 }
 
+func TestAddDep_CycleKeepsUpdatedAt(t *testing.T) {
+	now := time.Now()
+	after := now.Add(5 * time.Minute)
+
+	g := WorkGraph{
+		SchemaVersion: SchemaVersion,
+		Items: map[string]WorkItem{
+			"A": wi("A", now),
+			"B": func() WorkItem {
+				it := wi("B", now)
+				it.Deps = []string{"A"}
+				return it
+			}(),
+		},
+	}
+	beforeUpdatedAt := g.Items["A"].UpdatedAt
+
+	if err := AddDep(&g, "A", "B", after); err == nil {
+		t.Fatalf("expected error")
+	}
+	if got := g.Items["A"].UpdatedAt; !got.Equal(beforeUpdatedAt) {
+		t.Fatalf("UpdatedAt changed on failed add: got %s want %s", got, beforeUpdatedAt)
+	}
+}
+
+func TestSetDeps_CycleKeepsUpdatedAt(t *testing.T) {
+	now := time.Now()
+	after := now.Add(10 * time.Minute)
+
+	g := WorkGraph{
+		SchemaVersion: SchemaVersion,
+		Items: map[string]WorkItem{
+			"A": wi("A", now),
+			"B": func() WorkItem {
+				it := wi("B", now)
+				it.Deps = []string{"A"}
+				return it
+			}(),
+		},
+	}
+	beforeUpdatedAt := g.Items["A"].UpdatedAt
+
+	if err := SetDeps(&g, "A", []string{"B"}, after); err == nil {
+		t.Fatalf("expected error")
+	}
+	if got := g.Items["A"].UpdatedAt; !got.Equal(beforeUpdatedAt) {
+		t.Fatalf("UpdatedAt changed on failed set: got %s want %s", got, beforeUpdatedAt)
+	}
+}
+
 func TestDeleteItem_RefusesChildrenByDefault(t *testing.T) {
 	now := time.Now()
 
@@ -121,6 +171,60 @@ func TestDeleteItem_RefusesDependentsUnlessForce(t *testing.T) {
 	}
 	if errs := Validate(g); len(errs) != 0 {
 		t.Fatalf("Validate after delete force: %v", errs)
+	}
+}
+
+func TestDeleteItem_ForceDedupesDetachedIDs(t *testing.T) {
+	now := time.Now()
+
+	a := wi("A", now)
+	b := wi("B", now)
+	b.ParentID = ptr("A")
+	a.ChildIDs = []string{"B"}
+
+	c := wi("C", now)
+	c.Deps = []string{"A", "B"}
+
+	g := WorkGraph{
+		SchemaVersion: SchemaVersion,
+		Items: map[string]WorkItem{
+			"A": a,
+			"B": b,
+			"C": c,
+		},
+	}
+
+	res, err := DeleteItem(&g, "A", true, true, now)
+	if err != nil {
+		t.Fatalf("DeleteItem force: %v", err)
+	}
+	if len(res.DetachedIDs) != 1 || res.DetachedIDs[0] != "C" {
+		t.Fatalf("DetachedIDs = %#v, want [\"C\"]", res.DetachedIDs)
+	}
+	if got := g.Items["C"].Deps; len(got) != 0 {
+		t.Fatalf("C.Deps = %#v, want []", got)
+	}
+}
+
+func TestParentCycleIfMove_GuardsInvalidPlan(t *testing.T) {
+	now := time.Now()
+
+	a := wi("A", now)
+	b := wi("B", now)
+	a.ParentID = ptr("B")
+	b.ParentID = ptr("A")
+
+	g := WorkGraph{
+		SchemaVersion: SchemaVersion,
+		Items: map[string]WorkItem{
+			"A": a,
+			"B": b,
+			"C": wi("C", now),
+		},
+	}
+
+	if cycle := parentCycleIfMove(&g, "C", "A"); cycle != nil {
+		t.Fatalf("expected nil cycle for invalid parent loop, got %#v", cycle)
 	}
 }
 
