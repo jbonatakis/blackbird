@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -107,6 +108,7 @@ func (r Runtime) Run(ctx context.Context, req Request) (Response, Diagnostics, e
 	var lastDiag Diagnostics
 	attempts := r.MaxRetries + 1
 	for i := 0; i < attempts; i++ {
+		logRequestDebug(payload, i+1, attempts)
 		resp, diag, err := r.runOnce(ctx, payload, req.Metadata)
 		if err == nil {
 			return resp, diag, nil
@@ -123,7 +125,7 @@ func (r Runtime) runOnce(ctx context.Context, payload []byte, meta RequestMetada
 	defer cancel()
 
 	command, args := r.Command, append([]string{}, r.Args...)
-	flagArgs := buildFlagArgs(meta)
+	flagArgs := buildFlagArgs(r.Provider, meta)
 	if r.UseShell {
 		command = appendShellArgs(command, flagArgs)
 		args = nil
@@ -181,7 +183,7 @@ func defaultCommand(provider string) (string, bool) {
 	}
 }
 
-func buildFlagArgs(meta RequestMetadata) []string {
+func buildFlagArgs(provider string, meta RequestMetadata) []string {
 	var args []string
 	if meta.Model != "" {
 		args = append(args, "--model", meta.Model)
@@ -194,6 +196,9 @@ func buildFlagArgs(meta RequestMetadata) []string {
 	}
 	if meta.ResponseFormat != "" {
 		args = append(args, "--response-format", meta.ResponseFormat)
+	}
+	if meta.JSONSchema != "" && strings.EqualFold(provider, "claude") {
+		args = append(args, "--json-schema", meta.JSONSchema)
 	}
 	return args
 }
@@ -236,4 +241,31 @@ func formatValidationErrors(errs []ValidationError) string {
 		lines = append(lines, fmt.Sprintf("%s: %s", e.Path, e.Message))
 	}
 	return "schema validation failed:\n- " + strings.Join(lines, "\n- ")
+}
+
+func agentDebugEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("BLACKBIRD_AGENT_DEBUG"))) {
+	case "1", "true", "yes", "y":
+		return true
+	default:
+		return false
+	}
+}
+
+func logRequestDebug(payload []byte, attempt int, total int) {
+	if !agentDebugEnabled() {
+		return
+	}
+	label := "Agent request (debug)"
+	if total > 1 {
+		label = fmt.Sprintf("Agent request (debug) attempt %d/%d", attempt, total)
+	}
+	fmt.Fprintln(os.Stdout, label+":")
+
+	var out bytes.Buffer
+	if err := json.Indent(&out, payload, "", "  "); err != nil {
+		fmt.Fprintln(os.Stdout, string(payload))
+		return
+	}
+	fmt.Fprintln(os.Stdout, out.String())
 }

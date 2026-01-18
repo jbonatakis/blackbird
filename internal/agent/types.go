@@ -25,6 +25,7 @@ type RequestMetadata struct {
 	MaxTokens      *int     `json:"maxTokens,omitempty"`
 	Temperature    *float64 `json:"temperature,omitempty"`
 	ResponseFormat string   `json:"responseFormat,omitempty"`
+	JSONSchema     string   `json:"jsonSchema,omitempty"`
 }
 
 type Answer struct {
@@ -35,6 +36,7 @@ type Answer struct {
 type Request struct {
 	SchemaVersion      int             `json:"schemaVersion"`
 	Type               RequestType     `json:"type"`
+	SystemPrompt       string          `json:"systemPrompt,omitempty"`
 	ProjectDescription string          `json:"projectDescription,omitempty"`
 	Constraints        []string        `json:"constraints,omitempty"`
 	Granularity        string          `json:"granularity,omitempty"`

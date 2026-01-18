@@ -27,6 +27,8 @@ func Usage() string {
 Usage:
   blackbird init
   blackbird validate
+  blackbird plan generate [--description <text>] [--constraint <text> ...] [--granularity <text>] [--model <model>] [--max-tokens <n>] [--temperature <n>] [--response-format <fmt>]
+  blackbird plan refine [--change <text>] [--model <model>] [--max-tokens <n>] [--temperature <n>] [--response-format <fmt>]
   blackbird list [--all] [--blocked] [--tree] [--features] [--status <status>]
   blackbird pick [--include-non-leaf] [--all] [--blocked]
   blackbird show <id>
@@ -38,6 +40,7 @@ Usage:
   blackbird deps add <id> <depId>
   blackbird deps remove <id> <depId>
   blackbird deps set <id> [<depId> ...]
+  blackbird deps infer [--hint <text> ...] [--model <model>] [--max-tokens <n>] [--temperature <n>] [--response-format <fmt>]
 
 Statuses:
   todo | in_progress | blocked | done | skipped
@@ -67,6 +70,8 @@ func Run(args []string) error {
 		return runList(args[1:])
 	case "pick":
 		return runPick(args[1:])
+	case "plan":
+		return runPlan(args[1:])
 	case "show":
 		if len(args) != 2 {
 			return UsageError{Message: "show requires exactly 1 argument: <id>"}

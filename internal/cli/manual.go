@@ -350,7 +350,7 @@ func runMove(id string, args []string) error {
 
 func runDeps(args []string) error {
 	if len(args) == 0 {
-		return UsageError{Message: "deps requires a subcommand: add|remove|set"}
+		return UsageError{Message: "deps requires a subcommand: add|remove|set|infer"}
 	}
 	switch args[0] {
 	case "add":
@@ -368,6 +368,8 @@ func runDeps(args []string) error {
 			return UsageError{Message: "deps set requires: <id> [<depId> ...]"}
 		}
 		return runDepsSet(args[1], args[2:])
+	case "infer":
+		return runDepsInfer(args[1:])
 	default:
 		return UsageError{Message: fmt.Sprintf("unknown deps subcommand: %q", args[0])}
 	}

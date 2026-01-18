@@ -113,3 +113,36 @@
 - Implemented JSON extraction (single object or fenced ```json) with strict errors.
 - Added external runtime adapter with provider selection, timeouts, retries, and stderr capture.
 - Documented agent runtime configuration and JSON I/O rules in `README.md`.
+
+## 2026-01-18 — M6: agent-backed planning flows
+
+- Added CLI flows for `plan generate`, `plan refine`, and `deps infer` with interactive prompts, validation, and summaries (provider/model included).
+- Implemented clarification Q&A loop for agent responses (bounded retries).
+- Added patch application helper and plan diff summary to support refine/deps infer outputs.
+- Updated README with M6 command guidance and planning flow notes.
+- Tweaked agent prompts to show progress and to reprompt on invalid choices.
+
+## 2026-01-18 — Repo review (Phase 1 status)
+
+- Reviewed Phase 1 implementation against specs and milestones; noted a few risks in agent patch handling and clarification flow behavior.
+- Ran `go test ./...` (all packages passed).
+
+## 2026-01-18 — Agent debug logging tweak
+
+- Moved agent request debug logging into the runtime so every attempt logs when `BLACKBIRD_AGENT_DEBUG=1` is set.
+
+## 2026-01-18 — Default system prompt for plan requests
+
+- Added a default `systemPrompt` to plan generate/refine/deps infer requests to enforce strict JSON responses and schema rules.
+
+## 2026-01-18 — Claude JSON schema support
+
+- Added `jsonSchema` request metadata and wired it for plan flows; runtime passes `--json-schema` when provider is Claude.
+
+## 2026-01-18 — Plan generate preview
+
+- Show the full plan tree before prompting accept/revise/no in `plan generate`.
+
+## 2026-01-18 — Prompt guidance to avoid meta planning tasks
+
+- Updated the default plan system prompt to discourage generic root placeholders and meta “design/plan” tasks.

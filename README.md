@@ -8,6 +8,18 @@ Go-first CLI for maintaining a durable, validated project work plan (Phase 1).
 
   - `blackbird init`
 
+- Generate an initial plan with the agent:
+
+  - `blackbird plan generate`
+
+- Refine an existing plan with the agent:
+
+  - `blackbird plan refine`
+
+- Infer or re-infer dependencies with the agent:
+
+  - `blackbird deps infer`
+
 - List ready work (leaf tasks whose deps are done):
 
   - `blackbird list`
@@ -49,6 +61,13 @@ The plan file lives at repo root as `blackbird.plan.json`.
   - status is `todo`
   - and deps are satisfied
 - If a task is `blocked` but deps are satisfied, it remains **manually blocked** until you clear it (e.g. `set-status <id> todo`).
+
+## Agent-backed planning (M6)
+
+- `blackbird plan generate` prompts for a project description, calls the agent, shows a summary, and lets you revise once before saving.
+- `blackbird plan refine` sends a change request + current plan, applies validated edits, and prints a diff summary.
+- `blackbird deps infer` proposes dependency updates, shows a diff + rationale excerpt, and applies on acceptance.
+- Summaries include the provider/model used for the run.
 
 ## Plan file schema (M1)
 
@@ -105,10 +124,12 @@ I/O contract:
 - Output may include extra non-JSON text, but JSON must either be the full
   stdout or inside a single fenced ```json block.
 - Multiple JSON objects or missing JSON cause a hard failure.
+- Requests include a default `systemPrompt` to require strict JSON output and
+  validate plan/patch rules (plan generate/refine + deps infer).
 
 Provider metadata (optional in the request):
 
-- `provider`, `model`, `maxTokens`, `temperature`, `responseFormat`
+- `provider`, `model`, `maxTokens`, `temperature`, `responseFormat`, `jsonSchema`
 - The runtime adapter maps these to CLI flags when supported:
   `--model`, `--max-tokens`, `--temperature`, `--response-format`
-
+- For Claude, `jsonSchema` is passed via `--json-schema`.
