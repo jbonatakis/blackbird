@@ -87,3 +87,28 @@ Root object:
 
 In M2, dependency cycles are also rejected (deps must form a DAG).
 
+## Agent runtime adapter (M5)
+
+Phase 1 planning uses an external agent command that speaks a strict JSON
+request/response contract.
+
+Configuration:
+
+- `BLACKBIRD_AGENT_PROVIDER=claude|codex` selects the default command
+  (`claude` or `codex`).
+- `BLACKBIRD_AGENT_CMD` overrides the command entirely (runs via `sh -c`).
+
+I/O contract:
+
+- The CLI writes a JSON request to stdin.
+- The command must emit exactly one JSON object on stdout.
+- Output may include extra non-JSON text, but JSON must either be the full
+  stdout or inside a single fenced ```json block.
+- Multiple JSON objects or missing JSON cause a hard failure.
+
+Provider metadata (optional in the request):
+
+- `provider`, `model`, `maxTokens`, `temperature`, `responseFormat`
+- The runtime adapter maps these to CLI flags when supported:
+  `--model`, `--max-tokens`, `--temperature`, `--response-format`
+

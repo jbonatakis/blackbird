@@ -126,14 +126,26 @@ C) Infer/re-infer dependencies:
   - deps for each node (or a patch),
   - plus per-edge rationale (at least brief).
 
+Agent Runtime (Claude Code + Codex)
+- Phase 1 agent integration targets Claude Code and Codex specifically.
+- Provider selection:
+  - `BLACKBIRD_AGENT_PROVIDER=claude|codex`
+  - Optional override: `BLACKBIRD_AGENT_CMD` to supply a custom command.
+- Output format:
+  - Must include exactly one JSON object.
+  - JSON may be the full stdout or inside a single fenced ```json block.
+  - Any other output is allowed but will be ignored for parsing.
+- Request metadata fields are passed to the runtime adapter:
+  - `provider`, `model`, `maxTokens`, `temperature`, `responseFormat`
+
 Agent Output MUST be Machine-Readable
 The agent must output either:
 1) A complete plan object conforming to schema, OR
 2) A patch-style set of operations:
-   - add_node
-   - update_node_fields
-   - delete_node
-   - move_node (parent change)
+   - add
+   - update
+   - delete
+   - move (parent change)
    - set_deps (replace)
    - add_dep / remove_dep
 Each operation includes enough info to validate and apply deterministically.

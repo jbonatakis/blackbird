@@ -102,3 +102,14 @@
 - Prints an explanatory message when no ready tasks are available, with guidance to use `list --blocked` or `show`.
 - Added CLI tests for `pick` covering status updates and empty-state messaging.
 - Switched prompt input to a shared reader to avoid buffered stdin loss in tests.
+
+## 2026-01-18 — Spec update (Phase 1, patch ops alignment)
+
+- Aligned patch operation names in `specs/phase_1/PHASE_1.md` with M5 (add/update/delete/move/set_deps/add_dep/remove_dep).
+
+## 2026-01-18 — M5: agent schema + runtime adapter
+
+- Added `internal/agent` types for request/response, patch ops, and validation.
+- Implemented JSON extraction (single object or fenced ```json) with strict errors.
+- Added external runtime adapter with provider selection, timeouts, retries, and stderr capture.
+- Documented agent runtime configuration and JSON I/O rules in `README.md`.
