@@ -146,3 +146,7 @@
 ## 2026-01-18 — Prompt guidance to avoid meta planning tasks
 
 - Updated the default plan system prompt to discourage generic root placeholders and meta “design/plan” tasks.
+
+## 2026-01-18 — Agent stdout/stderr streaming option
+
+- Added `BLACKBIRD_AGENT_STREAM=1` to stream agent stdout/stderr live while still capturing output for JSON extraction.

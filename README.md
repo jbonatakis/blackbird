@@ -116,6 +116,8 @@ Configuration:
 - `BLACKBIRD_AGENT_PROVIDER=claude|codex` selects the default command
   (`claude` or `codex`).
 - `BLACKBIRD_AGENT_CMD` overrides the command entirely (runs via `sh -c`).
+- `BLACKBIRD_AGENT_STREAM=1` streams agent stdout/stderr live to the terminal
+  while still capturing it for JSON extraction.
 
 I/O contract:
 

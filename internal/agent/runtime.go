@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -17,6 +18,7 @@ const (
 	DefaultRetries = 1
 	EnvProvider    = "BLACKBIRD_AGENT_PROVIDER"
 	EnvCommand     = "BLACKBIRD_AGENT_CMD"
+	EnvStream      = "BLACKBIRD_AGENT_STREAM"
 )
 
 type Runtime struct {
@@ -143,8 +145,8 @@ func (r Runtime) runOnce(ctx context.Context, payload []byte, meta RequestMetada
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdin = bytes.NewReader(payload)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
+	cmd.Stdout = agentOutputWriter(&stdout, os.Stdout)
+	cmd.Stderr = agentOutputWriter(&stderr, os.Stderr)
 
 	if err := cmd.Run(); err != nil {
 		diag := Diagnostics{Stdout: stdout.String(), Stderr: stderr.String()}
@@ -245,6 +247,22 @@ func formatValidationErrors(errs []ValidationError) string {
 
 func agentDebugEnabled() bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("BLACKBIRD_AGENT_DEBUG"))) {
+	case "1", "true", "yes", "y":
+		return true
+	default:
+		return false
+	}
+}
+
+func agentOutputWriter(buf *bytes.Buffer, stream *os.File) io.Writer {
+	if !agentStreamEnabled() {
+		return buf
+	}
+	return io.MultiWriter(stream, buf)
+}
+
+func agentStreamEnabled() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(EnvStream))) {
 	case "1", "true", "yes", "y":
 		return true
 	default:
