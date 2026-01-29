@@ -1,432 +1,211 @@
 {
   "schemaVersion": 1,
   "items": {
-    "action-handlers": {
-      "id": "action-handlers",
-      "title": "Implement action key handlers",
-      "description": "Handle keyboard shortcuts for triggering plan and execution actions. Capture keystrokes (g, r, e, s) and dispatch appropriate commands.",
+    "agent-questions": {
+      "id": "agent-questions",
+      "title": "Handle Agent Clarifying Questions",
+      "description": "Implement TUI handling for agent clarifying questions during plan generation, allowing users to answer questions in a modal dialog.",
       "acceptanceCriteria": [
-        "g key triggers plan generate flow",
-        "r key triggers plan refine flow",
-        "e key triggers execute flow",
-        "s key opens status change prompt",
-        "Actions only active in appropriate contexts",
-        "Confirmation prompts for destructive actions"
+        "When agent returns questions, display them in a new modal or dialog",
+        "Modal shows question text and options (if provided)",
+        "User can input answers (text or select from options)",
+        "Answers are sent back to agent to continue generation",
+        "Multiple question rounds are supported (up to maxAgentQuestionRounds)"
       ],
-      "prompt": "Update internal/tui/model.go Update() to handle action keys. Add case statements for 'g', 'r', 'e', 's' keys. For 'g', return PlanGenerateCmd() that wraps CLI generate flow. For 'r', return PlanRefineCmd(). For 'e', check if ready tasks exist then return ExecuteCmd(). For 's', store pending status change in model and show input prompt. Add model.actionMode field to track if waiting for input. Use action-wrappers functions.",
-      "parentId": "actions-integration",
-      "childIds": [],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T01:23:19.088692Z"
-    },
-    "action-wrappers": {
-      "id": "action-wrappers",
-      "title": "Create CLI action wrapper functions",
-      "description": "Build wrapper functions that call existing CLI flows (runPlan, runExecute, etc.) from TUI context and return results as Bubble Tea messages.",
-      "acceptanceCriteria": [
-        "Wrappers for plan generate, plan refine, execute, resume",
-        "Functions run as tea.Cmd returning custom message types",
-        "Capture stdout/stderr from CLI functions",
-        "Handle errors and return them in messages",
-        "Non-blocking execution using tea.Exec or similar",
-        "Results include success/failure status"
-      ],
-      "prompt": "Create internal/tui/action_wrappers.go with wrapper functions: PlanGenerateCmd(), PlanRefineCmd(), ExecuteCmd(), ResumeCmd(taskID), SetStatusCmd(id, status). Each returns tea.Cmd. Use tea.Exec or goroutines to call corresponding CLI functions from internal/cli. Capture output by temporarily redirecting os.Stdout/Stderr or passing custom writers. Define message types: PlanActionComplete, ExecuteActionComplete with success bool, output string, error fields. Return these from commands for Update() to handle.",
-      "parentId": "actions-integration",
-      "childIds": [],
-      "deps": [
-        "action-handlers",
-        "bottom-bar"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T01:28:58.470727Z",
-      "depRationale": {
-        "action-handlers": "Handlers call these wrapper functions",
-        "bottom-bar": "Wrappers update action status shown in bottom bar"
-      }
-    },
-    "actions-integration": {
-      "id": "actions-integration",
-      "title": "Wire plan generate/revise + execute actions",
-      "description": "Implement bottom bar with contextual actions and wire them to existing CLI flows. Add ability to trigger plan generate, plan refine, execute, resume, and set-status from within the TUI.",
-      "acceptanceCriteria": [
-        "Bottom bar shows available actions based on context",
-        "Actions include: plan generate, plan refine, execute, resume, set-status",
-        "Pressing action key triggers corresponding CLI flow",
-        "Output/errors are captured and displayed in TUI",
-        "Plan and run data refresh after successful actions",
-        "Status changes update tree view immediately"
-      ],
-      "prompt": "Create internal/tui/actions.go with action handlers. Add bottom bar to View() showing key hints (g=generate, r=refine, e=execute, s=set-status). In Update(), handle these keys by creating tea.Cmd that calls corresponding CLI functions (reuse runPlan, runExecute, etc from cli package). Wrap calls to capture output. Create helper wrappers that return tea.Msg with results. After action completes, reload plan and run data. Update Model with actionOutput field to show results. Add confirmation prompts for destructive actions.",
+      "prompt": "Implement agent question handling in the TUI. When the plan generation agent returns questions (agent.Response with Questions field), display them in a modal dialog. For questions with options, show numbered choices like the CLI does. For free-text questions, show a text input. Collect the user's answers and re-invoke the agent with the answers included. Support multiple rounds of questions up to the configured limit (maxAgentQuestionRounds). This should integrate with the existing in-memory command flow.",
       "parentId": null,
-      "childIds": [
-        "action-handlers",
-        "bottom-bar",
-        "action-wrappers"
-      ],
+      "childIds": [],
       "deps": [
-        "execution-dashboard"
+        "in-memory-command",
+        "spinner-progress"
       ],
       "status": "done",
       "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T02:11:59.159673Z",
+      "updatedAt": "2026-01-29T02:59:26.767674Z",
       "depRationale": {
-        "execution-dashboard": "Execute actions depend on execution infrastructure"
+        "in-memory-command": "Questions come from the agent command, so the command infrastructure must exist first",
+        "spinner-progress": "Question handling extends the progress flow, so basic progress handling should be in place"
       }
     },
-    "agent-log-update": {
-      "id": "agent-log-update",
-      "title": "Update AGENT_LOG with TUI notes",
-      "description": "Document the TUI implementation in AGENT_LOG.md including architecture decisions, integration approach, and any trade-offs made.",
+    "in-memory-command": {
+      "id": "in-memory-command",
+      "title": "Implement In-Memory Plan Generation Command",
+      "description": "Create a new command execution path that runs plan generation without spawning a subprocess, using the agent runtime directly with programmatically provided inputs instead of stdin prompts.",
       "acceptanceCriteria": [
-        "AGENT_LOG.md has new TUI section",
-        "Documents Bubble Tea library choice and rationale",
-        "Describes pane layout and navigation design",
-        "Explains CLI integration approach (zero-args routing)",
-        "Notes execution dashboard implementation",
-        "Records any risks encountered and how they were mitigated",
-        "Includes any deviations from original plan"
+        "New function in action_wrappers.go that calls agent runtime directly (no subprocess)",
+        "Function accepts description, constraints, granularity as parameters",
+        "Agent question/answer loop is handled programmatically without CLI prompts",
+        "Function returns agent response (plan/patch/questions) or error",
+        "No dependency on stdin/stdout for interactive prompts"
       ],
-      "prompt": "Read AGENT_LOG.md and append a new section: '## Phase 3: TUI Dashboard'. Document: why Bubble Tea (low-dependency, Go-native, good for terminal UIs), pane structure (tree left, detail/execution right, bottom bar), CLI integration (zero-args detection in cli.Run), execution dashboard approach (reading run records, live timer), navigation design (vim-style keys, tab switching), action integration (wrapping existing CLI flows), risks (blocking execution wrapped in commands, terminal sizing handled by bubbletea WindowSizeMsg). Keep concise and focused on key decisions.",
-      "parentId": "tests-log",
-      "childIds": [],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T01:23:31.943215Z"
-    },
-    "bottom-bar": {
-      "id": "bottom-bar",
-      "title": "Create contextual action bottom bar",
-      "description": "Render a bottom status bar showing available actions, current counts (ready/blocked tasks), and active operation status.",
-      "acceptanceCriteria": [
-        "Bottom bar shows key hints for available actions",
-        "Displays ready task count and blocked task count",
-        "Shows active operation status (e.g., 'Generating plan...')",
-        "Different actions shown based on context",
-        "Uses contrasting style for visibility",
-        "Bar adapts to window width"
-      ],
-      "prompt": "Create internal/tui/bottom_bar.go with RenderBottomBar(model Model) string function. Calculate ready and blocked counts from plan. Show action hints: [g]enerate [r]efine [e]xecute [s]et-status [t]ab [f]ilter [q]uit. If model.actionInProgress, show spinner and action name. Display counts on right side. Use lipgloss with inverted colors for visibility. Truncate to window width. Update View() to include bottom bar at end.",
-      "parentId": "actions-integration",
-      "childIds": [],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T01:26:45.801043Z"
-    },
-    "detail-view": {
-      "id": "detail-view",
-      "title": "Build item detail pane view",
-      "description": "Create rendering logic for the right pane that displays full details of the selected item including description, acceptance criteria, dependencies with status, dependents, and readiness information.",
-      "acceptanceCriteria": [
-        "Shows item ID, title, status, timestamps",
-        "Displays description and acceptance criteria list",
-        "Lists all dependencies with their status",
-        "Lists all dependents",
-        "Shows readiness: deps satisfied, actionable status",
-        "Displays prompt text",
-        "Scrollable if content exceeds pane height",
-        "Uses lipgloss for section headers and formatting"
-      ],
-      "prompt": "Create internal/tui/detail_view.go with RenderDetailView(model Model) string function. Given model.selectedID, look up item in model.plan. Format output with sections: header (ID/title/status/timestamps), description, acceptance criteria bullets, deps list (with status from plan), dependents list, readiness (using UnmetDeps), and prompt. Use lipgloss for section styling. Handle empty selection gracefully. Add viewport for scrolling if content is tall.",
-      "parentId": "plan-navigation",
-      "childIds": [],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T01:31:56.765533Z"
-    },
-    "execution-dashboard": {
-      "id": "execution-dashboard",
-      "title": "Add run state + elapsed time dashboard",
-      "description": "Create an execution dashboard tab in the right pane that displays current run state, elapsed time for running tasks, latest run log excerpt, and summary of ready/blocked tasks. Read run records from .blackbird/runs directory.",
-      "acceptanceCriteria": [
-        "Dashboard shows current running task with elapsed time",
-        "Displays task status (running/success/failed/waiting_user)",
-        "Shows exit code and timestamps from run records",
-        "Displays count of remaining ready tasks",
-        "Shows latest stdout/stderr excerpt from active run",
-        "Elapsed time updates live for running tasks",
-        "Dashboard accessible via tab in right pane"
-      ],
-      "prompt": "Create internal/tui/execution_view.go with RenderExecutionView(model Model) string function. Query execution.LatestRunByTask for all tasks. Find tasks with Status=running or waiting_user. For active runs, calculate elapsed time from StartedAt (if CompletedAt is nil). Show task ID, status, elapsed time, exit code. Get ready task count via execution.ReadyTasks(). Display latest stdout/stderr excerpt (last 20 lines). Update Model to include tabMode (details/execution) in right pane. Add 't' key to toggle tabs. Use lipgloss for status colors and formatting.",
+      "prompt": "Create a new function in internal/tui/action_wrappers.go (e.g., GeneratePlanInMemory) that directly invokes the agent runtime for plan generation without spawning a subprocess. This function should accept the three input parameters (description, constraints, granularity) and call the agent API similar to how internal/cli/agent_flows.go:runPlanGenerate works, but without any interactive prompting. Handle agent questions by either auto-rejecting them or storing them for TUI display. Return the agent response (plan, patch, or questions) as a Bubble Tea message.",
       "parentId": null,
-      "childIds": [
-        "execution-view-render",
-        "run-data-loader",
-        "live-timer"
-      ],
-      "deps": [
-        "plan-navigation"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T02:08:27.014934Z",
-      "depRationale": {
-        "plan-navigation": "Dashboard is a tab in the right pane established by plan navigation"
-      }
-    },
-    "execution-view-render": {
-      "id": "execution-view-render",
-      "title": "Render execution dashboard view",
-      "description": "Implement the rendering logic for the execution dashboard including run status, elapsed time, log excerpts, and task counts.",
-      "acceptanceCriteria": [
-        "Renders current run status section with task ID and status",
-        "Shows formatted elapsed time (HH:MM:SS)",
-        "Displays exit code if completed",
-        "Shows log excerpt in scrollable area",
-        "Displays ready/blocked task counts",
-        "Empty state when no active runs",
-        "Uses lipgloss for styling"
-      ],
-      "prompt": "Create internal/tui/execution_view.go with RenderExecutionView(model Model) string function. Access model.runData (populated by run-data-loader). Format sections: Active Run (task ID, status with color, elapsed time, exit code), Log Output (last 20 lines of stdout/stderr), Task Summary (X ready, Y blocked using execution.ReadyTasks and plan.UnmetDeps counts). Handle empty state gracefully. Use lipgloss for section headers and status colors.",
-      "parentId": "execution-dashboard",
       "childIds": [],
       "deps": [],
       "status": "done",
       "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T01:36:21.787868Z"
+      "updatedAt": "2026-01-29T02:46:29.146906Z"
     },
-    "live-timer": {
-      "id": "live-timer",
-      "title": "Add live elapsed time updates",
-      "description": "Implement a timer tick command that updates the UI every second to refresh elapsed time for running tasks, making the dashboard feel live and responsive.",
+    "modal-form": {
+      "id": "modal-form",
+      "title": "Create Plan Generation Modal Form",
+      "description": "Build a Bubble Tea modal component that captures plan generation inputs (project description, constraints, granularity) with multi-line text input support and proper validation.",
       "acceptanceCriteria": [
-        "Timer ticks every 1 second while task is running",
-        "Elapsed time updates without user input",
-        "Timer only active when there are running tasks",
-        "No excessive CPU usage",
-        "Uses Bubble Tea tick command pattern"
+        "Modal displays when 'g' key is pressed",
+        "Form includes fields for project description (required, multi-line), constraints (optional, multi-line), and granularity (optional, single-line)",
+        "Modal has navigation between fields (Tab/Enter to advance, Shift+Tab to go back)",
+        "ESC key cancels and closes modal without action",
+        "Submit button/action validates required fields before proceeding",
+        "Modal is properly styled and centered on screen using lipgloss"
       ],
-      "prompt": "Create internal/tui/timer.go with TickCmd() tea.Cmd that uses time.After(1 * time.Second) to send tick messages. In model.go Update(), handle tick message: check if any tasks are running (status=running or waiting_user) in runData, if yes recalculate elapsed times and return TickCmd() for next tick, if no stop ticking. Start ticking in Init() if runs exist. Ensure efficient re-rendering.",
-      "parentId": "execution-dashboard",
-      "childIds": [],
-      "deps": [
-        "run-data-loader"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T01:43:26.6707Z",
-      "depRationale": {
-        "run-data-loader": "Timer needs runData to determine if tasks are running"
-      }
-    },
-    "navigation-keys": {
-      "id": "navigation-keys",
-      "title": "Implement keyboard navigation logic",
-      "description": "Handle all keyboard inputs for navigating the tree (up/down), expanding/collapsing items (enter/space), switching panes (tab), filtering (f), and scrolling detail pane.",
-      "acceptanceCriteria": [
-        "Up/down arrows move selection in tree",
-        "Enter or space expands/collapses parent items",
-        "Tab switches focus between tree and detail panes",
-        "f key cycles through filter modes (all/ready/blocked)",
-        "j/k keys also work for vim-style navigation",
-        "Page up/down scrolls detail pane",
-        "Home/end keys jump to first/last item"
-      ],
-      "prompt": "Update internal/tui/model.go Update() method to handle tea.KeyMsg. Implement: arrow up/down to move selection through visible items in tree order (respecting collapsed state), enter/space to toggle expanded state for parents, tab to toggle activePane between 'tree' and 'detail', f to cycle filterMode, j/k as aliases for up/down, page up/down for detail scrolling. Update selectedID and expandedItems map accordingly. Add helper methods: nextVisibleItem(), prevVisibleItem(), isParent().",
-      "parentId": "plan-navigation",
-      "childIds": [],
-      "deps": [
-        "tree-view",
-        "detail-view"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T01:52:40.469281Z",
-      "depRationale": {
-        "detail-view": "Scrolling requires detail view to be implemented",
-        "tree-view": "Navigation depends on tree rendering logic for visible items"
-      }
-    },
-    "plan-navigation": {
-      "id": "plan-navigation",
-      "title": "Implement plan tree + detail pane views",
-      "description": "Build the left pane showing hierarchical plan tree and right pane showing selected item details. Implement keyboard navigation (up/down, expand/collapse, tab to switch panes) and status-based filtering.",
-      "acceptanceCriteria": [
-        "Left pane displays plan items in tree structure",
-        "Items show ID, status, and readiness indicator",
-        "Up/down arrow keys navigate tree",
-        "Enter/space to expand/collapse parent items",
-        "Right pane shows full item details (description, deps, AC)",
-        "Tab key switches between panes",
-        "Status filtering (show all, ready only, blocked only)"
-      ],
-      "prompt": "Implement plan tree view in internal/tui/tree_view.go and detail view in internal/tui/detail_view.go. Update Model to track cursor position, expanded items, filter mode. In Update(), handle arrow keys for navigation, enter for expand/collapse, tab for pane switching, f key for filter cycling. In View(), render two-column layout with tree on left and details on right. Use lipgloss for styling. Reuse readinessLabel and UnmetDeps from plan package.",
+      "prompt": "Create a new modal form component in the TUI that captures the three inputs needed for plan generation: project description (required, multi-line textarea), constraints (optional, multi-line textarea displayed as comma-separated), and granularity (optional, single-line input). The modal should follow the same styling patterns as the existing set-status modal, with keyboard navigation between fields and ESC to cancel. Use charmbracelet/bubbles textarea or textinput components for the form fields.",
       "parentId": null,
-      "childIds": [
-        "tree-view",
-        "detail-view",
-        "navigation-keys"
-      ],
-      "deps": [
-        "tui-scaffold"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T02:00:57.159787Z",
-      "depRationale": {
-        "tui-scaffold": "Need base TUI structure before implementing views"
-      }
-    },
-    "run-data-loader": {
-      "id": "run-data-loader",
-      "title": "Load run records from storage",
-      "description": "Add functionality to load run records from .blackbird/runs directory and maintain them in the Model state. Use execution package's storage functions to read run data.",
-      "acceptanceCriteria": [
-        "Model includes runData field with map of taskID -\u003e RunRecord",
-        "Init command loads initial run data",
-        "Uses execution.LatestRunByTask or similar",
-        "Handles missing .blackbird/runs directory gracefully",
-        "Run data is refreshed periodically or on demand"
-      ],
-      "prompt": "Add runData map[string]execution.RunRecord field to Model in internal/tui/model.go. Create internal/tui/run_loader.go with LoadRunData() tea.Cmd that reads run records using execution package storage functions. Call LoadRunData in Model.Init(). Handle errors gracefully (missing directory is OK). Store results in model.runData via a custom message type RunDataLoaded. Add refresh command that can be triggered periodically.",
-      "parentId": "execution-dashboard",
       "childIds": [],
       "deps": [],
       "status": "done",
       "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T01:40:29.100986Z"
+      "updatedAt": "2026-01-29T02:50:31.316716Z"
     },
-    "tests-log": {
-      "id": "tests-log",
-      "title": "Add minimal tests + update AGENT_LOG",
-      "description": "Write unit tests for TUI components that don't require full Bubble Tea program (helpers, formatters, state logic). Update AGENT_LOG.md with implementation notes and design decisions.",
+    "modal-integration": {
+      "id": "modal-integration",
+      "title": "Integrate Modal into TUI Model",
+      "description": "Wire the plan generation modal into the TUI's Model, Update, and View methods to handle the new action mode and keyboard flow.",
       "acceptanceCriteria": [
-        "Unit tests for tree rendering logic",
-        "Unit tests for navigation helpers (nextVisible, prevVisible)",
-        "Unit tests for elapsed time calculation",
-        "CLI test that zero-args launches TUI (mocked)",
-        "AGENT_LOG.md updated with TUI section",
-        "All tests pass",
-        "Test coverage for core logic paths"
+        "New ActionMode value added (e.g., ActionGeneratePlan)",
+        "Pressing 'g' in normal mode transitions to ActionGeneratePlan mode and shows modal",
+        "Modal key events are routed to modal component in Update method",
+        "Modal is rendered as overlay in View method when action mode is active",
+        "Submitting modal captures form data and transitions to command execution"
       ],
-      "prompt": "Create internal/tui/tree_view_test.go, model_test.go, timer_test.go with unit tests. Test tree rendering with various plan structures, navigation logic with collapsed/expanded states, elapsed time formatting. Add test to internal/cli/cli_test.go that verifies Run([]) calls TUI (mock tui.Start). Update AGENT_LOG.md with new section: TUI implementation approach, Bubble Tea choice rationale, key decisions (pane layout, action integration), risks encountered and mitigations. Run go test ./internal/tui/... to verify.",
+      "prompt": "Integrate the plan generation modal into the TUI's core model (internal/tui/model.go). Add a new ActionMode constant for the generate plan modal. Update the Update() method to handle 'g' key press by transitioning to the modal mode, and route subsequent key events to the modal component. Update the View() method to render the modal as an overlay when in ActionGeneratePlan mode, similar to how ActionSetStatus modal is rendered.",
       "parentId": null,
-      "childIds": [
-        "tui-tests",
-        "agent-log-update"
-      ],
-      "deps": [
-        "actions-integration"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T02:17:36.760735Z",
-      "depRationale": {
-        "actions-integration": "All major features should be complete before writing comprehensive tests"
-      }
-    },
-    "tree-view": {
-      "id": "tree-view",
-      "title": "Build hierarchical plan tree view",
-      "description": "Create rendering logic for the left pane that displays items in a tree structure with proper indentation, status indicators, and readiness labels. Support filtering and expandable/collapsible nodes.",
-      "acceptanceCriteria": [
-        "Tree renders with proper indentation for hierarchy",
-        "Each item shows: ID, status, readiness label, title",
-        "Parent items show expand/collapse indicator (▶/▼)",
-        "Collapsed parent hides children",
-        "Current selection is highlighted",
-        "Filter mode affects which items are shown",
-        "Uses lipgloss for colors and styling"
-      ],
-      "prompt": "Create internal/tui/tree_view.go with RenderTreeView(model Model) string function. Recursively walk plan tree starting from root items. For each item, render with indent based on depth, status color, readiness label from plan package, and expand indicator. Track model.expandedItems map to show/hide children. Highlight model.selectedID. Apply model.filterMode to skip non-matching items. Use lipgloss for styling (green=done, yellow=in_progress, red=blocked, blue=ready).",
-      "parentId": "plan-navigation",
-      "childIds": [],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T01:48:59.158297Z"
-    },
-    "tui-entrypoint": {
-      "id": "tui-entrypoint",
-      "title": "Wire TUI entrypoint into CLI",
-      "description": "Update cli.Run to detect zero-args case and launch TUI. Create tui.Start() function that loads the plan, initializes the Bubble Tea program, and runs it.",
-      "acceptanceCriteria": [
-        "cli.Run calls tui.Start() when len(args)==0",
-        "tui.Start() loads plan from planPath()",
-        "tui.Start() initializes and runs bubbletea.Program",
-        "Error handling for missing or invalid plan files",
-        "Running `blackbird` launches TUI"
-      ],
-      "prompt": "Update internal/cli/cli.go Run() function to call tui.Start() when len(args)==0 instead of returning UsageError. Create internal/tui/start.go with Start() function that: loads plan using plan.Load(), validates it, creates Model with plan data, initializes tea.Program, and runs it. Handle plan not found gracefully.",
-      "parentId": "tui-scaffold",
       "childIds": [],
       "deps": [
-        "tui-model"
+        "modal-form"
       ],
       "status": "done",
       "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T01:57:33.062279Z",
+      "updatedAt": "2026-01-29T02:51:06.228728Z",
       "depRationale": {
-        "tui-model": "Need Model implementation to initialize tea.Program"
+        "modal-form": "Modal component must exist before it can be integrated into the main TUI model"
       }
     },
-    "tui-model": {
-      "id": "tui-model",
-      "title": "Create base Bubble Tea model structure",
-      "description": "Implement the core Bubble Tea Model interface with Init, Update, and View methods. Set up the basic state structure to hold plan data, execution state, and UI state (current pane, selected item, etc.).",
+    "overwrite-check": {
+      "id": "overwrite-check",
+      "title": "Add Existing Plan Overwrite Confirmation",
+      "description": "Check if a plan already exists before starting generation and prompt user to confirm overwrite, preventing accidental data loss.",
       "acceptanceCriteria": [
-        "Model struct with Init, Update, View methods",
-        "State includes plan reference, selected item ID, active pane",
-        "Basic keyboard navigation (q to quit)",
-        "Window size handling via tea.WindowSizeMsg",
-        "Model compiles and passes basic tests"
+        "Before showing generation modal, check if plan.json exists and has items",
+        "If plan exists, show confirmation dialog with item count",
+        "User can confirm overwrite or cancel",
+        "Canceling returns to normal view without showing generation modal",
+        "Confirming proceeds to show generation modal normally"
       ],
-      "prompt": "Create internal/tui/model.go with a Model struct implementing bubbletea.Model. Include fields for: plan (WorkGraph), selectedID (string), activePane (string), windowWidth/Height (int). Implement Init() to return nil command, Update() to handle tea.WindowSizeMsg and tea.KeyMsg (q to quit), View() to return placeholder text. Add unit tests.",
-      "parentId": "tui-scaffold",
-      "childIds": [],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T01:54:15.53898Z"
-    },
-    "tui-scaffold": {
-      "id": "tui-scaffold",
-      "title": "Add Bubble Tea TUI skeleton + entrypoint hook",
-      "description": "Create the foundational TUI package structure with Bubble Tea and wire it into the CLI entrypoint so that running `blackbird` with no arguments launches the TUI instead of showing a usage error.",
-      "acceptanceCriteria": [
-        "internal/tui package exists with bubbletea.Model implementation",
-        "cli.Run routes zero-args case to TUI entrypoint",
-        "TUI launches and displays basic welcome screen",
-        "All existing subcommands remain functional",
-        "go.mod includes bubbletea dependency"
-      ],
-      "prompt": "Create internal/tui package with a basic Bubble Tea model that displays a welcome screen. Update internal/cli/cli.go to call tui.Start() when len(args)==0 instead of returning UsageError. Add bubbletea dependency to go.mod. Ensure all existing CLI subcommands continue to work unchanged.",
+      "prompt": "Add a pre-check before showing the plan generation modal. When 'g' is pressed, first check if the current plan (model.plan) has any items. If it does, show a confirmation modal asking 'Plan already exists with N items. Overwrite?' with Yes/No options. Only proceed to the generation modal if the user confirms. This prevents accidental overwrites of existing work, matching the CLI's behavior in agent_flows.go:runPlanGenerate.",
       "parentId": null,
-      "childIds": [
-        "tui-model",
-        "tui-entrypoint"
-      ],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T01:58:25.657436Z"
-    },
-    "tui-tests": {
-      "id": "tui-tests",
-      "title": "Write TUI unit tests",
-      "description": "Create unit tests for TUI components including tree rendering, navigation logic, elapsed time calculation, and state management.",
-      "acceptanceCriteria": [
-        "Tests for tree view rendering with different plan structures",
-        "Tests for navigation (next/prev visible item) with expand/collapse",
-        "Tests for filter mode behavior",
-        "Tests for elapsed time calculation and formatting",
-        "Tests for action trigger logic",
-        "Mock external dependencies (plan loading, run records)",
-        "All tests pass with go test"
-      ],
-      "prompt": "Create test files: internal/tui/tree_view_test.go (test rendering with nested items, collapsed state), internal/tui/model_test.go (test navigation helpers, selection updates, filter application), internal/tui/timer_test.go (test elapsed time calculation), internal/tui/actions_test.go (test action dispatch). Use testify or standard testing. Mock plan.WorkGraph with sample data. Test edge cases: empty plan, single item, deep hierarchy. Ensure tests run fast without actual TUI rendering.",
-      "parentId": "tests-log",
       "childIds": [],
-      "deps": [],
+      "deps": [
+        "modal-integration"
+      ],
       "status": "done",
       "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T02:19:59.109185Z"
+      "updatedAt": "2026-01-29T02:53:24.283712Z",
+      "depRationale": {
+        "modal-integration": "Overwrite check needs to intercept the modal flow, so modal integration must exist first"
+      }
+    },
+    "plan-review": {
+      "id": "plan-review",
+      "title": "Implement Plan Review and Revision Flow",
+      "description": "Add UI flow to review the generated plan with options to accept, revise, or reject, matching the CLI's review loop functionality.",
+      "acceptanceCriteria": [
+        "After agent returns plan, display summary and tree preview",
+        "Show action choices: Accept, Revise, Reject",
+        "Accept option saves plan and returns to normal TUI view",
+        "Revise option prompts for revision request and re-runs agent (1 revision allowed)",
+        "Reject option discards plan and returns to normal view",
+        "Plan is displayed in a scrollable view or separate screen"
+      ],
+      "prompt": "Implement the plan review and revision flow in the TUI. When the agent successfully generates a plan, display it with a summary (item count, top-level features) and a tree preview. Show three options: Accept (saves plan and reloads TUI), Revise (prompts for changes and re-runs agent once), or Reject (cancels and returns to previous state). The revision flow should allow the user to enter a text description of desired changes, then re-invoke the agent with a refine request. This mirrors the CLI's review loop in agent_flows.go but adapted for the TUI interaction model.",
+      "parentId": null,
+      "childIds": [],
+      "deps": [
+        "spinner-progress",
+        "agent-questions"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-29T03:04:54.573748Z",
+      "depRationale": {
+        "agent-questions": "Revision may trigger more agent questions, so question handling should be in place",
+        "spinner-progress": "Plan review happens after plan generation completes, so generation flow must be working"
+      }
+    },
+    "spinner-progress": {
+      "id": "spinner-progress",
+      "title": "Add Spinner and Progress Feedback",
+      "description": "Show spinner animation and status message in the bottom bar while plan generation is running, and handle the response when the agent completes.",
+      "acceptanceCriteria": [
+        "Spinner animates in bottom bar with message 'Generating plan...'",
+        "actionInProgress flag is set during generation",
+        "Model receives agent response message when generation completes",
+        "Success response updates the plan and clears spinner",
+        "Error response displays error message in ActionOutput"
+      ],
+      "prompt": "Update the TUI to show progress feedback during plan generation. When the modal is submitted and GeneratePlanInMemory command is dispatched, set actionInProgress=true and actionName='Generating plan...' to show the spinner. Define a new message type (e.g., planGenerateResultMsg) to receive the agent response. In the Update method, handle this message by updating the model's plan on success or showing an error ActionOutput on failure, then clearing the spinner and action mode.",
+      "parentId": null,
+      "childIds": [],
+      "deps": [
+        "modal-integration",
+        "in-memory-command"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-29T02:54:46.252942Z",
+      "depRationale": {
+        "in-memory-command": "In-memory command must exist to have something to show progress for",
+        "modal-integration": "Modal must be integrated before we can handle its submission"
+      }
+    },
+    "test-validation": {
+      "id": "test-validation",
+      "title": "Test and Validate Complete Flow",
+      "description": "Comprehensive end-to-end testing of the plan generation modal feature, including edge cases and error scenarios.",
+      "acceptanceCriteria": [
+        "Can open modal with 'g', enter inputs, and submit successfully",
+        "Spinner shows during generation and clears on completion",
+        "Generated plan is displayed correctly in tree view after acceptance",
+        "Agent questions are displayed and answered correctly",
+        "Plan revision works and re-runs agent with changes",
+        "Overwrite confirmation prevents accidental data loss",
+        "ESC key cancels modal at each stage without side effects",
+        "Error scenarios (agent failure, invalid input) display appropriate messages",
+        "All keyboard shortcuts continue to work after using modal"
+      ],
+      "prompt": "Perform comprehensive testing of the plan generation modal feature. Test the full happy path: press 'g', fill in form, submit, answer any agent questions, review plan, accept/revise. Test edge cases: ESC at each stage, empty inputs, very long inputs, agent errors, network timeouts. Test with existing plan (overwrite prompt). Verify all error messages are clear and the TUI remains stable. Test that other TUI features (tree navigation, execute, set-status) still work correctly after using the modal. Document any bugs found and fix them.",
+      "parentId": null,
+      "childIds": [],
+      "deps": [
+        "modal-form",
+        "modal-integration",
+        "in-memory-command",
+        "spinner-progress",
+        "agent-questions",
+        "plan-review",
+        "overwrite-check"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-29T03:14:06.514662Z",
+      "depRationale": {
+        "agent-questions": "All components must be implemented before testing",
+        "in-memory-command": "All components must be implemented before testing",
+        "modal-form": "All components must be implemented before testing",
+        "modal-integration": "All components must be implemented before testing",
+        "overwrite-check": "All components must be implemented before testing",
+        "plan-review": "All components must be implemented before testing",
+        "spinner-progress": "All components must be implemented before testing"
+      }
     }
   }
 }

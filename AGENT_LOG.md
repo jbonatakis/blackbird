@@ -462,3 +462,8 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 
 - Documented the TUI default entrypoint (`blackbird`) and key bindings in `README.md`.
 - Noted the execution selection behavior (ready tasks include non-leaf items).
+
+## 2026-01-29 — TUI plan refresh tick
+
+- Added plan reload in the TUI every 5 seconds to keep task statuses in sync during execution.
+- Plan updates now refresh on action completion alongside run data.

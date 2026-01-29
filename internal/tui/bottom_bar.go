@@ -84,6 +84,26 @@ func actionHints(model Model, readyCount int) []string {
 	if model.actionMode == ActionModeSetStatus {
 		actions = []string{"[q]uit"}
 	}
+	if model.actionMode == ActionModeGeneratePlan {
+		actions = []string{"[enter]submit", "[esc]cancel", "[tab]next", "[shift+tab]prev", "[q]uit"}
+	}
+	if model.actionMode == ActionModeAgentQuestion {
+		if model.agentQuestionForm != nil {
+			currentQ := model.agentQuestionForm.CurrentQuestion()
+			if len(currentQ.Options) > 0 {
+				actions = []string{"[↑/↓]navigate", "[1-9]select", "[enter]confirm", "[esc]cancel", "[q]uit"}
+			} else {
+				actions = []string{"[enter]submit", "[esc]cancel", "[q]uit"}
+			}
+		}
+	}
+	if model.actionMode == ActionModePlanReview {
+		if model.planReviewForm != nil && model.planReviewForm.mode == ReviewModeChooseAction {
+			actions = []string{"[↑/↓]navigate", "[1-3]select", "[enter]confirm", "[esc]cancel", "[q]uit"}
+		} else if model.planReviewForm != nil && model.planReviewForm.mode == ReviewModeRevisionPrompt {
+			actions = []string{"[ctrl+s]submit", "[esc]back", "[q]uit"}
+		}
+	}
 	return actions
 }
 

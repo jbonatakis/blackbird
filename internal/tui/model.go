@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/jbonatakis/blackbird/internal/agent"
 	"github.com/jbonatakis/blackbird/internal/execution"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
@@ -17,6 +18,10 @@ type ActionMode int
 const (
 	ActionModeNone ActionMode = iota
 	ActionModeSetStatus
+	ActionModeGeneratePlan
+	ActionModeConfirmOverwrite
+	ActionModeAgentQuestion
+	ActionModePlanReview
 )
 
 type ActivePane int
@@ -32,6 +37,14 @@ const (
 	TabDetails TabMode = iota
 	TabExecution
 )
+
+// PendingPlanRequest tracks the original plan generation request for question rounds
+type PendingPlanRequest struct {
+	description   string
+	constraints   []string
+	granularity   string
+	questionRound int
+}
 
 type Model struct {
 	plan             plan.WorkGraph
@@ -49,8 +62,12 @@ type Model struct {
 	timerActive      bool
 	expandedItems    map[string]bool
 	filterMode       FilterMode
-	detailOffset     int
-	actionOutput     *ActionOutput
+	detailOffset       int
+	actionOutput       *ActionOutput
+	planGenerateForm   *PlanGenerateForm
+	agentQuestionForm  *AgentQuestionForm
+	planReviewForm     *PlanReviewForm
+	pendingPlanRequest PendingPlanRequest
 }
 
 func NewModel(g plan.WorkGraph) Model {
@@ -71,7 +88,7 @@ func NewModel(g plan.WorkGraph) Model {
 }
 
 func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{m.LoadRunData(), RunDataRefreshCmd()}
+	cmds := []tea.Cmd{m.LoadRunData(), RunDataRefreshCmd(), m.LoadPlanData(), PlanDataRefreshCmd()}
 	if hasActiveRuns(m.runData) {
 		cmds = append(cmds, StartTimerCmd())
 	}
@@ -85,6 +102,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.windowWidth = typed.Width
 		m.windowHeight = typed.Height
+
+		// Update active modal forms with new dimensions
+		if m.planGenerateForm != nil {
+			m.planGenerateForm.SetSize(typed.Width, typed.Height)
+		}
+		if m.agentQuestionForm != nil {
+			m.agentQuestionForm.SetSize(typed.Width, typed.Height)
+		}
+		if m.planReviewForm != nil {
+			m.planReviewForm.SetSize(typed.Width, typed.Height)
+		}
+
 		return m, nil
 	case spinnerTickMsg:
 		if !m.actionInProgress {
@@ -92,6 +121,30 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.spinnerIndex = (m.spinnerIndex + 1) % len(spinnerFrames)
 		return m, spinnerTickCmd()
+	case PlanGenerateInMemoryResult:
+		m.actionInProgress = false
+		m.actionName = ""
+		if typed.Err != nil {
+			m.actionOutput = &ActionOutput{
+				Message: fmt.Sprintf("Plan generation failed: %v", typed.Err),
+				IsError: true,
+			}
+		} else if len(typed.Questions) > 0 {
+			// Agent asked questions - show question modal
+			form := NewAgentQuestionForm(typed.Questions)
+			form.SetSize(m.windowWidth, m.windowHeight)
+			m.agentQuestionForm = &form
+			m.actionMode = ActionModeAgentQuestion
+			return m, nil
+		} else if typed.Plan != nil {
+			// Success - show plan review modal
+			form := NewPlanReviewForm(*typed.Plan, m.pendingPlanRequest.questionRound)
+			form.SetSize(m.windowWidth, m.windowHeight)
+			m.planReviewForm = &form
+			m.actionMode = ActionModePlanReview
+			return m, nil
+		}
+		return m, m.LoadRunData()
 	case PlanActionComplete:
 		m.actionInProgress = false
 		m.actionName = ""
@@ -106,7 +159,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				IsError: false,
 			}
 		}
-		return m, m.LoadRunData()
+		return m, tea.Batch(m.LoadRunData(), m.LoadPlanData())
 	case ExecuteActionComplete:
 		m.actionInProgress = false
 		m.actionName = ""
@@ -122,8 +175,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if typed.Action == "execute" || typed.Action == "resume" || typed.Action == "set-status" {
-			return m, m.LoadRunData()
+			return m, tea.Batch(m.LoadRunData(), m.LoadPlanData())
 		}
+		return m, nil
+	case PlanDataLoaded:
+		if typed.Err != nil {
+			return m, nil
+		}
+		m.plan = typed.Plan
+		m.ensureSelectionVisible()
 		return m, nil
 	case RunDataLoaded:
 		if typed.Err != nil {
@@ -141,6 +201,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case runDataRefreshMsg:
 		return m, tea.Batch(m.LoadRunData(), RunDataRefreshCmd())
+	case planDataRefreshMsg:
+		return m, tea.Batch(m.LoadPlanData(), PlanDataRefreshCmd())
 	case timerStartMsg:
 		if hasActiveRuns(m.runData) && !m.timerActive {
 			m.timerActive = true
@@ -161,6 +223,59 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			default:
 				return HandleSetStatusKey(m, typed.String())
+			}
+		}
+		if m.actionMode == ActionModeConfirmOverwrite {
+			switch typed.String() {
+			case "ctrl+c", "q":
+				return m, tea.Quit
+			default:
+				return HandleConfirmOverwriteKey(m, typed.String())
+			}
+		}
+		if m.actionMode == ActionModeGeneratePlan {
+			switch typed.String() {
+			case "ctrl+c", "q":
+				return m, tea.Quit
+			case "esc":
+				// Cancel modal
+				m.actionMode = ActionModeNone
+				m.planGenerateForm = nil
+				return m, nil
+			default:
+				return HandlePlanGenerateKey(m, typed)
+			}
+		}
+		if m.actionMode == ActionModeAgentQuestion {
+			switch typed.String() {
+			case "ctrl+c", "q":
+				return m, tea.Quit
+			case "esc":
+				// Cancel modal
+				m.actionMode = ActionModeNone
+				m.agentQuestionForm = nil
+				m.pendingPlanRequest = PendingPlanRequest{}
+				return m, nil
+			default:
+				return HandleAgentQuestionKey(m, typed)
+			}
+		}
+		if m.actionMode == ActionModePlanReview {
+			switch typed.String() {
+			case "ctrl+c", "q":
+				return m, tea.Quit
+			case "esc":
+				// Cancel modal - discard plan
+				m.actionMode = ActionModeNone
+				m.planReviewForm = nil
+				m.pendingPlanRequest = PendingPlanRequest{}
+				m.actionOutput = &ActionOutput{
+					Message: "Plan review cancelled",
+					IsError: false,
+				}
+				return m, nil
+			default:
+				return HandlePlanReviewKey(m, typed)
 			}
 		}
 		// Clear action output on any key press (after reading)
@@ -270,9 +385,22 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.actionMode != ActionModeNone || m.actionInProgress {
 				return m, nil
 			}
-			m.actionInProgress = true
-			m.actionName = "Generating plan..."
-			return m, tea.Batch(PlanGenerateCmd(), spinnerTickCmd())
+
+			// Reset pending request state for new generation
+			m.pendingPlanRequest = PendingPlanRequest{}
+
+			// Check if plan already exists with items
+			if len(m.plan.Items) > 0 {
+				// Show confirmation modal
+				m.actionMode = ActionModeConfirmOverwrite
+				return m, nil
+			}
+			// Plan is empty, proceed directly to generation modal
+			form := NewPlanGenerateForm()
+			form.SetSize(m.windowWidth, m.windowHeight)
+			m.planGenerateForm = &form
+			m.actionMode = ActionModeGeneratePlan
+			return m, nil
 		case "r":
 			if m.actionMode != ActionModeNone || m.actionInProgress {
 				return m, nil
@@ -340,6 +468,38 @@ func (m Model) View() string {
 	// Overlay set-status modal if active
 	if m.actionMode == ActionModeSetStatus {
 		modal := RenderSetStatusModal(m)
+		if modal != "" {
+			content = modal
+		}
+	}
+
+	// Overlay confirm overwrite modal if active
+	if m.actionMode == ActionModeConfirmOverwrite {
+		modal := RenderConfirmOverwriteModal(m)
+		if modal != "" {
+			content = modal
+		}
+	}
+
+	// Overlay plan generate modal if active
+	if m.actionMode == ActionModeGeneratePlan && m.planGenerateForm != nil {
+		modal := RenderPlanGenerateModal(m, *m.planGenerateForm)
+		if modal != "" {
+			content = modal
+		}
+	}
+
+	// Overlay agent question modal if active
+	if m.actionMode == ActionModeAgentQuestion && m.agentQuestionForm != nil {
+		modal := RenderAgentQuestionModal(m, *m.agentQuestionForm)
+		if modal != "" {
+			content = modal
+		}
+	}
+
+	// Overlay plan review modal if active
+	if m.actionMode == ActionModePlanReview && m.planReviewForm != nil {
+		modal := RenderPlanReviewModal(m, *m.planReviewForm)
 		if modal != "" {
 			content = modal
 		}
@@ -602,4 +762,12 @@ func renderPane(content string, width int, height int, title string, active bool
 	}
 
 	return rendered
+}
+
+func formatQuestions(questions []agent.Question) string {
+	var parts []string
+	for i, q := range questions {
+		parts = append(parts, fmt.Sprintf("%d. %s", i+1, q.Prompt))
+	}
+	return strings.Join(parts, "\n")
 }
