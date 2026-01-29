@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jbonatakis/blackbird/internal/plan"
+	"github.com/jbonatakis/blackbird/internal/tui"
 )
 
 type UsageError struct {
@@ -53,7 +54,7 @@ Statuses:
 
 func Run(args []string) error {
 	if len(args) == 0 {
-		return UsageError{Message: "missing command"}
+		return tui.Start()
 	}
 
 	switch args[0] {
@@ -263,7 +264,7 @@ func runList(args []string) error {
 			}
 		}
 
-		readyLabel := readinessLabel(it.Status, depsOK, it.Status == plan.StatusBlocked)
+		readyLabel := plan.ReadinessLabel(it.Status, depsOK, it.Status == plan.StatusBlocked)
 
 		var details string
 		if len(unmet) > 0 {
@@ -438,37 +439,6 @@ func parseStatus(s string) (plan.Status, bool) {
 	}
 }
 
-func readinessLabel(status plan.Status, depsOK bool, manualBlocked bool) string {
-	if status == plan.StatusDone {
-		return "DONE"
-	}
-	if status == plan.StatusSkipped {
-		return "SKIPPED"
-	}
-	if status == plan.StatusInProgress {
-		return "IN_PROGRESS"
-	}
-	if status == plan.StatusQueued {
-		return "QUEUED"
-	}
-	if status == plan.StatusWaitingUser {
-		return "WAITING_USER"
-	}
-	if status == plan.StatusFailed {
-		return "FAILED"
-	}
-	if !depsOK {
-		return "BLOCKED"
-	}
-	if manualBlocked {
-		return "BLOCKED"
-	}
-	if status == plan.StatusTodo {
-		return "READY"
-	}
-	return ""
-}
-
 func leafIDs(g plan.WorkGraph) []string {
 	out := make([]string, 0)
 	for id, it := range g.Items {
@@ -513,7 +483,7 @@ func printTreeRec(w io.Writer, g plan.WorkGraph, id string, indent string, visit
 
 	unmet := plan.UnmetDeps(g, it)
 	depsOK := len(unmet) == 0
-	readyLabel := readinessLabel(it.Status, depsOK, it.Status == plan.StatusBlocked)
+	readyLabel := plan.ReadinessLabel(it.Status, depsOK, it.Status == plan.StatusBlocked)
 	fmt.Fprintf(w, "%s%s\t%s\t%s\n", indent, it.ID, it.Status, readyLabel)
 
 	children := append([]string{}, it.ChildIDs...)

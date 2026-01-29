@@ -20,6 +20,10 @@ Go-first CLI for maintaining a durable, validated project work plan (Phase 1).
 
   - `blackbird deps infer`
 
+- Open the TUI (default entrypoint):
+
+  - `blackbird`
+
 - List ready work (leaf tasks whose deps are done):
 
   - `blackbird list`
@@ -53,6 +57,32 @@ Go-first CLI for maintaining a durable, validated project work plan (Phase 1).
   - `blackbird validate`
 
 The plan file lives at repo root as `blackbird.plan.json`.
+
+## TUI (Phase 3)
+
+Running `blackbird` with no arguments launches the TUI. Existing CLI commands
+(`blackbird plan`, `blackbird execute`, etc.) are unchanged.
+
+Layout:
+
+- Left pane: plan tree with status and readiness labels
+- Right pane: details or execution dashboard (toggle with `t`)
+- Bottom bar: action shortcuts and ready/blocked counts
+
+Key bindings:
+
+- `up/down` or `j/k`: move selection in the tree
+- `enter` or space: expand/collapse parent items
+- `tab`: switch focus between tree and detail panes
+- `f`: cycle filters (all, ready, blocked)
+- `pgup/pgdown`: scroll the detail pane
+- `t`: switch details/execution tab
+- `g`: plan generate
+- `r`: plan refine
+- `e`: execute ready tasks
+- `u`: resume waiting task (when available)
+- `s`: set status for selected item
+- `q`: quit
 
 ## Readiness rules (M2)
 
@@ -96,6 +126,8 @@ Execution behavior:
 - For headless execution, Blackbird appends provider-specific auto-approve flags:
   - Codex: `exec --full-auto`
   - Claude: `--permission-mode bypassPermissions`
+- Task selection uses `execution.ReadyTasks`, which currently considers any `todo`
+  item with satisfied deps (including non-leaf tasks).
 
 ## Plan file schema (M1)
 
