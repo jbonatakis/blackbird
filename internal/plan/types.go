@@ -16,9 +16,12 @@ type Status string
 
 const (
 	StatusTodo       Status = "todo"
+	StatusQueued     Status = "queued"
 	StatusInProgress Status = "in_progress"
+	StatusWaitingUser Status = "waiting_user"
 	StatusBlocked    Status = "blocked"
 	StatusDone       Status = "done"
+	StatusFailed     Status = "failed"
 	StatusSkipped    Status = "skipped"
 )
 

@@ -1,0 +1,556 @@
+{
+  "schemaVersion": 1,
+  "items": {
+    "agent-context": {
+      "id": "agent-context",
+      "title": "Execution Context Builder",
+      "description": "Build the context pack that gets sent to the agent for task execution.",
+      "acceptanceCriteria": [
+        "Includes task prompt and acceptance criteria",
+        "Includes project description/snapshot",
+        "Includes prior task artifacts when applicable",
+        "Context is bounded and explicit",
+        "Captures context used in run record"
+      ],
+      "prompt": "Implement BuildContext(g WorkGraph, taskID string) (ContextPack, error) that assembles execution context. Include task details (prompt, description, acceptance criteria), relevant dependencies, and project context. Store context snapshot in run record for reproducibility.",
+      "parentId": "agent-exec",
+      "childIds": [],
+      "deps": [
+        "run-types"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:09:40.510989Z",
+      "depRationale": {
+        "run-types": "Needs ContextPack type definition"
+      }
+    },
+    "agent-exec": {
+      "id": "agent-exec",
+      "title": "Agent Execution Bridge",
+      "description": "Create the bridge layer that launches headless agent runs and captures output.",
+      "acceptanceCriteria": [
+        "Launches agent runtime with task context",
+        "Captures stdout/stderr in real-time",
+        "Handles timeouts and interruptions",
+        "Returns structured execution result",
+        "Works with existing Runtime infrastructure"
+      ],
+      "prompt": "Create ExecuteTask function that takes WorkItem and Runtime, builds execution context (task prompt, project snapshot), launches agent via Runtime.Run, captures output, handles errors, and returns RunRecord. Reuse existing agent.Runtime infrastructure.",
+      "parentId": null,
+      "childIds": [
+        "agent-context",
+        "agent-launcher"
+      ],
+      "deps": [
+        "run-records"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:20:54.439967Z",
+      "depRationale": {
+        "run-records": "Needs RunRecord types to return execution results"
+      }
+    },
+    "agent-launcher": {
+      "id": "agent-launcher",
+      "title": "Headless Agent Launcher",
+      "description": "Implement the actual agent invocation with proper I/O handling.",
+      "acceptanceCriteria": [
+        "Launches agent command with context",
+        "Streams output to RunRecord",
+        "Handles process timeout",
+        "Captures exit code",
+        "Detects waiting_user state from agent output"
+      ],
+      "prompt": "Implement LaunchAgent(ctx context.Context, runtime Runtime, context ContextPack) (RunRecord, error) that executes the agent command, streams stdout/stderr, handles timeout, captures exit code. Parse output to detect if agent is waiting for user input. Build on existing agent.Runtime.Run.",
+      "parentId": "agent-exec",
+      "childIds": [],
+      "deps": [
+        "agent-context"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:13:55.960572Z",
+      "depRationale": {
+        "agent-context": "Needs context to provide to agent"
+      }
+    },
+    "cmd-execute": {
+      "id": "cmd-execute",
+      "title": "Execute Command Implementation",
+      "description": "Implement the main execution loop command.",
+      "acceptanceCriteria": [
+        "Loads plan and validates it",
+        "Loops selecting and executing ready tasks",
+        "Updates task status after each run",
+        "Exits when no ready tasks remain",
+        "Handles ctrl-c gracefully",
+        "Prints progress messages"
+      ],
+      "prompt": "Implement runExecute() that: loads plan, initializes runtime, enters loop of (select ready task, update status to in_progress, execute, update status based on outcome). Handle interrupts cleanly. Print task start/completion. Exit with clear message when queue is empty.",
+      "parentId": "exec-cli",
+      "childIds": [],
+      "deps": [
+        "exec-lifecycle",
+        "agent-launcher",
+        "run-storage"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:15:38.454996Z",
+      "depRationale": {
+        "agent-launcher": "Needs launcher to execute tasks",
+        "exec-lifecycle": "Needs lifecycle management for status updates",
+        "run-storage": "Needs storage to persist run records"
+      }
+    },
+    "cmd-resume": {
+      "id": "cmd-resume",
+      "title": "Resume Command Implementation",
+      "description": "Implement command to resume tasks waiting for user input.",
+      "acceptanceCriteria": [
+        "Identifies runs in waiting_user state",
+        "Prompts user for input",
+        "Continues execution with user response",
+        "Updates run record with interaction",
+        "Handles resume failure gracefully"
+      ],
+      "prompt": "Implement runResume(taskID string) that: finds latest run in waiting_user state, prompts user for input, relaunches agent with continuation context including user response, updates run record. Handle case where no waiting runs exist.",
+      "parentId": "exec-cli",
+      "childIds": [],
+      "deps": [
+        "run-query",
+        "agent-launcher"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:18:47.069159Z",
+      "depRationale": {
+        "agent-launcher": "Needs launcher to resume execution",
+        "run-query": "Needs to find waiting runs"
+      }
+    },
+    "cmd-runs": {
+      "id": "cmd-runs",
+      "title": "Runs History Command",
+      "description": "Implement command to view task run history.",
+      "acceptanceCriteria": [
+        "Lists all runs for a task in chronological order",
+        "Shows run ID, timestamp, status, duration",
+        "Optionally shows full logs with --verbose",
+        "Handles no runs gracefully",
+        "Works with table formatting"
+      ],
+      "prompt": "Implement runRuns(taskID string, flags) that loads and displays run history for a task. Show table with columns: Run ID, Started, Duration, Status, Exit Code. Add --verbose flag to show full stdout/stderr. Use tabwriter for formatting.",
+      "parentId": "exec-cli",
+      "childIds": [],
+      "deps": [
+        "run-query"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:07:09.148018Z",
+      "depRationale": {
+        "run-query": "Needs query functions to retrieve run history"
+      }
+    },
+    "exec-cli": {
+      "id": "exec-cli",
+      "title": "Execution CLI Commands",
+      "description": "Add CLI commands for execution control (start, stop, resume).",
+      "acceptanceCriteria": [
+        "blackbird execute command starts execution",
+        "blackbird stop command halts execution gracefully",
+        "blackbird runs \u003ctaskID\u003e shows run history",
+        "blackbird resume \u003ctaskID\u003e resumes waiting_user runs",
+        "Help text documents all commands"
+      ],
+      "prompt": "Add CLI commands: 'execute' to start execution loop, 'stop' to gracefully halt, 'runs \u003ctaskID\u003e' to show run history, 'resume \u003ctaskID\u003e' to continue waiting runs. Integrate with existing cli.Run switch. Update Usage() with new commands.",
+      "parentId": null,
+      "childIds": [
+        "cmd-execute",
+        "cmd-runs",
+        "cmd-resume"
+      ],
+      "deps": [
+        "exec-dispatch",
+        "agent-exec"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:21:10.230469Z",
+      "depRationale": {
+        "agent-exec": "Needs execution bridge to run tasks",
+        "exec-dispatch": "Needs dispatcher to select tasks"
+      }
+    },
+    "exec-dispatch": {
+      "id": "exec-dispatch",
+      "title": "Execution Dispatcher Core",
+      "description": "Implement the core execution dispatcher that selects ready tasks and orchestrates their execution lifecycle.",
+      "acceptanceCriteria": [
+        "Task selection policy identifies ready tasks (todo status + deps satisfied)",
+        "Respects manual overrides (blocked, skipped statuses)",
+        "Deterministic selection order (smallest ID first by default)",
+        "Handles empty queue gracefully with clear messaging"
+      ],
+      "prompt": "Create the execution dispatcher module that analyzes the plan graph and selects ready tasks for execution. Implement task readiness logic that checks status=todo and all deps satisfied. Support filtering by tags or explicit task IDs. Use deterministic ordering for predictable execution.",
+      "parentId": null,
+      "childIds": [
+        "exec-selector",
+        "exec-lifecycle"
+      ],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:20:57.322761Z"
+    },
+    "exec-docs": {
+      "id": "exec-docs",
+      "title": "Execution Documentation",
+      "description": "User-facing documentation for execution features.",
+      "acceptanceCriteria": [
+        "README updated with execution workflow",
+        "CLI help text covers all execution commands",
+        "Examples of common execution patterns",
+        "Troubleshooting guide for failures",
+        "Architecture documentation for developers"
+      ],
+      "prompt": "Update README.md with execution section explaining: how to start execution, monitoring progress, handling failures, retrying tasks, resuming after questions. Add examples. Update internal/execution/README.md with architecture overview. Ensure CLI usage() is complete.",
+      "parentId": null,
+      "childIds": [],
+      "deps": [
+        "exec-cli",
+        "human-in-loop",
+        "safety-recovery"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:21:57.893273Z",
+      "depRationale": {
+        "exec-cli": "Documents CLI commands",
+        "human-in-loop": "Documents question handling",
+        "safety-recovery": "Documents failure and retry workflows"
+      }
+    },
+    "exec-lifecycle": {
+      "id": "exec-lifecycle",
+      "title": "Task Execution Lifecycle Manager",
+      "description": "Implement state transitions and lifecycle management for task execution.",
+      "acceptanceCriteria": [
+        "Supports queued -\u003e in_progress -\u003e done/failed/waiting_user transitions",
+        "Updates WorkItem status atomically in plan file",
+        "Updates timestamps on status changes",
+        "Prevents invalid state transitions"
+      ],
+      "prompt": "Create lifecycle management functions that transition tasks through execution states. Implement UpdateTaskStatus that atomically updates status and timestamp. Ensure state transitions are valid (e.g., can't go from done to in_progress).",
+      "parentId": "exec-dispatch",
+      "childIds": [],
+      "deps": [
+        "exec-selector"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:11:18.338555Z",
+      "depRationale": {
+        "exec-selector": "Needs task selection to know which tasks to manage lifecycle for"
+      }
+    },
+    "exec-selector": {
+      "id": "exec-selector",
+      "title": "Task Selection Logic",
+      "description": "Implement the task selection algorithm that finds ready-to-run tasks from the plan.",
+      "acceptanceCriteria": [
+        "Function returns all tasks with status=todo and satisfied dependencies",
+        "Filters out blocked and skipped tasks",
+        "Returns empty list when no tasks are ready",
+        "Sorted by task ID for deterministic ordering"
+      ],
+      "prompt": "Implement a function ReadyTasks(g WorkGraph) []string that returns task IDs eligible for execution. A task is ready if: status==todo, all deps have status==done, not manually blocked. Sort results by ID.",
+      "parentId": "exec-dispatch",
+      "childIds": [],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:03:01.511319Z"
+    },
+    "exec-tests": {
+      "id": "exec-tests",
+      "title": "Execution System Tests",
+      "description": "Comprehensive test suite for execution infrastructure.",
+      "acceptanceCriteria": [
+        "Unit tests for task selection logic",
+        "Unit tests for lifecycle transitions",
+        "Integration tests for end-to-end execution",
+        "Tests for failure and recovery scenarios",
+        "Tests for human-in-the-loop flows",
+        "\u003e80% code coverage on execution package"
+      ],
+      "prompt": "Write comprehensive tests: TestReadyTasks for selection, TestLifecycleTransitions for state machine, TestExecuteTask for execution flow, TestFailureHandling for errors, TestQuestionDetection for HITL. Use table-driven tests. Mock agent runtime where appropriate.",
+      "parentId": null,
+      "childIds": [],
+      "deps": [
+        "cmd-execute",
+        "human-in-loop",
+        "safety-recovery"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:22:01.673933Z",
+      "depRationale": {
+        "cmd-execute": "Tests execution command implementation",
+        "human-in-loop": "Tests question detection and resume",
+        "safety-recovery": "Tests failure handling and retry"
+      }
+    },
+    "failure-handling": {
+      "id": "failure-handling",
+      "title": "Failure Handling Logic",
+      "description": "Implement proper handling of task execution failures.",
+      "acceptanceCriteria": [
+        "Failed task status set to blocked (or new failed status)",
+        "Dependents remain blocked",
+        "Error details captured in run record",
+        "Execution continues with other ready tasks",
+        "User notified of failure"
+      ],
+      "prompt": "When agent execution fails (non-zero exit, timeout, error), update task status appropriately (consider adding 'failed' status or use 'blocked'), save run record with error details, log failure message, continue execution loop with other tasks. Ensure dependents can't run.",
+      "parentId": "safety-recovery",
+      "childIds": [],
+      "deps": [
+        "exec-lifecycle",
+        "run-storage"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:17:29.464456Z",
+      "depRationale": {
+        "exec-lifecycle": "Needs lifecycle to transition to failed state",
+        "run-storage": "Needs storage to save failure details"
+      }
+    },
+    "human-in-loop": {
+      "id": "human-in-loop",
+      "title": "Human-in-the-Loop Integration",
+      "description": "Implement detection and handling of agent questions during execution.",
+      "acceptanceCriteria": [
+        "Detects when agent requests user input",
+        "Pauses execution and sets status to waiting_user",
+        "Records question in run record",
+        "Resume includes user answer in context",
+        "Q\u0026A recorded in run history"
+      ],
+      "prompt": "Implement question detection in agent output parsing. When agent output contains question marker, pause execution, save run with waiting_user status, record question. In resume flow, inject user answer into agent context. Store Q\u0026A pairs in run record.",
+      "parentId": null,
+      "childIds": [
+        "question-detect",
+        "question-resume"
+      ],
+      "deps": [
+        "agent-launcher"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:21:00.930848Z",
+      "depRationale": {
+        "agent-launcher": "Needs launcher output to detect questions"
+      }
+    },
+    "question-detect": {
+      "id": "question-detect",
+      "title": "Question Detection Logic",
+      "description": "Parse agent output to detect when it's asking for user input.",
+      "acceptanceCriteria": [
+        "Detects AskUserQuestion tool usage in agent output",
+        "Extracts question text and options",
+        "Returns structured Question object",
+        "Handles multiple questions in one output",
+        "Returns nil when no questions found"
+      ],
+      "prompt": "Implement ParseQuestions(agentOutput string) ([]Question, error) that examines agent output for question markers (e.g., tool use blocks). Extract question text and options. Return structured data. Consider reusing agent.Question type from existing codebase.",
+      "parentId": "human-in-loop",
+      "childIds": [],
+      "deps": [
+        "run-types"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:08:39.112115Z",
+      "depRationale": {
+        "run-types": "Needs types to store question data"
+      }
+    },
+    "question-resume": {
+      "id": "question-resume",
+      "title": "Question Resume Logic",
+      "description": "Build continuation context that includes user answers.",
+      "acceptanceCriteria": [
+        "Prompts user for each question",
+        "Validates answer matches options",
+        "Builds continuation context with Q\u0026A",
+        "Agent receives answer in correct format",
+        "Stores Q\u0026A in run record"
+      ],
+      "prompt": "Implement ResumeWithAnswer(run RunRecord, answers []Answer) (ContextPack, error) that prompts user for answers to questions, validates them, builds continuation context including prior conversation and user answers. Format matches what agent expects.",
+      "parentId": "human-in-loop",
+      "childIds": [],
+      "deps": [
+        "question-detect",
+        "agent-context"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:16:54.258666Z",
+      "depRationale": {
+        "agent-context": "Needs context builder to create continuation",
+        "question-detect": "Needs questions to prompt for answers"
+      }
+    },
+    "retry-cmd": {
+      "id": "retry-cmd",
+      "title": "Retry Command Implementation",
+      "description": "Add CLI command to retry failed tasks.",
+      "acceptanceCriteria": [
+        "blackbird retry \u003ctaskID\u003e resets failed task",
+        "Clears failed run markers",
+        "Sets status back to todo",
+        "Validates task is retryable",
+        "Updates timestamps"
+      ],
+      "prompt": "Implement runRetry(taskID string) that: verifies task exists and is in failed/blocked state with failed runs, resets status to todo, updates timestamp, prints confirmation. Add to CLI switch and usage text.",
+      "parentId": "safety-recovery",
+      "childIds": [],
+      "deps": [
+        "failure-handling",
+        "run-query"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:19:44.602558Z",
+      "depRationale": {
+        "failure-handling": "Needs failure handling to define retry semantics",
+        "run-query": "Needs to check run history for failures"
+      }
+    },
+    "run-query": {
+      "id": "run-query",
+      "title": "Run Record Query Functions",
+      "description": "Implement functions to query and retrieve run records.",
+      "acceptanceCriteria": [
+        "ListRuns(taskID) returns all run records for a task",
+        "LoadRun(taskID, runID) loads a specific run record",
+        "GetLatestRun(taskID) returns most recent run",
+        "Returns empty list when no runs exist",
+        "Handles missing files gracefully"
+      ],
+      "prompt": "Implement query functions: ListRuns(baseDir, taskID string) ([]RunRecord, error), LoadRun(baseDir, taskID, runID string) (RunRecord, error), GetLatestRun(baseDir, taskID string) (*RunRecord, error). Sort by StartedAt timestamp.",
+      "parentId": "run-records",
+      "childIds": [],
+      "deps": [
+        "run-storage"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:05:11.268099Z",
+      "depRationale": {
+        "run-storage": "Needs storage format to implement query"
+      }
+    },
+    "run-records": {
+      "id": "run-records",
+      "title": "Run Record Infrastructure",
+      "description": "Create durable storage and types for recording agent execution runs.",
+      "acceptanceCriteria": [
+        "RunRecord struct captures all required fields (task ID, provider, timestamps, outcome, logs)",
+        "Records stored in repo under .blackbird/runs/ directory",
+        "Each run has unique ID and is immutable once written",
+        "Records can be queried by task ID",
+        "Supports stdout/stderr log capture"
+      ],
+      "prompt": "Define RunRecord type with fields: ID, TaskID, Provider, StartedAt, CompletedAt, Status (running/success/failed/waiting_user), ExitCode, Stdout, Stderr, ContextSnapshot. Implement persistence layer that writes records to .blackbird/runs/{task-id}/{run-id}.json. Create query functions to list and load runs.",
+      "parentId": null,
+      "childIds": [
+        "run-types",
+        "run-storage",
+        "run-query"
+      ],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:21:04.381723Z"
+    },
+    "run-storage": {
+      "id": "run-storage",
+      "title": "Run Record Storage Layer",
+      "description": "Implement persistence for run records to filesystem.",
+      "acceptanceCriteria": [
+        "SaveRun atomically writes run records to .blackbird/runs/",
+        "Directory structure: .blackbird/runs/{task-id}/{run-id}.json",
+        "Atomic writes prevent partial records",
+        "Creates directories as needed",
+        "Returns error on write failure"
+      ],
+      "prompt": "Implement SaveRun(baseDir string, record RunRecord) error that atomically writes run record to .blackbird/runs/{task-id}/{run-id}.json. Use atomic write pattern (write to temp, rename). Create parent directories if needed.",
+      "parentId": "run-records",
+      "childIds": [],
+      "deps": [
+        "run-types"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:04:12.625713Z",
+      "depRationale": {
+        "run-types": "Needs RunRecord type definition to persist"
+      }
+    },
+    "run-types": {
+      "id": "run-types",
+      "title": "Run Record Data Types",
+      "description": "Define the data structures for run records and execution outcomes.",
+      "acceptanceCriteria": [
+        "RunRecord struct defined with all required fields",
+        "RunStatus enum (running, success, failed, waiting_user) defined",
+        "ContextPack struct for capturing execution context",
+        "JSON serialization works correctly",
+        "Timestamp fields use UTC"
+      ],
+      "prompt": "In internal/execution/ create types.go defining RunRecord, RunStatus, and ContextPack. RunRecord should include: ID (UUID), TaskID, Provider, StartedAt, CompletedAt, Status, ExitCode, Stdout, Stderr, Context. Ensure JSON marshaling works properly.",
+      "parentId": "run-records",
+      "childIds": [],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:01:00.992516Z"
+    },
+    "safety-recovery": {
+      "id": "safety-recovery",
+      "title": "Safety and Recovery Mechanisms",
+      "description": "Implement safety checks and recovery flows for failed executions.",
+      "acceptanceCriteria": [
+        "Failed tasks don't unblock dependents",
+        "Failed tasks can be manually retried",
+        "Execution state survives process restart",
+        "Partial work is preserved",
+        "Clear error messages for failures"
+      ],
+      "prompt": "Add safety checks: verify failed tasks remain blocked from dependents. Implement retry mechanism via 'blackbird retry \u003ctaskID\u003e' that resets status to todo and clears failed run. Ensure execution state in plan file allows safe restart. Add validation that execution doesn't corrupt plan.",
+      "parentId": null,
+      "childIds": [
+        "failure-handling",
+        "retry-cmd"
+      ],
+      "deps": [
+        "exec-lifecycle",
+        "run-storage"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T22:21:07.771006Z",
+      "depRationale": {
+        "exec-lifecycle": "Needs lifecycle to handle failure transitions",
+        "run-storage": "Needs run records to determine retry eligibility"
+      }
+    }
+  }
+}

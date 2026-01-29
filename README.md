@@ -69,6 +69,34 @@ The plan file lives at repo root as `blackbird.plan.json`.
 - `blackbird deps infer` proposes dependency updates, shows a diff + rationale excerpt, and applies on acceptance.
 - Summaries include the provider/model used for the run.
 
+## Execution (Phase 2)
+
+Blackbird can execute ready tasks using a headless agent runtime.
+
+Core commands:
+
+- `blackbird execute` runs ready tasks in dependency order until none remain.
+- `blackbird runs <taskID>` shows run history for a task (`--verbose` prints logs).
+- `blackbird resume <taskID>` answers waiting_user questions and continues execution.
+- `blackbird retry <taskID>` resets failed tasks with failed run history back to `todo`.
+
+Run records are stored under `.blackbird/runs/<taskID>/<runID>.json`.
+
+Optional snapshot file:
+
+- `.blackbird/snapshot.md` is used as the project snapshot when building execution
+  context (fallbacks: `OVERVIEW.md`, then `README.md`).
+
+Execution behavior:
+
+- The agent is expected to edit the working tree directly (native CLI behavior).
+- Blackbird records stdout/stderr and exit code only; it does not apply patches.
+- Execution includes a system prompt that authorizes non-destructive commands and file edits
+  without confirmation.
+- For headless execution, Blackbird appends provider-specific auto-approve flags:
+  - Codex: `exec --full-auto`
+  - Claude: `--permission-mode bypassPermissions`
+
 ## Plan file schema (M1)
 
 File format is JSON (no YAML dependency). Unknown fields are rejected on load.
@@ -88,7 +116,7 @@ Root object:
 - `parentId` (string|null)
 - `childIds` ([]string; may be empty but must exist)
 - `deps` ([]string; may be empty but must exist)
-- `status` (one of: `todo`, `in_progress`, `blocked`, `done`, `skipped`)
+- `status` (one of: `todo`, `queued`, `in_progress`, `waiting_user`, `blocked`, `done`, `failed`, `skipped`)
 - `createdAt` (RFC3339 timestamp)
 - `updatedAt` (RFC3339 timestamp)
 - `notes` (string; optional)

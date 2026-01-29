@@ -10,6 +10,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jbonatakis/blackbird/internal/agent"
@@ -184,8 +185,9 @@ func runAgentWithQuestions(ctx context.Context, runtime agent.Runtime, req agent
 
 	cur := req
 	for round := 0; round <= maxRounds; round++ {
-		fmt.Fprintln(os.Stdout, "Running agent...")
+		stopProgress := startProgressIndicator(os.Stderr, "Running agent", time.Second)
 		resp, diag, err := runtime.Run(ctx, cur)
+		stopProgress()
 		if err != nil {
 			return agent.Response{}, diag, err
 		}
@@ -199,6 +201,34 @@ func runAgentWithQuestions(ctx context.Context, runtime agent.Runtime, req agent
 		cur.Answers = answers
 	}
 	return agent.Response{}, agent.Diagnostics{}, errors.New("too many clarification rounds")
+}
+
+func startProgressIndicator(w io.Writer, label string, interval time.Duration) func() {
+	if interval <= 0 {
+		interval = time.Second
+	}
+	fmt.Fprintf(w, "%s ", label)
+	done := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				fmt.Fprint(w, ".")
+			}
+		}
+	}()
+	return func() {
+		close(done)
+		wg.Wait()
+		fmt.Fprintln(w, " done")
+	}
 }
 
 func responseToPlan(base plan.WorkGraph, resp agent.Response, now time.Time) (plan.WorkGraph, error) {

@@ -1,0 +1,135 @@
+package execution
+
+import (
+	"bytes"
+	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"os/exec"
+	"time"
+
+	"github.com/jbonatakis/blackbird/internal/agent"
+)
+
+// LaunchAgent executes the agent command with the provided context pack.
+func LaunchAgent(ctx context.Context, runtime agent.Runtime, contextPack ContextPack) (RunRecord, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if runtime.Timeout == 0 {
+		runtime.Timeout = agent.DefaultTimeout
+	}
+	if runtime.Command == "" {
+		return RunRecord{}, fmt.Errorf("agent command required")
+	}
+	if contextPack.Task.ID == "" {
+		return RunRecord{}, fmt.Errorf("context pack task id required")
+	}
+
+	payload, err := json.Marshal(contextPack)
+	if err != nil {
+		return RunRecord{}, fmt.Errorf("encode context pack: %w", err)
+	}
+
+	start := time.Now().UTC()
+	record := RunRecord{
+		ID:        newRunID(),
+		TaskID:    contextPack.Task.ID,
+		Provider:  runtime.Provider,
+		StartedAt: start,
+		Status:    RunStatusRunning,
+		Context:   contextPack,
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, runtime.Timeout)
+	defer cancel()
+
+	var cmd *exec.Cmd
+	if runtime.UseShell {
+		cmd = exec.CommandContext(ctx, "sh", "-c", runtime.Command)
+	} else {
+		args := append([]string{}, runtime.Args...)
+		args = applyAutoApproveArgs(runtime.Provider, args)
+		cmd = exec.CommandContext(ctx, runtime.Command, args...)
+	}
+	cmd.Stdin = bytes.NewReader(payload)
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = streamWriter(&stdout, os.Stdout)
+	cmd.Stderr = streamWriter(&stderr, os.Stderr)
+
+	execErr := cmd.Run()
+	completed := time.Now().UTC()
+	record.CompletedAt = &completed
+	record.Stdout = stdout.String()
+	record.Stderr = stderr.String()
+
+	questions, qErr := ParseQuestions(record.Stdout)
+	if qErr != nil {
+		execErr = errors.Join(execErr, qErr)
+	}
+
+	exitCode := extractExitCode(execErr)
+	if exitCode != nil {
+		record.ExitCode = exitCode
+	}
+
+	if len(questions) > 0 {
+		record.Status = RunStatusWaitingUser
+		return record, nil
+	}
+
+	if execErr != nil {
+		record.Status = RunStatusFailed
+		record.Error = execErr.Error()
+		return record, execErr
+	}
+
+	record.Status = RunStatusSuccess
+	return record, nil
+}
+
+func streamWriter(buf *bytes.Buffer, live io.Writer) io.Writer {
+	if os.Getenv(agent.EnvStream) == "1" {
+		return io.MultiWriter(buf, live)
+	}
+	return buf
+}
+
+func newRunID() string {
+	var b [8]byte
+	_, _ = rand.Read(b[:])
+	return hex.EncodeToString(b[:])
+}
+
+func extractExitCode(err error) *int {
+	if err == nil {
+		code := 0
+		return &code
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		code := exitErr.ExitCode()
+		return &code
+	}
+	return nil
+}
+
+func applyAutoApproveArgs(provider string, args []string) []string {
+	switch provider {
+	case "codex":
+		// Prefer headless auto-approve for execution runs.
+		return append([]string{"exec", "--full-auto"}, args...)
+	case "claude":
+		// Claude Code permission mode to bypass prompts for edits and commands.
+		return append([]string{"--permission-mode", "bypassPermissions"}, args...)
+	default:
+		return args
+	}
+}

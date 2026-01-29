@@ -275,7 +275,7 @@ func contains(ss []string, target string) bool {
 
 func isValidStatus(s Status) bool {
 	switch s {
-	case StatusTodo, StatusInProgress, StatusBlocked, StatusDone, StatusSkipped:
+	case StatusTodo, StatusQueued, StatusInProgress, StatusWaitingUser, StatusBlocked, StatusDone, StatusFailed, StatusSkipped:
 		return true
 	default:
 		return false

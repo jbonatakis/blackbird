@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	DefaultTimeout = 90 * time.Second
+	DefaultTimeout = 60 * 10 * time.Second
 	DefaultRetries = 1
 	EnvProvider    = "BLACKBIRD_AGENT_PROVIDER"
 	EnvCommand     = "BLACKBIRD_AGENT_CMD"
