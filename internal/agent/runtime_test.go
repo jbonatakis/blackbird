@@ -26,6 +26,18 @@ func TestBuildFlagArgsJSONSchemaEmpty(t *testing.T) {
 	}
 }
 
+func TestApplyProviderArgs(t *testing.T) {
+	codex := applyProviderArgs("codex", []string{"--model", "foo"})
+	if len(codex) < 2 || codex[0] != "exec" || codex[1] != "--full-auto" {
+		t.Fatalf("expected codex exec --full-auto prefix, got %v", codex)
+	}
+
+	claude := applyProviderArgs("claude", []string{"--model", "foo"})
+	if len(claude) < 2 || claude[0] != "--permission-mode" || claude[1] != "bypassPermissions" {
+		t.Fatalf("expected claude permission-mode prefix, got %v", claude)
+	}
+}
+
 func containsArg(args []string, target string) bool {
 	for _, arg := range args {
 		if arg == target {

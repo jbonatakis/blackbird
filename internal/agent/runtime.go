@@ -132,6 +132,7 @@ func (r Runtime) runOnce(ctx context.Context, payload []byte, meta RequestMetada
 		command = appendShellArgs(command, flagArgs)
 		args = nil
 	} else {
+		args = applyProviderArgs(r.Provider, args)
 		args = append(args, flagArgs...)
 	}
 
@@ -203,6 +204,19 @@ func buildFlagArgs(provider string, meta RequestMetadata) []string {
 		args = append(args, "--json-schema", meta.JSONSchema)
 	}
 	return args
+}
+
+func applyProviderArgs(provider string, args []string) []string {
+	switch strings.ToLower(provider) {
+	case "codex":
+		// Match execution behavior for non-interactive runs.
+		return append([]string{"exec", "--full-auto"}, args...)
+	case "claude":
+		// Claude Code permission mode to bypass prompts for edits and commands.
+		return append([]string{"--permission-mode", "bypassPermissions"}, args...)
+	default:
+		return args
+	}
 }
 
 func appendShellArgs(command string, args []string) string {

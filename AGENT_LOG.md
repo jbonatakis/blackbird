@@ -488,3 +488,8 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 - Reviewed core plan, execution, agent, CLI, and TUI modules for correctness.
 - Flagged status validation/schema mismatches, question ID validation gaps, and LaunchAgent error handling behavior.
 - Created `BACKLOG.md` capturing missing features vs `OVERVIEW.md`.
+
+## 2026-01-29 — Codex plan flow parity
+
+- Aligned agent runtime provider args with execution behavior so plan flows use non-interactive codex/claude flags.
+- Added coverage for provider arg prefixing in `internal/agent/runtime_test.go`.
