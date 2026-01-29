@@ -482,3 +482,8 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 
 - Added plan reload in the TUI every 5 seconds to keep task statuses in sync during execution.
 - Plan updates now refresh on action completion alongside run data.
+
+## 2026-01-28 — Repository code review
+
+- Reviewed core plan, execution, agent, CLI, and TUI modules for correctness.
+- Flagged status validation/schema mismatches, question ID validation gaps, and LaunchAgent error handling behavior.
