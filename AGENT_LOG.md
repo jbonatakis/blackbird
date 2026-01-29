@@ -487,3 +487,4 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 
 - Reviewed core plan, execution, agent, CLI, and TUI modules for correctness.
 - Flagged status validation/schema mismatches, question ID validation gaps, and LaunchAgent error handling behavior.
+- Created `BACKLOG.md` capturing missing features vs `OVERVIEW.md`.
