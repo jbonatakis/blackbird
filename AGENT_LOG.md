@@ -463,6 +463,21 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 - Documented the TUI default entrypoint (`blackbird`) and key bindings in `README.md`.
 - Noted the execution selection behavior (ready tasks include non-leaf items).
 
+## 2026-01-28 — Documentation cleanup and ignore rules
+
+- Rewrote `README.md` with a public-facing overview, install steps, command summary, and configuration details.
+- Added `docs/README.md` as a documentation index linking to workflows, specs, and testing notes.
+- Expanded `.gitignore` to cover `.blackbird/` run data, coverage output, and test binaries.
+
+## 2026-01-28 — Testing docs reorganization
+
+- Moved testing markdown files into `docs/testing/` and updated cross-references.
+
+## 2026-01-28 — Notes and bugs doc locations
+
+- Moved `AGENT_QUESTIONS_IMPLEMENTATION.md` into `docs/notes/`.
+- Moved `BUGS_AND_FIXES.md` into `docs/testing/`.
+
 ## 2026-01-29 — TUI plan refresh tick
 
 - Added plan reload in the TUI every 5 seconds to keep task statuses in sync during execution.

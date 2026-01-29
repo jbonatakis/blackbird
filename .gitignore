@@ -1,4 +1,7 @@
 .env
-
-/blackbird
 .DS_Store
+
+.blackbird/
+blackbird
+coverage.out
+*.test

@@ -155,10 +155,10 @@ Critical Paths: 100%
    - Enhanced focusPrev() test coverage
 
 ### Documentation Created
-1. `TEST_VALIDATION_REPORT.md` - Comprehensive test plan
-2. `TEST_RESULTS.md` - Detailed test execution results
-3. `BUGS_AND_FIXES.md` - Issue analysis and fixes
-4. `TEST_COMPLETION_SUMMARY.md` - This file
+1. `docs/testing/TEST_VALIDATION_REPORT.md` - Comprehensive test plan
+2. `docs/testing/TEST_RESULTS.md` - Detailed test execution results
+3. `docs/testing/TEST_COMPLETION_SUMMARY.md` - This file
+4. `BUGS_AND_FIXES.md` - Issue analysis and fixes
 
 ---
 
@@ -354,8 +354,8 @@ go tool cover -html=coverage.out
 1. **TEST_VALIDATION_REPORT.md** - Detailed test plan and scenarios
 2. **TEST_RESULTS.md** - Complete test execution results
 3. **BUGS_AND_FIXES.md** - Issue tracking and resolution details
-4. **docs/AGENT_QUESTIONS_FLOW.md** - Agent questions flow documentation
-5. **AGENT_QUESTIONS_IMPLEMENTATION.md** - Implementation notes
+4. **../AGENT_QUESTIONS_FLOW.md** - Agent questions flow documentation
+5. **../notes/AGENT_QUESTIONS_IMPLEMENTATION.md** - Implementation notes
 
 ---
 
@@ -363,7 +363,7 @@ go tool cover -html=coverage.out
 
 For questions about this testing effort or the implementation:
 - Review all test files in `internal/tui/*_test.go`
-- Review documentation in project root
+- Review documentation in the repo root
 - Check git history for implementation details
 
 ---

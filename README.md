@@ -1,67 +1,47 @@
-# blackbird
+# Blackbird
 
-Go-first CLI for maintaining a durable, validated project work plan (Phase 1).
+Go-first CLI for durable, dependency-aware planning and execution with AI agents.
+
+## What it does
+
+- Maintains a validated, dependency-aware work graph in a single JSON plan file.
+- Surfaces readiness so you can see what is actionable next.
+- Runs agent-backed plan generation/refinement and dependency inference.
+- Executes ready tasks with a headless agent runtime, logging runs for traceability.
+- Provides a TUI for interactive navigation, detail views, and execution status.
+
+## Install (from source)
+
+Requires Go 1.22+.
+
+- Build a local binary:
+  - `go build -o blackbird ./cmd/blackbird`
+- Or install into `GOBIN`:
+  - `go install ./cmd/blackbird`
 
 ## Quickstart
 
-- Initialize a plan file in the current directory:
-
+- Initialize a plan file:
   - `blackbird init`
-
 - Generate an initial plan with the agent:
-
   - `blackbird plan generate`
-
-- Refine an existing plan with the agent:
-
-  - `blackbird plan refine`
-
-- Infer or re-infer dependencies with the agent:
-
-  - `blackbird deps infer`
-
-- Open the TUI (default entrypoint):
-
+- Launch the TUI (default entrypoint):
   - `blackbird`
-
-- List ready work (leaf tasks whose deps are done):
-
+- List ready work:
   - `blackbird list`
-
-- Show full details for a task:
-
-  - `blackbird show <id>`
-
-- Manually update a task status:
-
-  - `blackbird set-status <id> <status>`
-
-- Pick a ready task and update status interactively (M4):
-
-  - `blackbird pick`
-  - `blackbird pick --blocked`
-  - `blackbird pick --all`
-  - `blackbird pick --include-non-leaf`
-
-- Manually edit the work graph (M3):
-  - `blackbird add --title "..." [--parent <parentId|root>]`
-  - `blackbird edit <id> --title "..." --description "..." --prompt "..."`
-  - `blackbird move <id> --parent <parentId|root> [--index <n>]`
-  - `blackbird delete <id> [--cascade-children] [--force]`
-  - `blackbird deps add <id> <depId>`
-  - `blackbird deps remove <id> <depId>`
-  - `blackbird deps set <id> [<depId> ...]`
-
-- Validate the current plan file:
-
-  - `blackbird validate`
+- Execute ready tasks:
+  - `blackbird execute`
+- Resume a waiting task:
+  - `blackbird resume <taskID>`
+- View run history:
+  - `blackbird runs <taskID>`
 
 The plan file lives at repo root as `blackbird.plan.json`.
 
-## TUI (Phase 3)
+## TUI overview
 
-Running `blackbird` with no arguments launches the TUI. Existing CLI commands
-(`blackbird plan`, `blackbird execute`, etc.) are unchanged.
+Running `blackbird` with no arguments launches the TUI. CLI commands like
+`blackbird plan`, `blackbird execute`, and `blackbird list` are unchanged.
 
 Layout:
 
@@ -84,114 +64,66 @@ Key bindings:
 - `s`: set status for selected item
 - `q`: quit
 
-## Readiness rules (M2)
+## Core commands
 
-- A task's deps are **satisfied** when **all deps have status `done`**.
-- A task is **actionable ("READY" in `list`)** when:
-  - status is `todo`
-  - and deps are satisfied
-- If a task is `blocked` but deps are satisfied, it remains **manually blocked** until you clear it (e.g. `set-status <id> todo`).
+Plan and graph management:
 
-## Agent-backed planning (M6)
+- `blackbird plan generate` generates a plan from a project description.
+- `blackbird plan refine` applies agent-proposed edits to the current plan.
+- `blackbird deps infer` proposes dependency updates with rationale.
+- `blackbird validate` checks plan integrity and dependency consistency.
+- `blackbird show <id>` prints task details and readiness explanations.
+- `blackbird set-status <id> <status>` updates task status manually.
 
-- `blackbird plan generate` prompts for a project description, calls the agent, shows a summary, and lets you revise once before saving.
-- `blackbird plan refine` sends a change request + current plan, applies validated edits, and prints a diff summary.
-- `blackbird deps infer` proposes dependency updates, shows a diff + rationale excerpt, and applies on acceptance.
-- Summaries include the provider/model used for the run.
+Manual graph edits:
 
-## Execution (Phase 2)
+- `blackbird add --title "..." [--parent <parentId|root>]`
+- `blackbird edit <id> --title "..." --description "..." --prompt "..."`
+- `blackbird move <id> --parent <parentId|root> [--index <n>]`
+- `blackbird delete <id> [--cascade-children] [--force]`
+- `blackbird deps add <id> <depId>`
+- `blackbird deps remove <id> <depId>`
+- `blackbird deps set <id> [<depId> ...]`
 
-Blackbird can execute ready tasks using a headless agent runtime.
+Execution:
 
-Core commands:
+- `blackbird execute` runs ready tasks in dependency order.
+- `blackbird runs <taskID>` lists runs for a task (`--verbose` shows logs).
+- `blackbird resume <taskID>` answers questions and continues a waiting task.
+- `blackbird retry <taskID>` resets failed tasks with failed runs back to `todo`.
 
-- `blackbird execute` runs ready tasks in dependency order until none remain.
-- `blackbird runs <taskID>` shows run history for a task (`--verbose` prints logs).
-- `blackbird resume <taskID>` answers waiting_user questions and continues execution.
-- `blackbird retry <taskID>` resets failed tasks with failed run history back to `todo`.
+## Readiness rules
 
-Run records are stored under `.blackbird/runs/<taskID>/<runID>.json`.
+- Deps are satisfied when **all deps have status `done`**.
+- A task is actionable when **status is `todo`** and deps are satisfied.
+- `blocked` is a manual override even if deps are satisfied.
 
-Optional snapshot file:
+## Agent runtime configuration
 
-- `.blackbird/snapshot.md` is used as the project snapshot when building execution
-  context (fallbacks: `OVERVIEW.md`, then `README.md`).
+Blackbird invokes an external agent command for plan generation/refinement and
+execution. Configuration is environment-based:
 
-Execution behavior:
-
-- The agent is expected to edit the working tree directly (native CLI behavior).
-- Blackbird records stdout/stderr and exit code only; it does not apply patches.
-- Execution includes a system prompt that authorizes non-destructive commands and file edits
-  without confirmation.
-- For headless execution, Blackbird appends provider-specific auto-approve flags:
-  - Codex: `exec --full-auto`
-  - Claude: `--permission-mode bypassPermissions`
-- Task selection uses `execution.ReadyTasks`, which currently considers any `todo`
-  item with satisfied deps (including non-leaf tasks).
-
-## Plan file schema (M1)
-
-File format is JSON (no YAML dependency). Unknown fields are rejected on load.
-
-Root object:
-
-- `schemaVersion` (int)
-- `items` (object/map of `id` → `WorkItem`)
-
-`WorkItem` (minimum fields):
-
-- `id` (string; must match the map key)
-- `title` (string)
-- `description` (string; may be empty)
-- `acceptanceCriteria` ([]string; may be empty but must exist)
-- `prompt` (string; may be empty but must exist)
-- `parentId` (string|null)
-- `childIds` ([]string; may be empty but must exist)
-- `deps` ([]string; may be empty but must exist)
-- `status` (one of: `todo`, `queued`, `in_progress`, `waiting_user`, `blocked`, `done`, `failed`, `skipped`)
-- `createdAt` (RFC3339 timestamp)
-- `updatedAt` (RFC3339 timestamp)
-- `notes` (string; optional)
-- `depRationale` (object/map of `depId` → string; optional)
-
-## Validation (M1)
-
-`blackbird validate` checks:
-
-- required fields present
-- IDs are non-empty and consistent (`items[id].id == id`)
-- `deps` / `parentId` / `childIds` references exist
-- parent/child relationships are consistent
-- hierarchy contains no cycles
-
-In M2, dependency cycles are also rejected (deps must form a DAG).
-
-## Agent runtime adapter (M5)
-
-Phase 1 planning uses an external agent command that speaks a strict JSON
-request/response contract.
-
-Configuration:
-
-- `BLACKBIRD_AGENT_PROVIDER=claude|codex` selects the default command
-  (`claude` or `codex`).
+- `BLACKBIRD_AGENT_PROVIDER=claude|codex` selects the default command (defaults to `claude`).
 - `BLACKBIRD_AGENT_CMD` overrides the command entirely (runs via `sh -c`).
-- `BLACKBIRD_AGENT_STREAM=1` streams agent stdout/stderr live to the terminal
-  while still capturing it for JSON extraction.
+- `BLACKBIRD_AGENT_STREAM=1` streams agent stdout/stderr live to the terminal.
+- `BLACKBIRD_AGENT_DEBUG=1` prints the JSON request payload for debugging.
 
-I/O contract:
+The command must emit exactly one JSON object on stdout (either the full stdout
+or inside a fenced ```json block). Multiple objects or missing JSON fail fast.
 
-- The CLI writes a JSON request to stdin.
-- The command must emit exactly one JSON object on stdout.
-- Output may include extra non-JSON text, but JSON must either be the full
-  stdout or inside a single fenced ```json block.
-- Multiple JSON objects or missing JSON cause a hard failure.
-- Requests include a default `systemPrompt` to require strict JSON output and
-  validate plan/patch rules (plan generate/refine + deps infer).
+## Files and storage
 
-Provider metadata (optional in the request):
+- Plan file: `blackbird.plan.json`
+- Run records: `.blackbird/runs/<taskID>/<runID>.json`
+- Optional snapshot file: `.blackbird/snapshot.md`
+  - Fallbacks to `OVERVIEW.md`, then `README.md` if missing.
 
-- `provider`, `model`, `maxTokens`, `temperature`, `responseFormat`, `jsonSchema`
-- The runtime adapter maps these to CLI flags when supported:
-  `--model`, `--max-tokens`, `--temperature`, `--response-format`
-- For Claude, `jsonSchema` is passed via `--json-schema`.
+## Documentation
+
+- Documentation index: `docs/README.md`
+- Project overview: `OVERVIEW.md`
+- Execution architecture: `internal/execution/README.md`
+- Agent question flow: `docs/AGENT_QUESTIONS_FLOW.md`
+- Plan review flow: `docs/PLAN_REVIEW_FLOW.md`
+- Testing quickstart: `docs/testing/TESTING_QUICKSTART.md`
+- Specs and milestones: `specs/`
