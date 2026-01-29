@@ -70,9 +70,9 @@
       "deps": [
         "execution-dashboard"
       ],
-      "status": "todo",
+      "status": "done",
       "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-29T02:11:59.159673Z",
       "depRationale": {
         "execution-dashboard": "Execute actions depend on execution infrastructure"
       }
@@ -163,9 +163,9 @@
       "deps": [
         "plan-navigation"
       ],
-      "status": "todo",
+      "status": "done",
       "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T02:03:14.714145Z",
+      "updatedAt": "2026-01-29T02:08:27.014934Z",
       "depRationale": {
         "plan-navigation": "Dashboard is a tab in the right pane established by plan navigation"
       }
@@ -314,9 +314,9 @@
       "deps": [
         "actions-integration"
       ],
-      "status": "todo",
+      "status": "done",
       "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-29T02:17:36.760735Z",
       "depRationale": {
         "actions-integration": "All major features should be complete before writing comprehensive tests"
       }
@@ -424,9 +424,9 @@
       "parentId": "tests-log",
       "childIds": [],
       "deps": [],
-      "status": "todo",
+      "status": "done",
       "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T00:00:00Z"
+      "updatedAt": "2026-01-29T02:19:59.109185Z"
     }
   }
 }

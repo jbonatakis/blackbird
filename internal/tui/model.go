@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -25,12 +26,20 @@ const (
 	PaneDetail
 )
 
+type TabMode int
+
+const (
+	TabDetails TabMode = iota
+	TabExecution
+)
+
 type Model struct {
 	plan             plan.WorkGraph
 	selectedID       string
 	pendingStatusID  string
 	actionMode       ActionMode
 	activePane       ActivePane
+	tabMode          TabMode
 	windowWidth      int
 	windowHeight     int
 	actionInProgress bool
@@ -41,6 +50,7 @@ type Model struct {
 	expandedItems    map[string]bool
 	filterMode       FilterMode
 	detailOffset     int
+	actionOutput     *ActionOutput
 }
 
 func NewModel(g plan.WorkGraph) Model {
@@ -48,6 +58,7 @@ func NewModel(g plan.WorkGraph) Model {
 		plan:          g,
 		actionMode:    ActionModeNone,
 		activePane:    PaneTree,
+		tabMode:       TabDetails,
 		runData:       map[string]execution.RunRecord{},
 		expandedItems: map[string]bool{},
 		filterMode:    FilterModeAll,
@@ -84,11 +95,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case PlanActionComplete:
 		m.actionInProgress = false
 		m.actionName = ""
-		return m, nil
+		if typed.Err != nil {
+			m.actionOutput = &ActionOutput{
+				Message: fmt.Sprintf("Action failed: %v\n\n%s", typed.Err, typed.Output),
+				IsError: true,
+			}
+		} else {
+			m.actionOutput = &ActionOutput{
+				Message: fmt.Sprintf("Action completed successfully\n\n%s", typed.Output),
+				IsError: false,
+			}
+		}
+		return m, m.LoadRunData()
 	case ExecuteActionComplete:
 		m.actionInProgress = false
 		m.actionName = ""
-		if typed.Action == "execute" || typed.Action == "resume" {
+		if typed.Err != nil {
+			m.actionOutput = &ActionOutput{
+				Message: fmt.Sprintf("Action failed: %v\n\n%s", typed.Err, typed.Output),
+				IsError: true,
+			}
+		} else {
+			m.actionOutput = &ActionOutput{
+				Message: fmt.Sprintf("Action completed successfully\n\n%s", typed.Output),
+				IsError: false,
+			}
+		}
+		if typed.Action == "execute" || typed.Action == "resume" || typed.Action == "set-status" {
 			return m, m.LoadRunData()
 		}
 		return m, nil
@@ -126,8 +159,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch typed.String() {
 			case "ctrl+c", "q":
 				return m, tea.Quit
+			default:
+				return HandleSetStatusKey(m, typed.String())
 			}
-			return m, nil
+		}
+		// Clear action output on any key press (after reading)
+		if m.actionOutput != nil && !m.actionInProgress {
+			m.actionOutput = nil
 		}
 		switch typed.String() {
 		case "ctrl+c", "q":
@@ -138,6 +176,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				m.activePane = PaneTree
 			}
+			return m, nil
+		case "t":
+			if m.actionMode != ActionModeNone || m.actionInProgress {
+				return m, nil
+			}
+			if m.tabMode == TabDetails {
+				m.tabMode = TabExecution
+			} else {
+				m.tabMode = TabDetails
+			}
+			m.detailOffset = 0
 			return m, nil
 		case "f":
 			m.filterMode = nextFilterMode(m.filterMode)
@@ -251,6 +300,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.actionMode = ActionModeSetStatus
 			m.pendingStatusID = m.selectedID
 			return m, nil
+		case "u":
+			if m.actionMode != ActionModeNone || m.actionInProgress {
+				return m, nil
+			}
+			if !CanResume(m) {
+				return m, nil
+			}
+			m.actionInProgress = true
+			m.actionName = "Resuming..."
+			return m, tea.Batch(ResumeCmd(m.selectedID), spinnerTickCmd())
 		}
 	}
 	return m, nil
@@ -270,6 +329,22 @@ func (m Model) View() string {
 	}
 
 	content := m.renderMainView(availableHeight)
+
+	// Overlay action output if present
+	if m.actionOutput != nil && !m.actionInProgress {
+		outputView := RenderActionOutput(m.actionOutput, m.windowWidth)
+		// Simple overlay at the top
+		content = outputView + "\n" + content
+	}
+
+	// Overlay set-status modal if active
+	if m.actionMode == ActionModeSetStatus {
+		modal := RenderSetStatusModal(m)
+		if modal != "" {
+			content = modal
+		}
+	}
+
 	if m.windowHeight > 1 {
 		return content + "\n" + RenderBottomBar(m)
 	}
@@ -435,9 +510,6 @@ func (m Model) renderMainView(availableHeight int) string {
 		tree := RenderTreeView(m)
 		detail := RenderDetailView(m)
 		content := tree + "\n\n" + detail
-		if m.actionMode == ActionModeSetStatus && m.pendingStatusID != "" {
-			content = fmt.Sprintf("Set status for %s:\n\n%s", m.pendingStatusID, content)
-		}
 		return content
 	}
 
@@ -450,14 +522,20 @@ func (m Model) renderMainView(availableHeight int) string {
 	detailModel.windowHeight = availableHeight
 
 	treeContent := RenderTreeView(treeModel)
-	detailContent := RenderDetailView(detailModel)
+
+	var detailContent string
+	var rightPaneTitle string
+	if m.tabMode == TabExecution {
+		detailContent = RenderExecutionView(detailModel)
+		rightPaneTitle = "Execution"
+	} else {
+		detailContent = RenderDetailView(detailModel)
+		rightPaneTitle = "Details"
+	}
 
 	treeBox := renderPane(treeContent, leftWidth, availableHeight, "Plan", m.activePane == PaneTree)
-	detailBox := renderPane(detailContent, rightWidth, availableHeight, "Details", m.activePane == PaneDetail)
+	detailBox := renderPane(detailContent, rightWidth, availableHeight, rightPaneTitle, m.activePane == PaneDetail)
 	content := lipgloss.JoinHorizontal(lipgloss.Top, treeBox, detailBox)
-	if m.actionMode == ActionModeSetStatus && m.pendingStatusID != "" {
-		content = fmt.Sprintf("Set status for %s:\n%s", m.pendingStatusID, content)
-	}
 	return content
 }
 
@@ -487,17 +565,41 @@ func splitPaneWidths(total int) (int, int) {
 
 func renderPane(content string, width int, height int, title string, active bool) string {
 	borderColor := lipgloss.Color("240")
+	titleColor := lipgloss.Color("240")
 	if active {
 		borderColor = lipgloss.Color("69")
+		titleColor = lipgloss.Color("69")
 	}
+
 	style := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor).
 		Width(width).
 		Height(height).
 		Padding(0, 1)
+
+	rendered := style.Render(content)
+
 	if title != "" {
-		style = style.Bold(true).Title(title)
+		titleStyle := lipgloss.NewStyle().Bold(true).Foreground(titleColor)
+		titleLine := titleStyle.Render(" " + title + " ")
+		// Insert title in the top border
+		lines := strings.Split(rendered, "\n")
+		if len(lines) > 0 {
+			// Replace part of the top border with the title
+			topLine := lines[0]
+			if len(topLine) > len(title)+4 {
+				runes := []rune(topLine)
+				titleRunes := []rune(titleLine)
+				// Insert title starting at position 2
+				for i := 0; i < len(titleRunes) && i+2 < len(runes); i++ {
+					runes[i+2] = titleRunes[i]
+				}
+				lines[0] = string(runes)
+				rendered = strings.Join(lines, "\n")
+			}
+		}
 	}
-	return style.Render(content)
+
+	return rendered
 }

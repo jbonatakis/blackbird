@@ -57,6 +57,30 @@ func actionHints(model Model, readyCount int) []string {
 	if model.selectedID == "" {
 		actions = removeAction(actions, "[s]et-status")
 	}
+	if CanResume(model) {
+		// Insert resume action after execute
+		idx := -1
+		for i, action := range actions {
+			if action == "[e]xecute" {
+				idx = i + 1
+				break
+			}
+		}
+		if idx == -1 {
+			// If execute not found, insert before set-status
+			for i, action := range actions {
+				if action == "[s]et-status" {
+					idx = i
+					break
+				}
+			}
+		}
+		if idx > 0 && idx <= len(actions) {
+			actions = append(actions[:idx], append([]string{"[u]resume"}, actions[idx:]...)...)
+		} else {
+			actions = append([]string{"[u]resume"}, actions...)
+		}
+	}
 	if model.actionMode == ActionModeSetStatus {
 		actions = []string{"[q]uit"}
 	}

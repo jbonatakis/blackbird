@@ -110,7 +110,7 @@ func renderTreeLine(model Model, it plan.WorkItem, readiness string, depth int) 
 		status,
 		readinessLabel,
 		it.Title,
-	}, " "))
+	}, " ")
 
 	if it.ID == model.selectedID {
 		selected := lipgloss.NewStyle().Reverse(true).Bold(true)

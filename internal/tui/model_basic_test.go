@@ -38,7 +38,7 @@ func TestViewRendersPlaceholderText(t *testing.T) {
 	model := Model{windowHeight: 2}
 
 	view := model.View()
-	if !strings.Contains(view, "Blackbird TUI (work in progress).") {
-		t.Fatalf("expected placeholder text in view, got %q", view)
+	if !strings.Contains(view, "No items.") {
+		t.Fatalf("expected 'No items.' text in view for empty plan, got %q", view)
 	}
 }
