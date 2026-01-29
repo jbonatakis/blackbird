@@ -140,7 +140,7 @@ func pickRows(g plan.WorkGraph, includeNonLeaf bool, all bool, blocked bool) ([]
 			stats.ready++
 		}
 
-		readyLabel := readinessLabel(it.Status, depsOK, it.Status == plan.StatusBlocked)
+		readyLabel := plan.ReadinessLabel(it.Status, depsOK, it.Status == plan.StatusBlocked)
 
 		var details string
 		if len(unmet) > 0 {

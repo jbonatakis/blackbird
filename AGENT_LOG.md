@@ -281,3 +281,97 @@
 ## 2026-01-28 — Claude permission mode bypass
 
 - Switched Claude auto-approve flag to `--permission-mode bypassPermissions` for execution runs.
+
+## 2026-01-29 — TUI action key handling scaffold
+
+- Added `internal/tui/model.go` with `ActionMode` tracking and Update() handling for action keys (g/r/e/s), including ready-task guard for execute and pending status change state.
+- Added `internal/tui/action_wrappers.go` with Bubble Tea commands that wrap CLI actions and capture stdout/stderr into a message.
+- Added Bubble Tea dependency to `go.mod`.
+- `go test ./...` failed locally because the Bubble Tea module could not be fetched (no network), leaving `go.sum` without entries.
+
+## 2026-01-29 — Phase 3: TUI Dashboard
+
+- Chose Bubble Tea for the TUI: Go-native, low-dependency, and well-suited for terminal UI patterns.
+- Pane layout: left tree pane for task navigation, right pane for task/run detail and execution info, bottom bar for status/help.
+- Navigation design: vim-style keys for movement, tab-style switching between panes.
+- CLI integration: zero-args routing in `cli.Run` to launch the TUI as the default entrypoint when no command is provided.
+- Execution dashboard: reads run records to populate active/previous runs and uses a live timer for elapsed time display.
+- Action integration: TUI actions wrap existing CLI flows (execute, resume, retry, status updates) via command wrappers to reuse logic.
+- Risks: blocking execution while wrapping CLI commands and terminal sizing issues; mitigated by running actions in Bubble Tea commands and handling `WindowSizeMsg` updates for layout resizing.
+- Deviations: none noted from the Phase 3 plan.
+
+## 2026-01-29 — TUI bottom bar
+
+- Added bottom bar renderer with action hints, ready/blocked counts, and inverted styling via lipgloss.
+- Wired action-in-progress spinner state and action names into the TUI model with a tick-based spinner.
+- Updated TUI view to include the bottom bar and added lipgloss dependency to go.mod.
+
+## 2026-01-29 — TUI action wrappers
+
+- Expanded `internal/tui/action_wrappers.go` with plan/execute/resume/set-status commands returning typed Bubble Tea messages.
+- Captured CLI stdout/stderr for TUI actions and added success flags to completion messages.
+- Updated the TUI model to handle new action completion message types.
+
+## 2026-01-29 — TUI detail pane renderer
+
+- Added `internal/tui/detail_view.go` with `RenderDetailView` to format selected item details, dependencies, dependents, readiness, and prompt using lipgloss.
+- Added viewport clipping for tall content and a minimal empty-selection fallback.
+- Added Bubble Tea `bubbles/viewport` dependency in `go.mod`.
+- Added `internal/tui/detail_view_test.go` covering detail rendering and empty selection output.
+
+## 2026-01-29 — TUI execution dashboard view
+
+- Added `internal/tui/execution_view.go` to render the execution dashboard (active run status, elapsed time, log excerpts, and task summary) with lipgloss styling.
+- Added deterministic elapsed-time formatting via an overridable time source.
+- Added `internal/tui/execution_view_test.go` covering active-run rendering, log tailing, and empty state output.
+- `go test ./internal/tui/...` failed locally due to Go build cache permission restrictions in this environment.
+
+## 2026-01-29 — TUI run loader
+
+- Added run data loader and periodic refresh for the TUI using execution run storage.
+- Model now loads latest run records on init and after execute/resume, with missing `.blackbird/runs` handled gracefully.
+- Added `internal/tui/run_loader_test.go` covering missing run data and latest-run selection per task.
+
+## 2026-01-29 — Live timer tick for elapsed time
+
+- Added `internal/tui/timer.go` with a 1-second Bubble Tea tick command and active-run detection helper.
+- Wired timer scheduling into `internal/tui/model.go` so ticks only run while runs are active.
+- Added `internal/tui/timer_test.go` covering active run detection.
+
+## 2026-01-29 — TUI tree view renderer
+
+- Added `internal/tui/tree_view.go` with hierarchical plan tree rendering, expand/collapse handling, selection highlight, and status/readiness styling via lipgloss.
+- Introduced `plan.ReadinessLabel` for shared readiness labeling; updated CLI list/pick paths to use it.
+- Extended TUI model to track `expandedItems` and `filterMode` defaults for upcoming navigation/filter work.
+
+## 2026-01-29 — TUI keyboard navigation + detail scrolling
+
+- Added keyboard navigation handling in `internal/tui/model.go` for tree movement (up/down, j/k, home/end), expand/collapse (enter/space), pane toggle (tab), and filter cycling (f).
+- Implemented visible-item traversal helpers and parent detection to keep selection aligned with render order and filter state.
+- Added detail pane paging state and applied `pgup/pgdown` scrolling via the viewport offset in `internal/tui/detail_view.go`.
+- Added unit tests for visible navigation, filter behavior, and selection snapping in `internal/tui/model_test.go`.
+- `go test ./internal/tui/...` failed due to Go build cache permissions in this environment (`operation not permitted`).
+
+## 2026-01-29 — TUI base model tests
+
+- Added basic TUI model tests covering quit command handling, window size updates, and placeholder view text (`internal/tui/model_basic_test.go`).
+- `go test ./internal/tui/...` failed locally due to Go build cache permission restrictions (`operation not permitted` while opening a cache file).
+
+## 2026-01-29 — TUI entrypoint wiring
+
+- Updated `cli.Run` to launch the TUI when no args are provided.
+- Added `internal/tui/start.go` to load/validate the plan, create the Bubble Tea program, and run it with an alt screen.
+- Switched TUI action wrappers to invoke the `blackbird` binary via `os/exec` to avoid a `cli` ↔ `tui` import cycle.
+- `go test ./...` failed locally due to missing `go.sum` entries for Bubble Tea-related modules in this environment.
+
+## 2026-01-29 — TUI scaffold verification
+
+- Verified `internal/tui` package, Bubble Tea model implementation, and `tui.Start()` entrypoint wiring are already present.
+- Confirmed `cli.Run` routes zero-arg invocation to the TUI and `go.mod` includes Bubble Tea dependencies.
+- No code changes required for the requested scaffold task.
+
+## 2026-01-29 — TUI pane layout + view rendering
+
+- Implemented two-column tree/detail layout in `internal/tui/model.go` with lipgloss borders, active-pane highlighting, and size-aware pane splitting.
+- Wired view rendering to use `RenderTreeView` and `RenderDetailView`, keeping the bottom bar and status prompt overlay.
+- Added a unit test to ensure the main view renders both tree and detail content (`internal/tui/model_view_test.go`).

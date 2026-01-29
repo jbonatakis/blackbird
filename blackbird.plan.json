@@ -1,556 +1,432 @@
 {
   "schemaVersion": 1,
   "items": {
-    "agent-context": {
-      "id": "agent-context",
-      "title": "Execution Context Builder",
-      "description": "Build the context pack that gets sent to the agent for task execution.",
+    "action-handlers": {
+      "id": "action-handlers",
+      "title": "Implement action key handlers",
+      "description": "Handle keyboard shortcuts for triggering plan and execution actions. Capture keystrokes (g, r, e, s) and dispatch appropriate commands.",
       "acceptanceCriteria": [
-        "Includes task prompt and acceptance criteria",
-        "Includes project description/snapshot",
-        "Includes prior task artifacts when applicable",
-        "Context is bounded and explicit",
-        "Captures context used in run record"
+        "g key triggers plan generate flow",
+        "r key triggers plan refine flow",
+        "e key triggers execute flow",
+        "s key opens status change prompt",
+        "Actions only active in appropriate contexts",
+        "Confirmation prompts for destructive actions"
       ],
-      "prompt": "Implement BuildContext(g WorkGraph, taskID string) (ContextPack, error) that assembles execution context. Include task details (prompt, description, acceptance criteria), relevant dependencies, and project context. Store context snapshot in run record for reproducibility.",
-      "parentId": "agent-exec",
-      "childIds": [],
-      "deps": [
-        "run-types"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:09:40.510989Z",
-      "depRationale": {
-        "run-types": "Needs ContextPack type definition"
-      }
-    },
-    "agent-exec": {
-      "id": "agent-exec",
-      "title": "Agent Execution Bridge",
-      "description": "Create the bridge layer that launches headless agent runs and captures output.",
-      "acceptanceCriteria": [
-        "Launches agent runtime with task context",
-        "Captures stdout/stderr in real-time",
-        "Handles timeouts and interruptions",
-        "Returns structured execution result",
-        "Works with existing Runtime infrastructure"
-      ],
-      "prompt": "Create ExecuteTask function that takes WorkItem and Runtime, builds execution context (task prompt, project snapshot), launches agent via Runtime.Run, captures output, handles errors, and returns RunRecord. Reuse existing agent.Runtime infrastructure.",
-      "parentId": null,
-      "childIds": [
-        "agent-context",
-        "agent-launcher"
-      ],
-      "deps": [
-        "run-records"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:20:54.439967Z",
-      "depRationale": {
-        "run-records": "Needs RunRecord types to return execution results"
-      }
-    },
-    "agent-launcher": {
-      "id": "agent-launcher",
-      "title": "Headless Agent Launcher",
-      "description": "Implement the actual agent invocation with proper I/O handling.",
-      "acceptanceCriteria": [
-        "Launches agent command with context",
-        "Streams output to RunRecord",
-        "Handles process timeout",
-        "Captures exit code",
-        "Detects waiting_user state from agent output"
-      ],
-      "prompt": "Implement LaunchAgent(ctx context.Context, runtime Runtime, context ContextPack) (RunRecord, error) that executes the agent command, streams stdout/stderr, handles timeout, captures exit code. Parse output to detect if agent is waiting for user input. Build on existing agent.Runtime.Run.",
-      "parentId": "agent-exec",
-      "childIds": [],
-      "deps": [
-        "agent-context"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:13:55.960572Z",
-      "depRationale": {
-        "agent-context": "Needs context to provide to agent"
-      }
-    },
-    "cmd-execute": {
-      "id": "cmd-execute",
-      "title": "Execute Command Implementation",
-      "description": "Implement the main execution loop command.",
-      "acceptanceCriteria": [
-        "Loads plan and validates it",
-        "Loops selecting and executing ready tasks",
-        "Updates task status after each run",
-        "Exits when no ready tasks remain",
-        "Handles ctrl-c gracefully",
-        "Prints progress messages"
-      ],
-      "prompt": "Implement runExecute() that: loads plan, initializes runtime, enters loop of (select ready task, update status to in_progress, execute, update status based on outcome). Handle interrupts cleanly. Print task start/completion. Exit with clear message when queue is empty.",
-      "parentId": "exec-cli",
-      "childIds": [],
-      "deps": [
-        "exec-lifecycle",
-        "agent-launcher",
-        "run-storage"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:15:38.454996Z",
-      "depRationale": {
-        "agent-launcher": "Needs launcher to execute tasks",
-        "exec-lifecycle": "Needs lifecycle management for status updates",
-        "run-storage": "Needs storage to persist run records"
-      }
-    },
-    "cmd-resume": {
-      "id": "cmd-resume",
-      "title": "Resume Command Implementation",
-      "description": "Implement command to resume tasks waiting for user input.",
-      "acceptanceCriteria": [
-        "Identifies runs in waiting_user state",
-        "Prompts user for input",
-        "Continues execution with user response",
-        "Updates run record with interaction",
-        "Handles resume failure gracefully"
-      ],
-      "prompt": "Implement runResume(taskID string) that: finds latest run in waiting_user state, prompts user for input, relaunches agent with continuation context including user response, updates run record. Handle case where no waiting runs exist.",
-      "parentId": "exec-cli",
-      "childIds": [],
-      "deps": [
-        "run-query",
-        "agent-launcher"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:18:47.069159Z",
-      "depRationale": {
-        "agent-launcher": "Needs launcher to resume execution",
-        "run-query": "Needs to find waiting runs"
-      }
-    },
-    "cmd-runs": {
-      "id": "cmd-runs",
-      "title": "Runs History Command",
-      "description": "Implement command to view task run history.",
-      "acceptanceCriteria": [
-        "Lists all runs for a task in chronological order",
-        "Shows run ID, timestamp, status, duration",
-        "Optionally shows full logs with --verbose",
-        "Handles no runs gracefully",
-        "Works with table formatting"
-      ],
-      "prompt": "Implement runRuns(taskID string, flags) that loads and displays run history for a task. Show table with columns: Run ID, Started, Duration, Status, Exit Code. Add --verbose flag to show full stdout/stderr. Use tabwriter for formatting.",
-      "parentId": "exec-cli",
-      "childIds": [],
-      "deps": [
-        "run-query"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:07:09.148018Z",
-      "depRationale": {
-        "run-query": "Needs query functions to retrieve run history"
-      }
-    },
-    "exec-cli": {
-      "id": "exec-cli",
-      "title": "Execution CLI Commands",
-      "description": "Add CLI commands for execution control (start, stop, resume).",
-      "acceptanceCriteria": [
-        "blackbird execute command starts execution",
-        "blackbird stop command halts execution gracefully",
-        "blackbird runs \u003ctaskID\u003e shows run history",
-        "blackbird resume \u003ctaskID\u003e resumes waiting_user runs",
-        "Help text documents all commands"
-      ],
-      "prompt": "Add CLI commands: 'execute' to start execution loop, 'stop' to gracefully halt, 'runs \u003ctaskID\u003e' to show run history, 'resume \u003ctaskID\u003e' to continue waiting runs. Integrate with existing cli.Run switch. Update Usage() with new commands.",
-      "parentId": null,
-      "childIds": [
-        "cmd-execute",
-        "cmd-runs",
-        "cmd-resume"
-      ],
-      "deps": [
-        "exec-dispatch",
-        "agent-exec"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:21:10.230469Z",
-      "depRationale": {
-        "agent-exec": "Needs execution bridge to run tasks",
-        "exec-dispatch": "Needs dispatcher to select tasks"
-      }
-    },
-    "exec-dispatch": {
-      "id": "exec-dispatch",
-      "title": "Execution Dispatcher Core",
-      "description": "Implement the core execution dispatcher that selects ready tasks and orchestrates their execution lifecycle.",
-      "acceptanceCriteria": [
-        "Task selection policy identifies ready tasks (todo status + deps satisfied)",
-        "Respects manual overrides (blocked, skipped statuses)",
-        "Deterministic selection order (smallest ID first by default)",
-        "Handles empty queue gracefully with clear messaging"
-      ],
-      "prompt": "Create the execution dispatcher module that analyzes the plan graph and selects ready tasks for execution. Implement task readiness logic that checks status=todo and all deps satisfied. Support filtering by tags or explicit task IDs. Use deterministic ordering for predictable execution.",
-      "parentId": null,
-      "childIds": [
-        "exec-selector",
-        "exec-lifecycle"
-      ],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:20:57.322761Z"
-    },
-    "exec-docs": {
-      "id": "exec-docs",
-      "title": "Execution Documentation",
-      "description": "User-facing documentation for execution features.",
-      "acceptanceCriteria": [
-        "README updated with execution workflow",
-        "CLI help text covers all execution commands",
-        "Examples of common execution patterns",
-        "Troubleshooting guide for failures",
-        "Architecture documentation for developers"
-      ],
-      "prompt": "Update README.md with execution section explaining: how to start execution, monitoring progress, handling failures, retrying tasks, resuming after questions. Add examples. Update internal/execution/README.md with architecture overview. Ensure CLI usage() is complete.",
-      "parentId": null,
-      "childIds": [],
-      "deps": [
-        "exec-cli",
-        "human-in-loop",
-        "safety-recovery"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:21:57.893273Z",
-      "depRationale": {
-        "exec-cli": "Documents CLI commands",
-        "human-in-loop": "Documents question handling",
-        "safety-recovery": "Documents failure and retry workflows"
-      }
-    },
-    "exec-lifecycle": {
-      "id": "exec-lifecycle",
-      "title": "Task Execution Lifecycle Manager",
-      "description": "Implement state transitions and lifecycle management for task execution.",
-      "acceptanceCriteria": [
-        "Supports queued -\u003e in_progress -\u003e done/failed/waiting_user transitions",
-        "Updates WorkItem status atomically in plan file",
-        "Updates timestamps on status changes",
-        "Prevents invalid state transitions"
-      ],
-      "prompt": "Create lifecycle management functions that transition tasks through execution states. Implement UpdateTaskStatus that atomically updates status and timestamp. Ensure state transitions are valid (e.g., can't go from done to in_progress).",
-      "parentId": "exec-dispatch",
-      "childIds": [],
-      "deps": [
-        "exec-selector"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:11:18.338555Z",
-      "depRationale": {
-        "exec-selector": "Needs task selection to know which tasks to manage lifecycle for"
-      }
-    },
-    "exec-selector": {
-      "id": "exec-selector",
-      "title": "Task Selection Logic",
-      "description": "Implement the task selection algorithm that finds ready-to-run tasks from the plan.",
-      "acceptanceCriteria": [
-        "Function returns all tasks with status=todo and satisfied dependencies",
-        "Filters out blocked and skipped tasks",
-        "Returns empty list when no tasks are ready",
-        "Sorted by task ID for deterministic ordering"
-      ],
-      "prompt": "Implement a function ReadyTasks(g WorkGraph) []string that returns task IDs eligible for execution. A task is ready if: status==todo, all deps have status==done, not manually blocked. Sort results by ID.",
-      "parentId": "exec-dispatch",
+      "prompt": "Update internal/tui/model.go Update() to handle action keys. Add case statements for 'g', 'r', 'e', 's' keys. For 'g', return PlanGenerateCmd() that wraps CLI generate flow. For 'r', return PlanRefineCmd(). For 'e', check if ready tasks exist then return ExecuteCmd(). For 's', store pending status change in model and show input prompt. Add model.actionMode field to track if waiting for input. Use action-wrappers functions.",
+      "parentId": "actions-integration",
       "childIds": [],
       "deps": [],
       "status": "done",
       "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:03:01.511319Z"
+      "updatedAt": "2026-01-29T01:23:19.088692Z"
     },
-    "exec-tests": {
-      "id": "exec-tests",
-      "title": "Execution System Tests",
-      "description": "Comprehensive test suite for execution infrastructure.",
+    "action-wrappers": {
+      "id": "action-wrappers",
+      "title": "Create CLI action wrapper functions",
+      "description": "Build wrapper functions that call existing CLI flows (runPlan, runExecute, etc.) from TUI context and return results as Bubble Tea messages.",
       "acceptanceCriteria": [
-        "Unit tests for task selection logic",
-        "Unit tests for lifecycle transitions",
-        "Integration tests for end-to-end execution",
-        "Tests for failure and recovery scenarios",
-        "Tests for human-in-the-loop flows",
-        "\u003e80% code coverage on execution package"
+        "Wrappers for plan generate, plan refine, execute, resume",
+        "Functions run as tea.Cmd returning custom message types",
+        "Capture stdout/stderr from CLI functions",
+        "Handle errors and return them in messages",
+        "Non-blocking execution using tea.Exec or similar",
+        "Results include success/failure status"
       ],
-      "prompt": "Write comprehensive tests: TestReadyTasks for selection, TestLifecycleTransitions for state machine, TestExecuteTask for execution flow, TestFailureHandling for errors, TestQuestionDetection for HITL. Use table-driven tests. Mock agent runtime where appropriate.",
-      "parentId": null,
+      "prompt": "Create internal/tui/action_wrappers.go with wrapper functions: PlanGenerateCmd(), PlanRefineCmd(), ExecuteCmd(), ResumeCmd(taskID), SetStatusCmd(id, status). Each returns tea.Cmd. Use tea.Exec or goroutines to call corresponding CLI functions from internal/cli. Capture output by temporarily redirecting os.Stdout/Stderr or passing custom writers. Define message types: PlanActionComplete, ExecuteActionComplete with success bool, output string, error fields. Return these from commands for Update() to handle.",
+      "parentId": "actions-integration",
       "childIds": [],
       "deps": [
-        "cmd-execute",
-        "human-in-loop",
-        "safety-recovery"
+        "action-handlers",
+        "bottom-bar"
       ],
       "status": "done",
       "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:22:01.673933Z",
+      "updatedAt": "2026-01-29T01:28:58.470727Z",
       "depRationale": {
-        "cmd-execute": "Tests execution command implementation",
-        "human-in-loop": "Tests question detection and resume",
-        "safety-recovery": "Tests failure handling and retry"
+        "action-handlers": "Handlers call these wrapper functions",
+        "bottom-bar": "Wrappers update action status shown in bottom bar"
       }
     },
-    "failure-handling": {
-      "id": "failure-handling",
-      "title": "Failure Handling Logic",
-      "description": "Implement proper handling of task execution failures.",
+    "actions-integration": {
+      "id": "actions-integration",
+      "title": "Wire plan generate/revise + execute actions",
+      "description": "Implement bottom bar with contextual actions and wire them to existing CLI flows. Add ability to trigger plan generate, plan refine, execute, resume, and set-status from within the TUI.",
       "acceptanceCriteria": [
-        "Failed task status set to blocked (or new failed status)",
-        "Dependents remain blocked",
-        "Error details captured in run record",
-        "Execution continues with other ready tasks",
-        "User notified of failure"
+        "Bottom bar shows available actions based on context",
+        "Actions include: plan generate, plan refine, execute, resume, set-status",
+        "Pressing action key triggers corresponding CLI flow",
+        "Output/errors are captured and displayed in TUI",
+        "Plan and run data refresh after successful actions",
+        "Status changes update tree view immediately"
       ],
-      "prompt": "When agent execution fails (non-zero exit, timeout, error), update task status appropriately (consider adding 'failed' status or use 'blocked'), save run record with error details, log failure message, continue execution loop with other tasks. Ensure dependents can't run.",
-      "parentId": "safety-recovery",
-      "childIds": [],
-      "deps": [
-        "exec-lifecycle",
-        "run-storage"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:17:29.464456Z",
-      "depRationale": {
-        "exec-lifecycle": "Needs lifecycle to transition to failed state",
-        "run-storage": "Needs storage to save failure details"
-      }
-    },
-    "human-in-loop": {
-      "id": "human-in-loop",
-      "title": "Human-in-the-Loop Integration",
-      "description": "Implement detection and handling of agent questions during execution.",
-      "acceptanceCriteria": [
-        "Detects when agent requests user input",
-        "Pauses execution and sets status to waiting_user",
-        "Records question in run record",
-        "Resume includes user answer in context",
-        "Q\u0026A recorded in run history"
-      ],
-      "prompt": "Implement question detection in agent output parsing. When agent output contains question marker, pause execution, save run with waiting_user status, record question. In resume flow, inject user answer into agent context. Store Q\u0026A pairs in run record.",
+      "prompt": "Create internal/tui/actions.go with action handlers. Add bottom bar to View() showing key hints (g=generate, r=refine, e=execute, s=set-status). In Update(), handle these keys by creating tea.Cmd that calls corresponding CLI functions (reuse runPlan, runExecute, etc from cli package). Wrap calls to capture output. Create helper wrappers that return tea.Msg with results. After action completes, reload plan and run data. Update Model with actionOutput field to show results. Add confirmation prompts for destructive actions.",
       "parentId": null,
       "childIds": [
-        "question-detect",
-        "question-resume"
+        "action-handlers",
+        "bottom-bar",
+        "action-wrappers"
       ],
       "deps": [
-        "agent-launcher"
+        "execution-dashboard"
       ],
-      "status": "done",
+      "status": "todo",
       "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:21:00.930848Z",
+      "updatedAt": "2026-01-28T00:00:00Z",
       "depRationale": {
-        "agent-launcher": "Needs launcher output to detect questions"
+        "execution-dashboard": "Execute actions depend on execution infrastructure"
       }
     },
-    "question-detect": {
-      "id": "question-detect",
-      "title": "Question Detection Logic",
-      "description": "Parse agent output to detect when it's asking for user input.",
+    "agent-log-update": {
+      "id": "agent-log-update",
+      "title": "Update AGENT_LOG with TUI notes",
+      "description": "Document the TUI implementation in AGENT_LOG.md including architecture decisions, integration approach, and any trade-offs made.",
       "acceptanceCriteria": [
-        "Detects AskUserQuestion tool usage in agent output",
-        "Extracts question text and options",
-        "Returns structured Question object",
-        "Handles multiple questions in one output",
-        "Returns nil when no questions found"
+        "AGENT_LOG.md has new TUI section",
+        "Documents Bubble Tea library choice and rationale",
+        "Describes pane layout and navigation design",
+        "Explains CLI integration approach (zero-args routing)",
+        "Notes execution dashboard implementation",
+        "Records any risks encountered and how they were mitigated",
+        "Includes any deviations from original plan"
       ],
-      "prompt": "Implement ParseQuestions(agentOutput string) ([]Question, error) that examines agent output for question markers (e.g., tool use blocks). Extract question text and options. Return structured data. Consider reusing agent.Question type from existing codebase.",
-      "parentId": "human-in-loop",
-      "childIds": [],
-      "deps": [
-        "run-types"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:08:39.112115Z",
-      "depRationale": {
-        "run-types": "Needs types to store question data"
-      }
-    },
-    "question-resume": {
-      "id": "question-resume",
-      "title": "Question Resume Logic",
-      "description": "Build continuation context that includes user answers.",
-      "acceptanceCriteria": [
-        "Prompts user for each question",
-        "Validates answer matches options",
-        "Builds continuation context with Q\u0026A",
-        "Agent receives answer in correct format",
-        "Stores Q\u0026A in run record"
-      ],
-      "prompt": "Implement ResumeWithAnswer(run RunRecord, answers []Answer) (ContextPack, error) that prompts user for answers to questions, validates them, builds continuation context including prior conversation and user answers. Format matches what agent expects.",
-      "parentId": "human-in-loop",
-      "childIds": [],
-      "deps": [
-        "question-detect",
-        "agent-context"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:16:54.258666Z",
-      "depRationale": {
-        "agent-context": "Needs context builder to create continuation",
-        "question-detect": "Needs questions to prompt for answers"
-      }
-    },
-    "retry-cmd": {
-      "id": "retry-cmd",
-      "title": "Retry Command Implementation",
-      "description": "Add CLI command to retry failed tasks.",
-      "acceptanceCriteria": [
-        "blackbird retry \u003ctaskID\u003e resets failed task",
-        "Clears failed run markers",
-        "Sets status back to todo",
-        "Validates task is retryable",
-        "Updates timestamps"
-      ],
-      "prompt": "Implement runRetry(taskID string) that: verifies task exists and is in failed/blocked state with failed runs, resets status to todo, updates timestamp, prints confirmation. Add to CLI switch and usage text.",
-      "parentId": "safety-recovery",
-      "childIds": [],
-      "deps": [
-        "failure-handling",
-        "run-query"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:19:44.602558Z",
-      "depRationale": {
-        "failure-handling": "Needs failure handling to define retry semantics",
-        "run-query": "Needs to check run history for failures"
-      }
-    },
-    "run-query": {
-      "id": "run-query",
-      "title": "Run Record Query Functions",
-      "description": "Implement functions to query and retrieve run records.",
-      "acceptanceCriteria": [
-        "ListRuns(taskID) returns all run records for a task",
-        "LoadRun(taskID, runID) loads a specific run record",
-        "GetLatestRun(taskID) returns most recent run",
-        "Returns empty list when no runs exist",
-        "Handles missing files gracefully"
-      ],
-      "prompt": "Implement query functions: ListRuns(baseDir, taskID string) ([]RunRecord, error), LoadRun(baseDir, taskID, runID string) (RunRecord, error), GetLatestRun(baseDir, taskID string) (*RunRecord, error). Sort by StartedAt timestamp.",
-      "parentId": "run-records",
-      "childIds": [],
-      "deps": [
-        "run-storage"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:05:11.268099Z",
-      "depRationale": {
-        "run-storage": "Needs storage format to implement query"
-      }
-    },
-    "run-records": {
-      "id": "run-records",
-      "title": "Run Record Infrastructure",
-      "description": "Create durable storage and types for recording agent execution runs.",
-      "acceptanceCriteria": [
-        "RunRecord struct captures all required fields (task ID, provider, timestamps, outcome, logs)",
-        "Records stored in repo under .blackbird/runs/ directory",
-        "Each run has unique ID and is immutable once written",
-        "Records can be queried by task ID",
-        "Supports stdout/stderr log capture"
-      ],
-      "prompt": "Define RunRecord type with fields: ID, TaskID, Provider, StartedAt, CompletedAt, Status (running/success/failed/waiting_user), ExitCode, Stdout, Stderr, ContextSnapshot. Implement persistence layer that writes records to .blackbird/runs/{task-id}/{run-id}.json. Create query functions to list and load runs.",
-      "parentId": null,
-      "childIds": [
-        "run-types",
-        "run-storage",
-        "run-query"
-      ],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:21:04.381723Z"
-    },
-    "run-storage": {
-      "id": "run-storage",
-      "title": "Run Record Storage Layer",
-      "description": "Implement persistence for run records to filesystem.",
-      "acceptanceCriteria": [
-        "SaveRun atomically writes run records to .blackbird/runs/",
-        "Directory structure: .blackbird/runs/{task-id}/{run-id}.json",
-        "Atomic writes prevent partial records",
-        "Creates directories as needed",
-        "Returns error on write failure"
-      ],
-      "prompt": "Implement SaveRun(baseDir string, record RunRecord) error that atomically writes run record to .blackbird/runs/{task-id}/{run-id}.json. Use atomic write pattern (write to temp, rename). Create parent directories if needed.",
-      "parentId": "run-records",
-      "childIds": [],
-      "deps": [
-        "run-types"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:04:12.625713Z",
-      "depRationale": {
-        "run-types": "Needs RunRecord type definition to persist"
-      }
-    },
-    "run-types": {
-      "id": "run-types",
-      "title": "Run Record Data Types",
-      "description": "Define the data structures for run records and execution outcomes.",
-      "acceptanceCriteria": [
-        "RunRecord struct defined with all required fields",
-        "RunStatus enum (running, success, failed, waiting_user) defined",
-        "ContextPack struct for capturing execution context",
-        "JSON serialization works correctly",
-        "Timestamp fields use UTC"
-      ],
-      "prompt": "In internal/execution/ create types.go defining RunRecord, RunStatus, and ContextPack. RunRecord should include: ID (UUID), TaskID, Provider, StartedAt, CompletedAt, Status, ExitCode, Stdout, Stderr, Context. Ensure JSON marshaling works properly.",
-      "parentId": "run-records",
+      "prompt": "Read AGENT_LOG.md and append a new section: '## Phase 3: TUI Dashboard'. Document: why Bubble Tea (low-dependency, Go-native, good for terminal UIs), pane structure (tree left, detail/execution right, bottom bar), CLI integration (zero-args detection in cli.Run), execution dashboard approach (reading run records, live timer), navigation design (vim-style keys, tab switching), action integration (wrapping existing CLI flows), risks (blocking execution wrapped in commands, terminal sizing handled by bubbletea WindowSizeMsg). Keep concise and focused on key decisions.",
+      "parentId": "tests-log",
       "childIds": [],
       "deps": [],
       "status": "done",
       "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:01:00.992516Z"
+      "updatedAt": "2026-01-29T01:23:31.943215Z"
     },
-    "safety-recovery": {
-      "id": "safety-recovery",
-      "title": "Safety and Recovery Mechanisms",
-      "description": "Implement safety checks and recovery flows for failed executions.",
+    "bottom-bar": {
+      "id": "bottom-bar",
+      "title": "Create contextual action bottom bar",
+      "description": "Render a bottom status bar showing available actions, current counts (ready/blocked tasks), and active operation status.",
       "acceptanceCriteria": [
-        "Failed tasks don't unblock dependents",
-        "Failed tasks can be manually retried",
-        "Execution state survives process restart",
-        "Partial work is preserved",
-        "Clear error messages for failures"
+        "Bottom bar shows key hints for available actions",
+        "Displays ready task count and blocked task count",
+        "Shows active operation status (e.g., 'Generating plan...')",
+        "Different actions shown based on context",
+        "Uses contrasting style for visibility",
+        "Bar adapts to window width"
       ],
-      "prompt": "Add safety checks: verify failed tasks remain blocked from dependents. Implement retry mechanism via 'blackbird retry \u003ctaskID\u003e' that resets status to todo and clears failed run. Ensure execution state in plan file allows safe restart. Add validation that execution doesn't corrupt plan.",
+      "prompt": "Create internal/tui/bottom_bar.go with RenderBottomBar(model Model) string function. Calculate ready and blocked counts from plan. Show action hints: [g]enerate [r]efine [e]xecute [s]et-status [t]ab [f]ilter [q]uit. If model.actionInProgress, show spinner and action name. Display counts on right side. Use lipgloss with inverted colors for visibility. Truncate to window width. Update View() to include bottom bar at end.",
+      "parentId": "actions-integration",
+      "childIds": [],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-29T01:26:45.801043Z"
+    },
+    "detail-view": {
+      "id": "detail-view",
+      "title": "Build item detail pane view",
+      "description": "Create rendering logic for the right pane that displays full details of the selected item including description, acceptance criteria, dependencies with status, dependents, and readiness information.",
+      "acceptanceCriteria": [
+        "Shows item ID, title, status, timestamps",
+        "Displays description and acceptance criteria list",
+        "Lists all dependencies with their status",
+        "Lists all dependents",
+        "Shows readiness: deps satisfied, actionable status",
+        "Displays prompt text",
+        "Scrollable if content exceeds pane height",
+        "Uses lipgloss for section headers and formatting"
+      ],
+      "prompt": "Create internal/tui/detail_view.go with RenderDetailView(model Model) string function. Given model.selectedID, look up item in model.plan. Format output with sections: header (ID/title/status/timestamps), description, acceptance criteria bullets, deps list (with status from plan), dependents list, readiness (using UnmetDeps), and prompt. Use lipgloss for section styling. Handle empty selection gracefully. Add viewport for scrolling if content is tall.",
+      "parentId": "plan-navigation",
+      "childIds": [],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-29T01:31:56.765533Z"
+    },
+    "execution-dashboard": {
+      "id": "execution-dashboard",
+      "title": "Add run state + elapsed time dashboard",
+      "description": "Create an execution dashboard tab in the right pane that displays current run state, elapsed time for running tasks, latest run log excerpt, and summary of ready/blocked tasks. Read run records from .blackbird/runs directory.",
+      "acceptanceCriteria": [
+        "Dashboard shows current running task with elapsed time",
+        "Displays task status (running/success/failed/waiting_user)",
+        "Shows exit code and timestamps from run records",
+        "Displays count of remaining ready tasks",
+        "Shows latest stdout/stderr excerpt from active run",
+        "Elapsed time updates live for running tasks",
+        "Dashboard accessible via tab in right pane"
+      ],
+      "prompt": "Create internal/tui/execution_view.go with RenderExecutionView(model Model) string function. Query execution.LatestRunByTask for all tasks. Find tasks with Status=running or waiting_user. For active runs, calculate elapsed time from StartedAt (if CompletedAt is nil). Show task ID, status, elapsed time, exit code. Get ready task count via execution.ReadyTasks(). Display latest stdout/stderr excerpt (last 20 lines). Update Model to include tabMode (details/execution) in right pane. Add 't' key to toggle tabs. Use lipgloss for status colors and formatting.",
       "parentId": null,
       "childIds": [
-        "failure-handling",
-        "retry-cmd"
+        "execution-view-render",
+        "run-data-loader",
+        "live-timer"
       ],
       "deps": [
-        "exec-lifecycle",
-        "run-storage"
+        "plan-navigation"
+      ],
+      "status": "todo",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-29T02:03:14.714145Z",
+      "depRationale": {
+        "plan-navigation": "Dashboard is a tab in the right pane established by plan navigation"
+      }
+    },
+    "execution-view-render": {
+      "id": "execution-view-render",
+      "title": "Render execution dashboard view",
+      "description": "Implement the rendering logic for the execution dashboard including run status, elapsed time, log excerpts, and task counts.",
+      "acceptanceCriteria": [
+        "Renders current run status section with task ID and status",
+        "Shows formatted elapsed time (HH:MM:SS)",
+        "Displays exit code if completed",
+        "Shows log excerpt in scrollable area",
+        "Displays ready/blocked task counts",
+        "Empty state when no active runs",
+        "Uses lipgloss for styling"
+      ],
+      "prompt": "Create internal/tui/execution_view.go with RenderExecutionView(model Model) string function. Access model.runData (populated by run-data-loader). Format sections: Active Run (task ID, status with color, elapsed time, exit code), Log Output (last 20 lines of stdout/stderr), Task Summary (X ready, Y blocked using execution.ReadyTasks and plan.UnmetDeps counts). Handle empty state gracefully. Use lipgloss for section headers and status colors.",
+      "parentId": "execution-dashboard",
+      "childIds": [],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-29T01:36:21.787868Z"
+    },
+    "live-timer": {
+      "id": "live-timer",
+      "title": "Add live elapsed time updates",
+      "description": "Implement a timer tick command that updates the UI every second to refresh elapsed time for running tasks, making the dashboard feel live and responsive.",
+      "acceptanceCriteria": [
+        "Timer ticks every 1 second while task is running",
+        "Elapsed time updates without user input",
+        "Timer only active when there are running tasks",
+        "No excessive CPU usage",
+        "Uses Bubble Tea tick command pattern"
+      ],
+      "prompt": "Create internal/tui/timer.go with TickCmd() tea.Cmd that uses time.After(1 * time.Second) to send tick messages. In model.go Update(), handle tick message: check if any tasks are running (status=running or waiting_user) in runData, if yes recalculate elapsed times and return TickCmd() for next tick, if no stop ticking. Start ticking in Init() if runs exist. Ensure efficient re-rendering.",
+      "parentId": "execution-dashboard",
+      "childIds": [],
+      "deps": [
+        "run-data-loader"
       ],
       "status": "done",
       "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-28T22:21:07.771006Z",
+      "updatedAt": "2026-01-29T01:43:26.6707Z",
       "depRationale": {
-        "exec-lifecycle": "Needs lifecycle to handle failure transitions",
-        "run-storage": "Needs run records to determine retry eligibility"
+        "run-data-loader": "Timer needs runData to determine if tasks are running"
       }
+    },
+    "navigation-keys": {
+      "id": "navigation-keys",
+      "title": "Implement keyboard navigation logic",
+      "description": "Handle all keyboard inputs for navigating the tree (up/down), expanding/collapsing items (enter/space), switching panes (tab), filtering (f), and scrolling detail pane.",
+      "acceptanceCriteria": [
+        "Up/down arrows move selection in tree",
+        "Enter or space expands/collapses parent items",
+        "Tab switches focus between tree and detail panes",
+        "f key cycles through filter modes (all/ready/blocked)",
+        "j/k keys also work for vim-style navigation",
+        "Page up/down scrolls detail pane",
+        "Home/end keys jump to first/last item"
+      ],
+      "prompt": "Update internal/tui/model.go Update() method to handle tea.KeyMsg. Implement: arrow up/down to move selection through visible items in tree order (respecting collapsed state), enter/space to toggle expanded state for parents, tab to toggle activePane between 'tree' and 'detail', f to cycle filterMode, j/k as aliases for up/down, page up/down for detail scrolling. Update selectedID and expandedItems map accordingly. Add helper methods: nextVisibleItem(), prevVisibleItem(), isParent().",
+      "parentId": "plan-navigation",
+      "childIds": [],
+      "deps": [
+        "tree-view",
+        "detail-view"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-29T01:52:40.469281Z",
+      "depRationale": {
+        "detail-view": "Scrolling requires detail view to be implemented",
+        "tree-view": "Navigation depends on tree rendering logic for visible items"
+      }
+    },
+    "plan-navigation": {
+      "id": "plan-navigation",
+      "title": "Implement plan tree + detail pane views",
+      "description": "Build the left pane showing hierarchical plan tree and right pane showing selected item details. Implement keyboard navigation (up/down, expand/collapse, tab to switch panes) and status-based filtering.",
+      "acceptanceCriteria": [
+        "Left pane displays plan items in tree structure",
+        "Items show ID, status, and readiness indicator",
+        "Up/down arrow keys navigate tree",
+        "Enter/space to expand/collapse parent items",
+        "Right pane shows full item details (description, deps, AC)",
+        "Tab key switches between panes",
+        "Status filtering (show all, ready only, blocked only)"
+      ],
+      "prompt": "Implement plan tree view in internal/tui/tree_view.go and detail view in internal/tui/detail_view.go. Update Model to track cursor position, expanded items, filter mode. In Update(), handle arrow keys for navigation, enter for expand/collapse, tab for pane switching, f key for filter cycling. In View(), render two-column layout with tree on left and details on right. Use lipgloss for styling. Reuse readinessLabel and UnmetDeps from plan package.",
+      "parentId": null,
+      "childIds": [
+        "tree-view",
+        "detail-view",
+        "navigation-keys"
+      ],
+      "deps": [
+        "tui-scaffold"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-29T02:00:57.159787Z",
+      "depRationale": {
+        "tui-scaffold": "Need base TUI structure before implementing views"
+      }
+    },
+    "run-data-loader": {
+      "id": "run-data-loader",
+      "title": "Load run records from storage",
+      "description": "Add functionality to load run records from .blackbird/runs directory and maintain them in the Model state. Use execution package's storage functions to read run data.",
+      "acceptanceCriteria": [
+        "Model includes runData field with map of taskID -\u003e RunRecord",
+        "Init command loads initial run data",
+        "Uses execution.LatestRunByTask or similar",
+        "Handles missing .blackbird/runs directory gracefully",
+        "Run data is refreshed periodically or on demand"
+      ],
+      "prompt": "Add runData map[string]execution.RunRecord field to Model in internal/tui/model.go. Create internal/tui/run_loader.go with LoadRunData() tea.Cmd that reads run records using execution package storage functions. Call LoadRunData in Model.Init(). Handle errors gracefully (missing directory is OK). Store results in model.runData via a custom message type RunDataLoaded. Add refresh command that can be triggered periodically.",
+      "parentId": "execution-dashboard",
+      "childIds": [],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-29T01:40:29.100986Z"
+    },
+    "tests-log": {
+      "id": "tests-log",
+      "title": "Add minimal tests + update AGENT_LOG",
+      "description": "Write unit tests for TUI components that don't require full Bubble Tea program (helpers, formatters, state logic). Update AGENT_LOG.md with implementation notes and design decisions.",
+      "acceptanceCriteria": [
+        "Unit tests for tree rendering logic",
+        "Unit tests for navigation helpers (nextVisible, prevVisible)",
+        "Unit tests for elapsed time calculation",
+        "CLI test that zero-args launches TUI (mocked)",
+        "AGENT_LOG.md updated with TUI section",
+        "All tests pass",
+        "Test coverage for core logic paths"
+      ],
+      "prompt": "Create internal/tui/tree_view_test.go, model_test.go, timer_test.go with unit tests. Test tree rendering with various plan structures, navigation logic with collapsed/expanded states, elapsed time formatting. Add test to internal/cli/cli_test.go that verifies Run([]) calls TUI (mock tui.Start). Update AGENT_LOG.md with new section: TUI implementation approach, Bubble Tea choice rationale, key decisions (pane layout, action integration), risks encountered and mitigations. Run go test ./internal/tui/... to verify.",
+      "parentId": null,
+      "childIds": [
+        "tui-tests",
+        "agent-log-update"
+      ],
+      "deps": [
+        "actions-integration"
+      ],
+      "status": "todo",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T00:00:00Z",
+      "depRationale": {
+        "actions-integration": "All major features should be complete before writing comprehensive tests"
+      }
+    },
+    "tree-view": {
+      "id": "tree-view",
+      "title": "Build hierarchical plan tree view",
+      "description": "Create rendering logic for the left pane that displays items in a tree structure with proper indentation, status indicators, and readiness labels. Support filtering and expandable/collapsible nodes.",
+      "acceptanceCriteria": [
+        "Tree renders with proper indentation for hierarchy",
+        "Each item shows: ID, status, readiness label, title",
+        "Parent items show expand/collapse indicator (▶/▼)",
+        "Collapsed parent hides children",
+        "Current selection is highlighted",
+        "Filter mode affects which items are shown",
+        "Uses lipgloss for colors and styling"
+      ],
+      "prompt": "Create internal/tui/tree_view.go with RenderTreeView(model Model) string function. Recursively walk plan tree starting from root items. For each item, render with indent based on depth, status color, readiness label from plan package, and expand indicator. Track model.expandedItems map to show/hide children. Highlight model.selectedID. Apply model.filterMode to skip non-matching items. Use lipgloss for styling (green=done, yellow=in_progress, red=blocked, blue=ready).",
+      "parentId": "plan-navigation",
+      "childIds": [],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-29T01:48:59.158297Z"
+    },
+    "tui-entrypoint": {
+      "id": "tui-entrypoint",
+      "title": "Wire TUI entrypoint into CLI",
+      "description": "Update cli.Run to detect zero-args case and launch TUI. Create tui.Start() function that loads the plan, initializes the Bubble Tea program, and runs it.",
+      "acceptanceCriteria": [
+        "cli.Run calls tui.Start() when len(args)==0",
+        "tui.Start() loads plan from planPath()",
+        "tui.Start() initializes and runs bubbletea.Program",
+        "Error handling for missing or invalid plan files",
+        "Running `blackbird` launches TUI"
+      ],
+      "prompt": "Update internal/cli/cli.go Run() function to call tui.Start() when len(args)==0 instead of returning UsageError. Create internal/tui/start.go with Start() function that: loads plan using plan.Load(), validates it, creates Model with plan data, initializes tea.Program, and runs it. Handle plan not found gracefully.",
+      "parentId": "tui-scaffold",
+      "childIds": [],
+      "deps": [
+        "tui-model"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-29T01:57:33.062279Z",
+      "depRationale": {
+        "tui-model": "Need Model implementation to initialize tea.Program"
+      }
+    },
+    "tui-model": {
+      "id": "tui-model",
+      "title": "Create base Bubble Tea model structure",
+      "description": "Implement the core Bubble Tea Model interface with Init, Update, and View methods. Set up the basic state structure to hold plan data, execution state, and UI state (current pane, selected item, etc.).",
+      "acceptanceCriteria": [
+        "Model struct with Init, Update, View methods",
+        "State includes plan reference, selected item ID, active pane",
+        "Basic keyboard navigation (q to quit)",
+        "Window size handling via tea.WindowSizeMsg",
+        "Model compiles and passes basic tests"
+      ],
+      "prompt": "Create internal/tui/model.go with a Model struct implementing bubbletea.Model. Include fields for: plan (WorkGraph), selectedID (string), activePane (string), windowWidth/Height (int). Implement Init() to return nil command, Update() to handle tea.WindowSizeMsg and tea.KeyMsg (q to quit), View() to return placeholder text. Add unit tests.",
+      "parentId": "tui-scaffold",
+      "childIds": [],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-29T01:54:15.53898Z"
+    },
+    "tui-scaffold": {
+      "id": "tui-scaffold",
+      "title": "Add Bubble Tea TUI skeleton + entrypoint hook",
+      "description": "Create the foundational TUI package structure with Bubble Tea and wire it into the CLI entrypoint so that running `blackbird` with no arguments launches the TUI instead of showing a usage error.",
+      "acceptanceCriteria": [
+        "internal/tui package exists with bubbletea.Model implementation",
+        "cli.Run routes zero-args case to TUI entrypoint",
+        "TUI launches and displays basic welcome screen",
+        "All existing subcommands remain functional",
+        "go.mod includes bubbletea dependency"
+      ],
+      "prompt": "Create internal/tui package with a basic Bubble Tea model that displays a welcome screen. Update internal/cli/cli.go to call tui.Start() when len(args)==0 instead of returning UsageError. Add bubbletea dependency to go.mod. Ensure all existing CLI subcommands continue to work unchanged.",
+      "parentId": null,
+      "childIds": [
+        "tui-model",
+        "tui-entrypoint"
+      ],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-29T01:58:25.657436Z"
+    },
+    "tui-tests": {
+      "id": "tui-tests",
+      "title": "Write TUI unit tests",
+      "description": "Create unit tests for TUI components including tree rendering, navigation logic, elapsed time calculation, and state management.",
+      "acceptanceCriteria": [
+        "Tests for tree view rendering with different plan structures",
+        "Tests for navigation (next/prev visible item) with expand/collapse",
+        "Tests for filter mode behavior",
+        "Tests for elapsed time calculation and formatting",
+        "Tests for action trigger logic",
+        "Mock external dependencies (plan loading, run records)",
+        "All tests pass with go test"
+      ],
+      "prompt": "Create test files: internal/tui/tree_view_test.go (test rendering with nested items, collapsed state), internal/tui/model_test.go (test navigation helpers, selection updates, filter application), internal/tui/timer_test.go (test elapsed time calculation), internal/tui/actions_test.go (test action dispatch). Use testify or standard testing. Mock plan.WorkGraph with sample data. Test edge cases: empty plan, single item, deep hierarchy. Ensure tests run fast without actual TUI rendering.",
+      "parentId": "tests-log",
+      "childIds": [],
+      "deps": [],
+      "status": "todo",
+      "createdAt": "2026-01-28T00:00:00Z",
+      "updatedAt": "2026-01-28T00:00:00Z"
     }
   }
 }
