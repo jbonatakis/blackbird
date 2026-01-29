@@ -150,3 +150,134 @@
 ## 2026-01-18 — Agent stdout/stderr streaming option
 
 - Added `BLACKBIRD_AGENT_STREAM=1` to stream agent stdout/stderr live while still capturing output for JSON extraction.
+
+## 2026-01-28 — Phase 2 execution dispatch spec
+
+- Drafted a product-level spec for autonomous task execution dispatch, including goals, requirements, and definition of done in `specs/phase_2/EXECUTION_DISPATCH.md`.
+
+## 2026-01-23 — Agent default timeout adjustment
+
+- Increased `internal/agent` default runtime timeout to 10 minutes to avoid premature plan generation timeouts.
+
+## 2026-01-23 — Agent progress indicator
+
+- Added a simple progress indicator during agent runs so long operations show activity in the CLI.
+
+## 2026-01-28 — Execution run types
+
+- Added `internal/execution` package with RunRecord, RunStatus, and ContextPack types.
+- Included task/dependency context structs and JSON tags (omitempty for optional fields).
+- Added unit tests covering JSON round-trip and omission of optional fields.
+
+## 2026-01-28 — Execution selector
+
+- Added ReadyTasks selection logic in `internal/execution/selector.go` with deterministic ordering.
+- Added unit tests covering readiness filtering and empty graph behavior.
+
+## 2026-01-28 — Run record storage
+
+- Added `SaveRun` with atomic write semantics and `.blackbird/runs/{task-id}/{run-id}.json` layout.
+- Added storage tests for writing and basic validation errors.
+
+## 2026-01-28 — Run record queries
+
+- Added ListRuns, LoadRun, and GetLatestRun with sorted output and missing-dir handling.
+- Added tests for listing order, missing data, and latest selection.
+
+## 2026-01-28 — Runs history command
+
+- Added `blackbird runs` command with optional `--verbose` output and table formatting.
+- Added CLI tests for table output, verbose logs, and no-run message.
+
+## 2026-01-28 — Question detection
+
+- Added question parsing for AskUserQuestion tool output with JSON scanning.
+- Added tests covering detection, no-questions, and error handling.
+
+## 2026-01-28 — Execution context builder
+
+- Added BuildContext to assemble task context, dependency summaries, and project snapshot.
+- Loads snapshot from `.blackbird/snapshot.md` with fallbacks to `OVERVIEW.md`/`README.md`.
+- Added tests for task/dependency inclusion and snapshot loading.
+
+## 2026-01-28 — Execution lifecycle
+
+- Added new plan statuses (queued, waiting_user, failed) and lifecycle transition validation.
+- Implemented UpdateTaskStatus with atomic plan updates and state machine checks.
+- Added tests for valid transitions and rejection of invalid transitions.
+
+## 2026-01-28 — Agent launcher
+
+- Added LaunchAgent to execute agent commands with context pack input and capture stdout/stderr.
+- Detects AskUserQuestion output to switch to waiting_user status.
+- Added tests for success, waiting_user detection, and failure exit codes.
+
+## 2026-01-28 — Execute command
+
+- Added `blackbird execute` loop to run ready tasks, update statuses, and store run records.
+- Added CLI test for executing a single task and persisting run history.
+
+## 2026-01-28 — Question resume
+
+- Added ResumeWithAnswer to validate answers against parsed questions and build continuation context.
+- Extended ContextPack to include questions and answers.
+- Added tests for resume validation and invalid options.
+
+## 2026-01-28 — Failure handling
+
+- Added execute-loop test covering failure path and continued execution of subsequent tasks.
+- Verified failed tasks are marked failed and run records persist per task.
+
+## 2026-01-28 — Resume command
+
+- Added `blackbird resume` to answer waiting_user questions and relaunch the agent.
+- Added CLI test for resuming a waiting run and completing the task.
+
+## 2026-01-28 — Retry command
+
+- Added `blackbird retry` to reset failed tasks with failed run history back to todo.
+- Added tests for retry success and missing failed run guard.
+
+## 2026-01-28 — Agent execution bridge
+
+- Added ExecuteTask wrapper to build context and launch the agent for a task.
+- Added test coverage for ExecuteTask success path.
+
+## 2026-01-28 — Parent task status updates
+
+- Marked agent-exec, exec-dispatch, human-in-loop, run-records, safety-recovery, and exec-cli as done after completing their child work.
+
+## 2026-01-28 — Execution docs and tests
+
+- Documented execution commands and snapshot behavior in `README.md`.
+- Added `internal/execution/README.md` with architecture overview.
+- Marked exec-docs and exec-tests complete after expanding execution test coverage.
+
+## 2026-01-28 — Execution file operations
+
+- Added execution response schema parsing and file operation application.
+- Updated launcher/execute/resume flows to require JSON responses and apply file ops.
+- Updated tests and docs to reflect execution output contract.
+
+## 2026-01-28 — Execution uses native agent edits
+
+- Removed JSON file-op execution contract; agents now edit the working tree directly.
+- Launcher no longer parses file ops; execute/resume just record stdout/stderr.
+- Updated tests and docs to reflect native agent execution.
+
+## 2026-01-28 — Execution auto-approve flags
+
+- Added provider-specific auto-approve flags for headless execution runs.
+- Codex uses `exec --full-auto`; Claude uses `--permission-mode acceptEdits`.
+
+## 2026-01-28 — Claude permission mode update
+
+- Updated Claude auto-approve flag to `--permission-mode dontAsk` to cover command execution prompts.
+
+## 2026-01-28 — Execution system prompt
+
+- Added a system prompt in execution context authorizing non-destructive commands and file edits without confirmation.
+
+## 2026-01-28 — Claude permission mode bypass
+
+- Switched Claude auto-approve flag to `--permission-mode bypassPermissions` for execution runs.

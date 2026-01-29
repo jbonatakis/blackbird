@@ -41,9 +41,13 @@ Usage:
   blackbird deps remove <id> <depId>
   blackbird deps set <id> [<depId> ...]
   blackbird deps infer [--hint <text> ...] [--model <model>] [--max-tokens <n>] [--temperature <n>] [--response-format <fmt>]
+  blackbird runs <taskID> [--verbose]
+  blackbird execute
+  blackbird resume <taskID>
+  blackbird retry <taskID>
 
 Statuses:
-  todo | in_progress | blocked | done | skipped
+  todo | queued | in_progress | waiting_user | blocked | done | failed | skipped
 `
 }
 
@@ -101,6 +105,20 @@ func Run(args []string) error {
 		return runMove(args[1], args[2:])
 	case "deps":
 		return runDeps(args[1:])
+	case "runs":
+		return runRuns(args[1:])
+	case "execute":
+		return runExecute(args[1:])
+	case "resume":
+		if len(args) != 2 {
+			return UsageError{Message: "resume requires exactly 1 argument: <taskID>"}
+		}
+		return runResume(args[1])
+	case "retry":
+		if len(args) != 2 {
+			return UsageError{Message: "retry requires exactly 1 argument: <taskID>"}
+		}
+		return runRetry(args[1])
 	default:
 		return UsageError{Message: fmt.Sprintf("unknown command: %q", args[0])}
 	}
@@ -413,7 +431,7 @@ func runSetStatus(id string, statusStr string) error {
 
 func parseStatus(s string) (plan.Status, bool) {
 	switch plan.Status(s) {
-	case plan.StatusTodo, plan.StatusInProgress, plan.StatusBlocked, plan.StatusDone, plan.StatusSkipped:
+	case plan.StatusTodo, plan.StatusQueued, plan.StatusInProgress, plan.StatusWaitingUser, plan.StatusBlocked, plan.StatusDone, plan.StatusFailed, plan.StatusSkipped:
 		return plan.Status(s), true
 	default:
 		return "", false
@@ -429,6 +447,15 @@ func readinessLabel(status plan.Status, depsOK bool, manualBlocked bool) string 
 	}
 	if status == plan.StatusInProgress {
 		return "IN_PROGRESS"
+	}
+	if status == plan.StatusQueued {
+		return "QUEUED"
+	}
+	if status == plan.StatusWaitingUser {
+		return "WAITING_USER"
+	}
+	if status == plan.StatusFailed {
+		return "FAILED"
 	}
 	if !depsOK {
 		return "BLOCKED"
