@@ -62,7 +62,7 @@ Key bindings:
 - `e`: execute ready tasks
 - `u`: resume waiting task (when available)
 - `s`: set status for selected item
-- `q`: quit
+- `ctrl+c`: quit
 
 ## Core commands
 

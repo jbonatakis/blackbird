@@ -40,7 +40,7 @@ func RenderBottomBar(model Model) string {
 
 func actionHints(model Model, readyCount int) []string {
 	if model.actionInProgress {
-		return []string{"[q]uit"}
+		return []string{"[ctrl+c]quit"}
 	}
 	actions := []string{
 		"[g]enerate",
@@ -49,7 +49,7 @@ func actionHints(model Model, readyCount int) []string {
 		"[s]et-status",
 		"[t]ab",
 		"[f]ilter",
-		"[q]uit",
+		"[ctrl+c]quit",
 	}
 	if readyCount == 0 {
 		actions = removeAction(actions, "[e]xecute")
@@ -82,26 +82,26 @@ func actionHints(model Model, readyCount int) []string {
 		}
 	}
 	if model.actionMode == ActionModeSetStatus {
-		actions = []string{"[q]uit"}
+		actions = []string{"[ctrl+c]quit"}
 	}
 	if model.actionMode == ActionModeGeneratePlan {
-		actions = []string{"[enter]submit", "[esc]cancel", "[tab]next", "[shift+tab]prev", "[q]uit"}
+		actions = []string{"[enter]submit", "[esc]cancel", "[tab]next", "[shift+tab]prev", "[ctrl+c]quit"}
 	}
 	if model.actionMode == ActionModeAgentQuestion {
 		if model.agentQuestionForm != nil {
 			currentQ := model.agentQuestionForm.CurrentQuestion()
 			if len(currentQ.Options) > 0 {
-				actions = []string{"[↑/↓]navigate", "[1-9]select", "[enter]confirm", "[esc]cancel", "[q]uit"}
+				actions = []string{"[↑/↓]navigate", "[1-9]select", "[enter]confirm", "[esc]cancel", "[ctrl+c]quit"}
 			} else {
-				actions = []string{"[enter]submit", "[esc]cancel", "[q]uit"}
+				actions = []string{"[enter]submit", "[esc]cancel", "[ctrl+c]quit"}
 			}
 		}
 	}
 	if model.actionMode == ActionModePlanReview {
 		if model.planReviewForm != nil && model.planReviewForm.mode == ReviewModeChooseAction {
-			actions = []string{"[↑/↓]navigate", "[1-3]select", "[enter]confirm", "[esc]cancel", "[q]uit"}
+			actions = []string{"[↑/↓]navigate", "[1-3]select", "[enter]confirm", "[esc]cancel", "[ctrl+c]quit"}
 		} else if model.planReviewForm != nil && model.planReviewForm.mode == ReviewModeRevisionPrompt {
-			actions = []string{"[ctrl+s]submit", "[esc]back", "[q]uit"}
+			actions = []string{"[ctrl+s]submit", "[esc]back", "[ctrl+c]quit"}
 		}
 	}
 	return actions

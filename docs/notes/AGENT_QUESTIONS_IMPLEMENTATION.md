@@ -71,8 +71,8 @@ Updated message handler:
 ### 6. Bottom Bar Updates
 
 The bottom bar now shows context-appropriate help text when in question mode:
-- Multiple choice: `[↑/↓]navigate [1-9]select [enter]confirm [esc]cancel [q]uit`
-- Free text: `[enter]submit [esc]cancel [q]uit`
+- Multiple choice: `[↑/↓]navigate [1-9]select [enter]confirm [esc]cancel [ctrl+c]quit`
+- Free text: `[enter]submit [esc]cancel [ctrl+c]quit`
 
 ## Testing
 

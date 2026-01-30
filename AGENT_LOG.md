@@ -493,3 +493,13 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 
 - Aligned agent runtime provider args with execution behavior so plan flows use non-interactive codex/claude flags.
 - Added coverage for provider arg prefixing in `internal/agent/runtime_test.go`.
+
+## 2026-01-29 — TUI quit key fix
+
+- Removed `q` as a global quit key in the TUI to avoid exiting during text entry.
+- Updated bottom bar hints and docs to reflect `ctrl+c` as the quit shortcut.
+- Adjusted TUI tests to match the new quit behavior.
+
+## 2026-01-29 — Codex skip git repo check
+
+- Added `--skip-git-repo-check` to codex provider args so plan flows run outside git repos.

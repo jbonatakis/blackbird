@@ -210,7 +210,7 @@ func applyProviderArgs(provider string, args []string) []string {
 	switch strings.ToLower(provider) {
 	case "codex":
 		// Match execution behavior for non-interactive runs.
-		return append([]string{"exec", "--full-auto"}, args...)
+		return append([]string{"exec", "--full-auto", "--skip-git-repo-check"}, args...)
 	case "claude":
 		// Claude Code permission mode to bypass prompts for edits and commands.
 		return append([]string{"--permission-mode", "bypassPermissions"}, args...)

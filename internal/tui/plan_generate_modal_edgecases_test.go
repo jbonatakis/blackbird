@@ -324,7 +324,7 @@ func TestPlanGenerateForm_TabAndEnterBehavior(t *testing.T) {
 	}
 }
 
-// TestModel_QuitDuringModal tests that Ctrl+C and 'q' still work
+// TestModel_QuitDuringModal tests that Ctrl+C still works
 func TestModel_QuitDuringModal(t *testing.T) {
 	m := NewModel(plan.NewEmptyWorkGraph())
 	m.windowWidth = 80

@@ -91,8 +91,8 @@ New handlers:
 ### 6. Bottom Bar Updates
 
 The bottom bar shows context-appropriate help text:
-- **Choose action mode**: `[↑/↓]navigate [1-3]select [enter]confirm [esc]cancel [q]uit`
-- **Revision prompt mode**: `[ctrl+s]submit [esc]back [q]uit`
+- **Choose action mode**: `[↑/↓]navigate [1-3]select [enter]confirm [esc]cancel [ctrl+c]quit`
+- **Revision prompt mode**: `[ctrl+s]submit [esc]back [ctrl+c]quit`
 
 ### 7. Revision Limit
 

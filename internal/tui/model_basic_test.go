@@ -10,7 +10,7 @@ import (
 func TestUpdateQuitCommand(t *testing.T) {
 	model := Model{}
 
-	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	if cmd == nil {
 		t.Fatalf("expected quit command, got nil")
 	}
