@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -12,8 +14,10 @@ import (
 const planDataRefreshInterval = 5 * time.Second
 
 type PlanDataLoaded struct {
-	Plan plan.WorkGraph
-	Err  error
+	Plan          plan.WorkGraph
+	PlanExists    bool
+	ValidationErr string
+	Err           error
 }
 
 type planDataRefreshMsg struct{}
@@ -22,19 +26,27 @@ func (m Model) LoadPlanData() tea.Cmd {
 	return func() tea.Msg {
 		baseDir, err := os.Getwd()
 		if err != nil {
-			return PlanDataLoaded{Plan: plan.WorkGraph{}, Err: err}
+			return PlanDataLoaded{Plan: plan.NewEmptyWorkGraph(), PlanExists: false, Err: err}
 		}
 
 		path := filepath.Join(baseDir, plan.DefaultPlanFilename)
 		g, err := plan.Load(path)
 		if err != nil {
-			return PlanDataLoaded{Plan: plan.WorkGraph{}, Err: err}
+			if errors.Is(err, plan.ErrPlanNotFound) || os.IsNotExist(err) {
+				return PlanDataLoaded{Plan: plan.NewEmptyWorkGraph(), PlanExists: false, ValidationErr: "", Err: nil}
+			}
+			return PlanDataLoaded{Plan: plan.NewEmptyWorkGraph(), PlanExists: false, ValidationErr: "", Err: err}
 		}
 		if errs := plan.Validate(g); len(errs) != 0 {
-			return PlanDataLoaded{Plan: plan.WorkGraph{}, Err: formatPlanErrors(path, errs)}
+			return PlanDataLoaded{
+				Plan:          plan.NewEmptyWorkGraph(),
+				PlanExists:    true,
+				ValidationErr: summarizePlanValidation(errs),
+				Err:           nil,
+			}
 		}
 
-		return PlanDataLoaded{Plan: g, Err: nil}
+		return PlanDataLoaded{Plan: g, PlanExists: true, ValidationErr: "", Err: nil}
 	}
 }
 
@@ -42,4 +54,15 @@ func PlanDataRefreshCmd() tea.Cmd {
 	return tea.Tick(planDataRefreshInterval, func(time.Time) tea.Msg {
 		return planDataRefreshMsg{}
 	})
+}
+
+func summarizePlanValidation(errs []plan.ValidationError) string {
+	if len(errs) == 0 {
+		return ""
+	}
+	first := errs[0]
+	if first.Path != "" {
+		return fmt.Sprintf("%s: %s", first.Path, first.Message)
+	}
+	return first.Message
 }

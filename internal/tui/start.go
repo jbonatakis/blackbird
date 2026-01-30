@@ -12,24 +12,17 @@ import (
 )
 
 func Start() error {
-	path := planPath()
-
-	g, err := plan.Load(path)
-	if err != nil {
-		if errors.Is(err, plan.ErrPlanNotFound) {
-			return fmt.Errorf("plan file not found: %s (run `blackbird init`)", path)
-		}
-		return err
-	}
-
-	if errs := plan.Validate(g); len(errs) > 0 {
-		return formatPlanErrors(path, errs)
-	}
-
-	model := NewModel(g)
+	model := newStartupModel()
 	program := tea.NewProgram(model, tea.WithAltScreen())
-	_, err = program.Run()
+	_, err := program.Run()
 	return err
+}
+
+func newStartupModel() Model {
+	model := NewModel(plan.NewEmptyWorkGraph())
+	model.planExists = false
+	model.viewMode = ViewModeHome
+	return model
 }
 
 func planPath() string {

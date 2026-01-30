@@ -503,3 +503,67 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 ## 2026-01-29 — Codex skip git repo check
 
 - Added `--skip-git-repo-check` to codex provider args so plan flows run outside git repos.
+
+## 2026-01-29 — TUI home screen spec
+
+- Added a Phase 3 spec for a TUI Home screen and missing-plan handling in `specs/phase_3/TUI_HOME_SCREEN_PLAN.md`.
+
+## 2026-01-30 — TUI model view mode + plan gating helpers
+
+- Added `ViewMode` (Home/Main) and `planExists` fields to the TUI Model with default `ViewModeHome`.
+- Added `hasPlan()`/`canExecute()` helpers and updated execute gating to use `canExecute()`.
+- Added unit tests for plan existence + execution gating in `internal/tui/model_basic_test.go`.
+
+## 2026-01-30 — TUI home view renderer
+
+- Added `internal/tui/home_view.go` with `RenderHomeView` to render a centered home screen (title, tagline, plan status, action list) with muted/shortcut/action styling via lipgloss.
+- Wired the home view into the main render path when `viewMode == ViewModeHome`.
+- Added `internal/tui/home_view_test.go` covering home view output for missing and present plans.
+
+## 2026-01-30 — TUI startup missing plan handling
+
+- Updated TUI startup to initialize with an empty in-memory plan, planExists=false, and Home view.
+- Adjusted plan loader to treat missing plan files as non-errors, returning an empty graph with planExists=false.
+- Added plan loader coverage for missing plan files and planExists assertions.
+
+## 2026-01-30 — TUI Home view integration tweaks
+
+- Updated `Model.View()` to select the Home view at the top-level before modal overlays and kept split-pane rendering for ViewModeMain.
+- Simplified bottom bar hints for the Home screen and hid status counts when no plan exists.
+- Added tests for home bottom bar hints/count hiding and for home view rendering in `Model.View()`.
+- `go test ./internal/tui/...` failed locally due to Go build cache permission restrictions (`operation not permitted`).
+
+## 2026-01-30 — TUI home key routing + plan gating
+
+- Added Home-screen key routing in `internal/tui/model.go` (g/v/r/e/ctrl+c, h toggles views with plan guard) while preserving Main view behavior.
+- Set `planExists=true` and switched to Main view after successful plan save.
+- Added unit tests covering Home key toggling, gated actions, and ctrl+c quit (`internal/tui/model_home_keys_test.go`).
+
+## 2026-01-30 — TUI plan refresh missing-plan handling
+
+- Updated plan refresh handling so PlanDataLoaded always applies the latest plan state, even on errors.
+- Added plan load error surface via action output to show validation/load errors without crashing.
+- Added unit test coverage for PlanDataLoaded error state updates.
+
+## 2026-01-30 — TUI home validation error banner
+
+- Added `planValidationErr` to the TUI model and propagated it through plan loading.
+- Plan loader now stores a concise validation error summary (first validation error) when the plan file exists but is invalid, while keeping `planExists=true`.
+- Home view renders a red (Color 196) bordered error banner with remediation guidance when a validation error is present.
+- Updated tests for plan loading validation state and home banner rendering.
+- `go test ./internal/tui/...` failed locally due to Go build cache permission restrictions.
+
+## 2026-01-30 — TUI missing-plan and home gating tests
+
+- Added `newStartupModel` helper and test to assert startup state with no plan file (planExists=false, Home view).
+- Added missing-plan PlanDataLoaded update coverage to ensure planExists stays false without error output.
+- Added execute gating test to ensure home execute action stays disabled when no ready tasks exist.
+
+## 2026-01-30 — TUI home-screen test fixes
+
+- **cli**: `TestRunZeroArgsWithoutPlanFile` now skips (TUI starts without plan file; Run would block in tui.Start()).
+- **tui**: `TestViewRendersPlaceholderText` asserts home view "No plan found" for default empty-plan view.
+- **tui**: `TestModelViewRendersTreeAndDetail` sets `viewMode: ViewModeMain` and `planExists: true` so main view (tree/detail) is rendered.
+- **tui**: `TestLoadPlanData` fixture now includes `AcceptanceCriteria: []string{}` so validation passes.
+- **tui**: `TestTabModeToggle` and `TestTabModeResetsDetailOffset` set `viewMode: ViewModeMain` so 't' key toggles tab.
+- All tests pass: `go test ./...`

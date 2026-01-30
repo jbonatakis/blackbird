@@ -38,6 +38,13 @@ const (
 	TabExecution
 )
 
+type ViewMode int
+
+const (
+	ViewModeHome ViewMode = iota
+	ViewModeMain
+)
+
 // PendingPlanRequest tracks the original plan generation request for question rounds
 type PendingPlanRequest struct {
 	description   string
@@ -47,21 +54,24 @@ type PendingPlanRequest struct {
 }
 
 type Model struct {
-	plan             plan.WorkGraph
-	selectedID       string
-	pendingStatusID  string
-	actionMode       ActionMode
-	activePane       ActivePane
-	tabMode          TabMode
-	windowWidth      int
-	windowHeight     int
-	actionInProgress bool
-	actionName       string
-	spinnerIndex     int
-	runData          map[string]execution.RunRecord
-	timerActive      bool
-	expandedItems    map[string]bool
-	filterMode       FilterMode
+	plan               plan.WorkGraph
+	selectedID         string
+	pendingStatusID    string
+	actionMode         ActionMode
+	activePane         ActivePane
+	tabMode            TabMode
+	viewMode           ViewMode
+	planExists         bool
+	planValidationErr  string
+	windowWidth        int
+	windowHeight       int
+	actionInProgress   bool
+	actionName         string
+	spinnerIndex       int
+	runData            map[string]execution.RunRecord
+	timerActive        bool
+	expandedItems      map[string]bool
+	filterMode         FilterMode
 	detailOffset       int
 	actionOutput       *ActionOutput
 	planGenerateForm   *PlanGenerateForm
@@ -76,6 +86,8 @@ func NewModel(g plan.WorkGraph) Model {
 		actionMode:    ActionModeNone,
 		activePane:    PaneTree,
 		tabMode:       TabDetails,
+		viewMode:      ViewModeHome,
+		planExists:    true,
 		runData:       map[string]execution.RunRecord{},
 		expandedItems: map[string]bool{},
 		filterMode:    FilterModeAll,
@@ -85,6 +97,14 @@ func NewModel(g plan.WorkGraph) Model {
 		break
 	}
 	return m
+}
+
+func (m Model) hasPlan() bool {
+	return m.planExists
+}
+
+func (m Model) canExecute() bool {
+	return m.planExists && len(execution.ReadyTasks(m.plan)) > 0
 }
 
 func (m Model) Init() tea.Cmd {
@@ -158,6 +178,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Message: fmt.Sprintf("Action completed successfully\n\n%s", typed.Output),
 				IsError: false,
 			}
+			if typed.Action == "save plan" {
+				m.planExists = true
+				m.viewMode = ViewModeMain
+			}
 		}
 		return m, tea.Batch(m.LoadRunData(), m.LoadPlanData())
 	case ExecuteActionComplete:
@@ -179,10 +203,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case PlanDataLoaded:
-		if typed.Err != nil {
-			return m, nil
-		}
 		m.plan = typed.Plan
+		m.planExists = typed.PlanExists
+		m.planValidationErr = typed.ValidationErr
+		if typed.Err != nil {
+			m.actionOutput = &ActionOutput{
+				Message: fmt.Sprintf("Plan load failed: %v", typed.Err),
+				IsError: true,
+			}
+		}
 		m.ensureSelectionVisible()
 		return m, nil
 	case RunDataLoaded:
@@ -282,7 +311,48 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.actionOutput != nil && !m.actionInProgress {
 			m.actionOutput = nil
 		}
-		switch typed.String() {
+		key := typed.String()
+		switch key {
+		case "h":
+			if m.viewMode == ViewModeHome {
+				if m.planExists {
+					m.viewMode = ViewModeMain
+				}
+			} else {
+				m.viewMode = ViewModeHome
+			}
+			return m, nil
+		}
+		if m.viewMode == ViewModeHome && m.actionMode == ActionModeNone {
+			switch key {
+			case "ctrl+c":
+				return m, tea.Quit
+			case "g":
+				return m.startPlanGenerate()
+			case "v":
+				if m.planExists {
+					m.viewMode = ViewModeMain
+				}
+				return m, nil
+			case "r":
+				if m.actionMode != ActionModeNone || m.actionInProgress || !m.planExists {
+					return m, nil
+				}
+				m.actionInProgress = true
+				m.actionName = "Refining plan..."
+				return m, tea.Batch(PlanRefineCmd(), spinnerTickCmd())
+			case "e":
+				if m.actionMode != ActionModeNone || m.actionInProgress || !m.canExecute() {
+					return m, nil
+				}
+				m.actionInProgress = true
+				m.actionName = "Executing..."
+				return m, tea.Batch(ExecuteCmd(), spinnerTickCmd())
+			default:
+				return m, nil
+			}
+		}
+		switch key {
 		case "ctrl+c":
 			return m, tea.Quit
 		case "tab":
@@ -382,25 +452,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		case "g":
-			if m.actionMode != ActionModeNone || m.actionInProgress {
-				return m, nil
-			}
-
-			// Reset pending request state for new generation
-			m.pendingPlanRequest = PendingPlanRequest{}
-
-			// Check if plan already exists with items
-			if len(m.plan.Items) > 0 {
-				// Show confirmation modal
-				m.actionMode = ActionModeConfirmOverwrite
-				return m, nil
-			}
-			// Plan is empty, proceed directly to generation modal
-			form := NewPlanGenerateForm()
-			form.SetSize(m.windowWidth, m.windowHeight)
-			m.planGenerateForm = &form
-			m.actionMode = ActionModeGeneratePlan
-			return m, nil
+			return m.startPlanGenerate()
 		case "r":
 			if m.actionMode != ActionModeNone || m.actionInProgress {
 				return m, nil
@@ -412,7 +464,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.actionMode != ActionModeNone || m.actionInProgress {
 				return m, nil
 			}
-			if len(execution.ReadyTasks(m.plan)) == 0 {
+			if !m.canExecute() {
 				return m, nil
 			}
 			m.actionInProgress = true
@@ -443,6 +495,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) startPlanGenerate() (Model, tea.Cmd) {
+	if m.actionMode != ActionModeNone || m.actionInProgress {
+		return m, nil
+	}
+
+	// Reset pending request state for new generation
+	m.pendingPlanRequest = PendingPlanRequest{}
+
+	// Check if plan already exists with items
+	if len(m.plan.Items) > 0 {
+		// Show confirmation modal
+		m.actionMode = ActionModeConfirmOverwrite
+		return m, nil
+	}
+	// Plan is empty, proceed directly to generation modal
+	form := NewPlanGenerateForm()
+	form.SetSize(m.windowWidth, m.windowHeight)
+	m.planGenerateForm = &form
+	m.actionMode = ActionModeGeneratePlan
+	return m, nil
+}
+
 func (m Model) View() string {
 	availableHeight := m.windowHeight
 	if availableHeight > 0 {
@@ -456,7 +530,12 @@ func (m Model) View() string {
 		return RenderBottomBar(m)
 	}
 
-	content := m.renderMainView(availableHeight)
+	var content string
+	if m.viewMode == ViewModeHome {
+		content = RenderHomeView(m)
+	} else {
+		content = m.renderMainView(availableHeight)
+	}
 
 	// Overlay action output if present
 	if m.actionOutput != nil && !m.actionInProgress {

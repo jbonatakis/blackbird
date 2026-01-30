@@ -24,6 +24,9 @@ func RenderBottomBar(model Model) string {
 	}
 
 	right := fmt.Sprintf("ready:%d blocked:%d", readyCount, blockedCount)
+	if model.viewMode == ViewModeHome && !model.planExists {
+		right = ""
+	}
 	contentWidth := model.windowWidth
 	padding := 1
 	if contentWidth > 0 {
@@ -39,10 +42,50 @@ func RenderBottomBar(model Model) string {
 }
 
 func actionHints(model Model, readyCount int) []string {
+	var actions []string
+	if model.actionMode == ActionModeSetStatus {
+		return []string{"[ctrl+c]quit"}
+	}
+	if model.actionMode == ActionModeGeneratePlan {
+		return []string{"[enter]submit", "[esc]cancel", "[tab]next", "[shift+tab]prev", "[ctrl+c]quit"}
+	}
+	if model.actionMode == ActionModeAgentQuestion {
+		if model.agentQuestionForm != nil {
+			currentQ := model.agentQuestionForm.CurrentQuestion()
+			if len(currentQ.Options) > 0 {
+				return []string{"[↑/↓]navigate", "[1-9]select", "[enter]confirm", "[esc]cancel", "[ctrl+c]quit"}
+			}
+			return []string{"[enter]submit", "[esc]cancel", "[ctrl+c]quit"}
+		}
+	}
+	if model.actionMode == ActionModePlanReview {
+		if model.planReviewForm != nil && model.planReviewForm.mode == ReviewModeChooseAction {
+			return []string{"[↑/↓]navigate", "[1-3]select", "[enter]confirm", "[esc]cancel", "[ctrl+c]quit"}
+		} else if model.planReviewForm != nil && model.planReviewForm.mode == ReviewModeRevisionPrompt {
+			return []string{"[ctrl+s]submit", "[esc]back", "[ctrl+c]quit"}
+		}
+	}
 	if model.actionInProgress {
 		return []string{"[ctrl+c]quit"}
 	}
-	actions := []string{
+	if model.viewMode == ViewModeHome {
+		actions = []string{
+			"[g]enerate",
+			"[v]iew",
+			"[r]efine",
+			"[e]xecute",
+			"[ctrl+c]quit",
+		}
+		if !model.planExists {
+			actions = removeAction(actions, "[v]iew")
+			actions = removeAction(actions, "[r]efine")
+		}
+		if !model.canExecute() {
+			actions = removeAction(actions, "[e]xecute")
+		}
+		return actions
+	}
+	actions = []string{
 		"[g]enerate",
 		"[r]efine",
 		"[e]xecute",
@@ -79,29 +122,6 @@ func actionHints(model Model, readyCount int) []string {
 			actions = append(actions[:idx], append([]string{"[u]resume"}, actions[idx:]...)...)
 		} else {
 			actions = append([]string{"[u]resume"}, actions...)
-		}
-	}
-	if model.actionMode == ActionModeSetStatus {
-		actions = []string{"[ctrl+c]quit"}
-	}
-	if model.actionMode == ActionModeGeneratePlan {
-		actions = []string{"[enter]submit", "[esc]cancel", "[tab]next", "[shift+tab]prev", "[ctrl+c]quit"}
-	}
-	if model.actionMode == ActionModeAgentQuestion {
-		if model.agentQuestionForm != nil {
-			currentQ := model.agentQuestionForm.CurrentQuestion()
-			if len(currentQ.Options) > 0 {
-				actions = []string{"[↑/↓]navigate", "[1-9]select", "[enter]confirm", "[esc]cancel", "[ctrl+c]quit"}
-			} else {
-				actions = []string{"[enter]submit", "[esc]cancel", "[ctrl+c]quit"}
-			}
-		}
-	}
-	if model.actionMode == ActionModePlanReview {
-		if model.planReviewForm != nil && model.planReviewForm.mode == ReviewModeChooseAction {
-			actions = []string{"[↑/↓]navigate", "[1-3]select", "[enter]confirm", "[esc]cancel", "[ctrl+c]quit"}
-		} else if model.planReviewForm != nil && model.planReviewForm.mode == ReviewModeRevisionPrompt {
-			actions = []string{"[ctrl+s]submit", "[esc]back", "[ctrl+c]quit"}
 		}
 	}
 	return actions

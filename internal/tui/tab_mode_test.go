@@ -17,6 +17,7 @@ func testWorkGraph() plan.WorkGraph {
 
 func TestTabModeToggle(t *testing.T) {
 	model := NewModel(testWorkGraph())
+	model.viewMode = ViewModeMain // tab toggle only applies in main view
 
 	// Initial state should be TabDetails
 	if model.tabMode != TabDetails {
@@ -42,6 +43,7 @@ func TestTabModeToggle(t *testing.T) {
 
 func TestTabModeResetsDetailOffset(t *testing.T) {
 	model := NewModel(testWorkGraph())
+	model.viewMode = ViewModeMain
 	model.detailOffset = 10
 
 	// Press 't' to switch tabs

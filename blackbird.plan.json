@@ -1,210 +1,204 @@
 {
   "schemaVersion": 1,
   "items": {
-    "agent-questions": {
-      "id": "agent-questions",
-      "title": "Handle Agent Clarifying Questions",
-      "description": "Implement TUI handling for agent clarifying questions during plan generation, allowing users to answer questions in a modal dialog.",
+    "home-view-renderer": {
+      "id": "home-view-renderer",
+      "title": "Create Home View renderer",
+      "description": "Create a new file internal/tui/home_view.go with a RenderHomeView(m Model) string function. The home view is a centered, minimal layout showing: title + tagline, plan status line, and an action list with single-key shortcuts. Disabled actions are shown in dim/muted style when their requirements are not met.",
       "acceptanceCriteria": [
-        "When agent returns questions, display them in a new modal or dialog",
-        "Modal shows question text and options (if provided)",
-        "User can input answers (text or select from options)",
-        "Answers are sent back to agent to continue generation",
-        "Multiple question rounds are supported (up to maxAgentQuestionRounds)"
+        "New file internal/tui/home_view.go exists with RenderHomeView(m Model) string function",
+        "Displays title 'blackbird' and a short tagline",
+        "Shows plan status: 'No plan found' when planExists=false, or 'Plan found: N items, M ready, K blocked' when true",
+        "Shows action list: Generate plan [g], View plan [v], Refine plan [r], Execute [e], Quit [ctrl+c]",
+        "Actions that require a plan are shown in muted/dim lipgloss style when planExists=false",
+        "Execute action is shown dim when no ready tasks exist",
+        "Layout is centered both horizontally and vertically using lipgloss",
+        "Uses existing color scheme constants (Color 240 for muted, Color 69 for accent, etc.)"
       ],
-      "prompt": "Implement agent question handling in the TUI. When the plan generation agent returns questions (agent.Response with Questions field), display them in a modal dialog. For questions with options, show numbered choices like the CLI does. For free-text questions, show a text input. Collect the user's answers and re-invoke the agent with the answers included. Support multiple rounds of questions up to the configured limit (maxAgentQuestionRounds). This should integrate with the existing in-memory command flow.",
+      "prompt": "Create internal/tui/home_view.go:\n1. Define RenderHomeView(m Model) string.\n2. Layout (centered with lipgloss):\n   - Title: 'blackbird' in bold/accent color.\n   - Tagline: 'Durable, dependency-aware planning and execution' in muted.\n   - Blank line separator.\n   - Plan status line:\n     - If !m.planExists: '⊘ No plan found' in muted.\n     - If m.planExists: '✓ Plan loaded: N items, M ready, K blocked' in success color, computing counts from m.plan.Items and execution.ReadyTasks.\n   - Blank line separator.\n   - Action list (each on its own line):\n     - '[g] Generate plan' — always enabled.\n     - '[v] View plan' — dim if !planExists.\n     - '[r] Refine plan' — dim if !planExists.\n     - '[e] Execute' — dim if !canExecute().\n     - '[ctrl+c] Quit' — always enabled.\n   - Use lipgloss Color(240) for dim/disabled, Color(69) for shortcuts, Color(42) for enabled actions.\n3. Center the block in the terminal using m.windowWidth and m.windowHeight with lipgloss.Place().",
       "parentId": null,
       "childIds": [],
       "deps": [
-        "in-memory-command",
-        "spinner-progress"
+        "tui-model-state"
       ],
       "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T02:59:26.767674Z",
+      "createdAt": "2026-01-29T00:00:00Z",
+      "updatedAt": "2026-01-30T01:28:13.72322Z",
       "depRationale": {
-        "in-memory-command": "Questions come from the agent command, so the command infrastructure must exist first",
-        "spinner-progress": "Question handling extends the progress flow, so basic progress handling should be in place"
+        "tui-model-state": "Home view renderer needs viewMode, planExists, hasPlan(), and canExecute() to be defined on the Model"
       }
     },
-    "in-memory-command": {
-      "id": "in-memory-command",
-      "title": "Implement In-Memory Plan Generation Command",
-      "description": "Create a new command execution path that runs plan generation without spawning a subprocess, using the agent runtime directly with programmatically provided inputs instead of stdin prompts.",
+    "integrate-home-view": {
+      "id": "integrate-home-view",
+      "title": "Integrate Home View into Model.View()",
+      "description": "Update Model.View() in model.go to render the Home view when viewMode is ViewModeHome. When viewMode is ViewModeMain, render the existing split-pane layout as before. Also update the bottom bar to show Home-relevant hints when on the Home screen.",
       "acceptanceCriteria": [
-        "New function in action_wrappers.go that calls agent runtime directly (no subprocess)",
-        "Function accepts description, constraints, granularity as parameters",
-        "Agent question/answer loop is handled programmatically without CLI prompts",
-        "Function returns agent response (plan/patch/questions) or error",
-        "No dependency on stdin/stdout for interactive prompts"
+        "Model.View() renders RenderHomeView when viewMode == ViewModeHome",
+        "Model.View() renders existing split-pane layout when viewMode == ViewModeMain",
+        "Bottom bar shows Home-relevant hints (g/v/r/e/ctrl+c) when on Home screen",
+        "Bottom bar hides status counts when planExists is false on Home screen",
+        "Modals still overlay correctly on top of the Home view"
       ],
-      "prompt": "Create a new function in internal/tui/action_wrappers.go (e.g., GeneratePlanInMemory) that directly invokes the agent runtime for plan generation without spawning a subprocess. This function should accept the three input parameters (description, constraints, granularity) and call the agent API similar to how internal/cli/agent_flows.go:runPlanGenerate works, but without any interactive prompting. Handle agent questions by either auto-rejecting them or storing them for TUI display. Return the agent response (plan, patch, or questions) as a Bubble Tea message.",
+      "prompt": "In model.go's View() method:\n1. At the top of View(), check m.viewMode.\n2. If ViewModeHome: call RenderHomeView(m) for the main content instead of the split-pane layout.\n3. If ViewModeMain: use existing split-pane rendering logic unchanged.\n4. Modal overlay logic should remain after the view selection (modals work on both views).\n\nIn bottom_bar.go:\n1. When viewMode == ViewModeHome, render a simplified hint bar with only Home-relevant keys.\n2. When planExists is false, omit plan item counts from the bar.\n3. When viewMode == ViewModeMain, keep existing bottom bar unchanged.",
+      "parentId": null,
+      "childIds": [],
+      "deps": [
+        "home-view-renderer",
+        "startup-no-plan"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-29T00:00:00Z",
+      "updatedAt": "2026-01-30T01:35:00.856881Z",
+      "depRationale": {
+        "home-view-renderer": "Need the RenderHomeView function to exist before integrating it into View()",
+        "startup-no-plan": "Need planExists and viewMode to be properly initialized at startup"
+      }
+    },
+    "key-routing": {
+      "id": "key-routing",
+      "title": "Implement Home screen key routing and action gating",
+      "description": "Update Model.Update() key handling to support the Home screen keybindings. Add 'h' to toggle between Home and Main views. Gate plan-dependent actions (v, r, e) when on Home screen and plan doesn't exist. Ensure 'g' works from Home screen to open the generate modal.",
+      "acceptanceCriteria": [
+        "'h' toggles between Home and Main views (Main only accessible if planExists)",
+        "'g' opens generate plan modal from Home screen",
+        "'v' switches to Main view only if planExists, ignored otherwise",
+        "'r' opens refine only if planExists, ignored otherwise",
+        "'e' opens execute only if canExecute(), ignored otherwise",
+        "ctrl+c quits from Home screen",
+        "When on Main view, existing key behavior is preserved unchanged",
+        "After successful plan generation, planExists becomes true"
+      ],
+      "prompt": "In model.go's Update() method, in the tea.KeyMsg handler:\n1. Add 'h' key handler: if viewMode == ViewModeHome and planExists, switch to ViewModeMain. If viewMode == ViewModeMain, switch to ViewModeHome.\n2. When viewMode == ViewModeHome and actionMode == ActionModeNone:\n   - 'g': open generate plan modal (existing flow, same as current 'g' handler).\n   - 'v': if planExists, set viewMode = ViewModeMain. Otherwise ignore.\n   - 'r': if planExists, trigger refine (existing flow). Otherwise ignore.\n   - 'e': if canExecute(), trigger execute (existing flow). Otherwise ignore.\n   - ctrl+c: quit.\n   - All other keys: ignore (don't pass to tree/detail handlers).\n3. When viewMode == ViewModeMain: keep all existing key handling unchanged.\n4. In the PlanGenerateInMemoryResult handler (or PlanActionComplete for generate), when a plan is successfully generated: set planExists=true. Optionally switch viewMode to ViewModeMain.",
+      "parentId": null,
+      "childIds": [],
+      "deps": [
+        "integrate-home-view"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-29T00:00:00Z",
+      "updatedAt": "2026-01-30T01:37:51.554914Z",
+      "depRationale": {
+        "integrate-home-view": "Key routing depends on the Home view being integrated into the render pipeline so transitions are visible"
+      }
+    },
+    "plan-refresh-missing": {
+      "id": "plan-refresh-missing",
+      "title": "Handle missing plan gracefully in refresh tick",
+      "description": "Update the plan refresh tick handler so that a missing plan file is treated as a non-error state. When the plan disappears (e.g., deleted), set planExists=false and keep an empty in-memory graph. When a plan appears (e.g., created externally), set planExists=true and refresh counts.",
+      "acceptanceCriteria": [
+        "Plan refresh tick does not error or crash when plan file is missing",
+        "If plan was present and becomes missing, planExists transitions to false and plan resets to empty graph",
+        "If plan was missing and appears, planExists transitions to true and plan data loads",
+        "Validation errors on an existing plan file show an error state but do not crash"
+      ],
+      "prompt": "In plan_loader.go, update the plan refresh logic (the tea.Tick handler or PlanDataRefreshMsg handler):\n1. When the plan file is not found (os.IsNotExist), set planExists=false, plan to NewEmptyWorkGraph(). Do NOT return an error.\n2. When the plan file exists but has validation errors, set planExists=true but track the validation error for display.\n3. When the plan file exists and is valid, set planExists=true, load normally.\n4. Ensure the refresh continues ticking regardless of file state.",
+      "parentId": null,
+      "childIds": [],
+      "deps": [
+        "startup-no-plan"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-29T00:00:00Z",
+      "updatedAt": "2026-01-30T01:40:25.416092Z",
+      "depRationale": {
+        "startup-no-plan": "Refresh logic builds on the same missing-plan handling patterns established in startup"
+      }
+    },
+    "startup-no-plan": {
+      "id": "startup-no-plan",
+      "title": "Handle missing plan file on TUI startup",
+      "description": "Modify the TUI startup flow so that a missing blackbird.plan.json is not an error. When the plan file does not exist, initialize an in-memory empty graph via plan.NewEmptyWorkGraph(), set planExists=false, and start on the Home screen. When the plan file exists and loads successfully, set planExists=true.",
+      "acceptanceCriteria": [
+        "TUI starts without error when blackbird.plan.json is missing",
+        "When plan is missing, model.plan is set to plan.NewEmptyWorkGraph()",
+        "When plan is missing, planExists is false",
+        "When plan exists and loads, planExists is true",
+        "TUI always starts on Home screen (viewMode=ViewModeHome) regardless of plan existence"
+      ],
+      "prompt": "Modify the TUI startup in start.go and plan_loader.go:\n1. In start.go, initialize the model with `plan: plan.NewEmptyWorkGraph()`, `planExists: false`, and `viewMode: ViewModeHome`.\n2. In plan_loader.go's LoadPlanData (or equivalent), handle the case where the plan file does not exist (os.IsNotExist error) as a non-error: set planExists=false, plan to NewEmptyWorkGraph(), and return success.\n3. When the plan file exists and loads+validates successfully, set planExists=true and load the plan data normally.\n4. Ensure no error messages or panics occur when the file is missing.",
+      "parentId": null,
+      "childIds": [],
+      "deps": [
+        "tui-model-state"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-29T00:00:00Z",
+      "updatedAt": "2026-01-30T01:31:17.176583Z",
+      "depRationale": {
+        "tui-model-state": "Startup code needs the viewMode and planExists fields to exist on the Model"
+      }
+    },
+    "tests": {
+      "id": "tests",
+      "title": "Add tests for Home screen and missing plan handling",
+      "description": "Write unit tests covering: TUI startup without a plan file, plan refresh when plan is missing, Home screen action gating (disabled keys ignored, enabled keys work), and plan-exists transitions.",
+      "acceptanceCriteria": [
+        "Test: TUI Model initializes without error when no plan file exists, planExists=false, viewMode=ViewModeHome",
+        "Test: Plan refresh when plan file missing does not crash, planExists stays false",
+        "Test: On Home screen with no plan, 'v' key does not change viewMode",
+        "Test: On Home screen with no plan, 'g' key opens generate modal",
+        "Test: On Home screen with plan, 'v' switches to ViewModeMain",
+        "Test: Execute key only enabled when ready tasks exist",
+        "All tests pass with go test ./internal/tui/..."
+      ],
+      "prompt": "Create or extend test files in internal/tui/ (e.g., home_view_test.go):\n1. Test startup without plan: construct Model with empty graph, verify viewMode=ViewModeHome, planExists=false.\n2. Test plan refresh missing: simulate PlanDataLoaded message with file-not-found error, verify planExists=false, no error state.\n3. Test action gating (no plan):\n   - Send 'v' key when planExists=false → viewMode should remain ViewModeHome.\n   - Send 'r' key when planExists=false → no refine action triggered.\n   - Send 'g' key when planExists=false → actionMode should become ActionModeGeneratePlan.\n4. Test action gating (plan exists):\n   - Set planExists=true, send 'v' → viewMode should become ViewModeMain.\n   - Set planExists=true with no ready tasks, send 'e' → no execute triggered.\n5. Test 'h' toggle: from Home with plan, press 'h' → Main. From Main, press 'h' → Home.\n6. Run tests with: go test ./internal/tui/...",
+      "parentId": null,
+      "childIds": [],
+      "deps": [
+        "key-routing",
+        "validation-error-banner"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-29T00:00:00Z",
+      "updatedAt": "2026-01-30T01:46:12.681809Z",
+      "depRationale": {
+        "key-routing": "Tests verify key routing behavior which must be implemented first",
+        "validation-error-banner": "Tests should also cover validation error display which must be implemented first"
+      }
+    },
+    "tui-model-state": {
+      "id": "tui-model-state",
+      "title": "Add viewMode and planExists fields to TUI Model",
+      "description": "Extend the TUI Model struct with `viewMode` (enum: Home, Main) and `planExists` (bool) fields. Add a `ViewMode` type with constants `ViewModeHome` and `ViewModeMain`. Add helper methods `hasPlan()` and `canExecute()` for gating logic. Default `viewMode` to `ViewModeHome` in initialization.",
+      "acceptanceCriteria": [
+        "Model struct has viewMode field of type ViewMode with constants ViewModeHome and ViewModeMain",
+        "Model struct has planExists bool field",
+        "hasPlan() method returns planExists value",
+        "canExecute() method returns true only when planExists is true AND there are ready tasks (using execution.ReadyTasks)",
+        "viewMode defaults to ViewModeHome when Model is initialized"
+      ],
+      "prompt": "In internal/tui/model.go:\n1. Add a new `ViewMode` type (int) with constants `ViewModeHome` and `ViewModeMain`.\n2. Add `viewMode ViewMode` and `planExists bool` fields to the Model struct.\n3. Add `func (m Model) hasPlan() bool` that returns `m.planExists`.\n4. Add `func (m Model) canExecute() bool` that returns `m.planExists \u0026\u0026 len(execution.ReadyTasks(m.plan)) \u003e 0`.\n5. In the Model initialization (start.go or wherever the Model is constructed), set `viewMode: ViewModeHome`.",
       "parentId": null,
       "childIds": [],
       "deps": [],
       "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T02:46:29.146906Z"
+      "createdAt": "2026-01-29T00:00:00Z",
+      "updatedAt": "2026-01-30T01:25:03.998082Z"
     },
-    "modal-form": {
-      "id": "modal-form",
-      "title": "Create Plan Generation Modal Form",
-      "description": "Build a Bubble Tea modal component that captures plan generation inputs (project description, constraints, granularity) with multi-line text input support and proper validation.",
+    "validation-error-banner": {
+      "id": "validation-error-banner",
+      "title": "Show validation error banner on Home screen",
+      "description": "When a plan file exists but has validation errors, display an error banner on the Home screen with a short message and prompt to regenerate or view the plan. Track validation error state in the Model.",
       "acceptanceCriteria": [
-        "Modal displays when 'g' key is pressed",
-        "Form includes fields for project description (required, multi-line), constraints (optional, multi-line), and granularity (optional, single-line)",
-        "Modal has navigation between fields (Tab/Enter to advance, Shift+Tab to go back)",
-        "ESC key cancels and closes modal without action",
-        "Submit button/action validates required fields before proceeding",
-        "Modal is properly styled and centered on screen using lipgloss"
+        "Model has a field to track plan validation errors (e.g., planValidationErr string)",
+        "When plan file exists but is invalid, the validation error is stored",
+        "Home view renders an error banner when planValidationErr is non-empty",
+        "Error banner suggests regenerating or viewing the plan for fixes",
+        "Error banner uses the existing error color (Color 196)"
       ],
-      "prompt": "Create a new modal form component in the TUI that captures the three inputs needed for plan generation: project description (required, multi-line textarea), constraints (optional, multi-line textarea displayed as comma-separated), and granularity (optional, single-line input). The modal should follow the same styling patterns as the existing set-status modal, with keyboard navigation between fields and ESC to cancel. Use charmbracelet/bubbles textarea or textinput components for the form fields.",
-      "parentId": null,
-      "childIds": [],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T02:50:31.316716Z"
-    },
-    "modal-integration": {
-      "id": "modal-integration",
-      "title": "Integrate Modal into TUI Model",
-      "description": "Wire the plan generation modal into the TUI's Model, Update, and View methods to handle the new action mode and keyboard flow.",
-      "acceptanceCriteria": [
-        "New ActionMode value added (e.g., ActionGeneratePlan)",
-        "Pressing 'g' in normal mode transitions to ActionGeneratePlan mode and shows modal",
-        "Modal key events are routed to modal component in Update method",
-        "Modal is rendered as overlay in View method when action mode is active",
-        "Submitting modal captures form data and transitions to command execution"
-      ],
-      "prompt": "Integrate the plan generation modal into the TUI's core model (internal/tui/model.go). Add a new ActionMode constant for the generate plan modal. Update the Update() method to handle 'g' key press by transitioning to the modal mode, and route subsequent key events to the modal component. Update the View() method to render the modal as an overlay when in ActionGeneratePlan mode, similar to how ActionSetStatus modal is rendered.",
+      "prompt": "1. Add a `planValidationErr string` field to the Model struct in model.go.\n2. In plan_loader.go, when the plan file exists but Validate() returns errors, set planValidationErr to a summary message (e.g., first error's text). Set planExists=true (file exists, just invalid).\n3. When plan loads successfully, clear planValidationErr to empty string.\n4. In home_view.go's RenderHomeView, if m.planValidationErr is non-empty, render an error banner between the status line and action list:\n   - Use lipgloss with Color(196) background or foreground.\n   - Show: '⚠ Plan has errors: \u003cmessage\u003e'\n   - Below it: 'Press [g] to regenerate or [v] to view and fix'.\n5. Style the banner with a border or standout color to draw attention.",
       "parentId": null,
       "childIds": [],
       "deps": [
-        "modal-form"
+        "plan-refresh-missing",
+        "home-view-renderer"
       ],
       "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T02:51:06.228728Z",
+      "createdAt": "2026-01-29T00:00:00Z",
+      "updatedAt": "2026-01-30T01:43:18.218933Z",
       "depRationale": {
-        "modal-form": "Modal component must exist before it can be integrated into the main TUI model"
-      }
-    },
-    "overwrite-check": {
-      "id": "overwrite-check",
-      "title": "Add Existing Plan Overwrite Confirmation",
-      "description": "Check if a plan already exists before starting generation and prompt user to confirm overwrite, preventing accidental data loss.",
-      "acceptanceCriteria": [
-        "Before showing generation modal, check if plan.json exists and has items",
-        "If plan exists, show confirmation dialog with item count",
-        "User can confirm overwrite or cancel",
-        "Canceling returns to normal view without showing generation modal",
-        "Confirming proceeds to show generation modal normally"
-      ],
-      "prompt": "Add a pre-check before showing the plan generation modal. When 'g' is pressed, first check if the current plan (model.plan) has any items. If it does, show a confirmation modal asking 'Plan already exists with N items. Overwrite?' with Yes/No options. Only proceed to the generation modal if the user confirms. This prevents accidental overwrites of existing work, matching the CLI's behavior in agent_flows.go:runPlanGenerate.",
-      "parentId": null,
-      "childIds": [],
-      "deps": [
-        "modal-integration"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T02:53:24.283712Z",
-      "depRationale": {
-        "modal-integration": "Overwrite check needs to intercept the modal flow, so modal integration must exist first"
-      }
-    },
-    "plan-review": {
-      "id": "plan-review",
-      "title": "Implement Plan Review and Revision Flow",
-      "description": "Add UI flow to review the generated plan with options to accept, revise, or reject, matching the CLI's review loop functionality.",
-      "acceptanceCriteria": [
-        "After agent returns plan, display summary and tree preview",
-        "Show action choices: Accept, Revise, Reject",
-        "Accept option saves plan and returns to normal TUI view",
-        "Revise option prompts for revision request and re-runs agent (1 revision allowed)",
-        "Reject option discards plan and returns to normal view",
-        "Plan is displayed in a scrollable view or separate screen"
-      ],
-      "prompt": "Implement the plan review and revision flow in the TUI. When the agent successfully generates a plan, display it with a summary (item count, top-level features) and a tree preview. Show three options: Accept (saves plan and reloads TUI), Revise (prompts for changes and re-runs agent once), or Reject (cancels and returns to previous state). The revision flow should allow the user to enter a text description of desired changes, then re-invoke the agent with a refine request. This mirrors the CLI's review loop in agent_flows.go but adapted for the TUI interaction model.",
-      "parentId": null,
-      "childIds": [],
-      "deps": [
-        "spinner-progress",
-        "agent-questions"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T03:04:54.573748Z",
-      "depRationale": {
-        "agent-questions": "Revision may trigger more agent questions, so question handling should be in place",
-        "spinner-progress": "Plan review happens after plan generation completes, so generation flow must be working"
-      }
-    },
-    "spinner-progress": {
-      "id": "spinner-progress",
-      "title": "Add Spinner and Progress Feedback",
-      "description": "Show spinner animation and status message in the bottom bar while plan generation is running, and handle the response when the agent completes.",
-      "acceptanceCriteria": [
-        "Spinner animates in bottom bar with message 'Generating plan...'",
-        "actionInProgress flag is set during generation",
-        "Model receives agent response message when generation completes",
-        "Success response updates the plan and clears spinner",
-        "Error response displays error message in ActionOutput"
-      ],
-      "prompt": "Update the TUI to show progress feedback during plan generation. When the modal is submitted and GeneratePlanInMemory command is dispatched, set actionInProgress=true and actionName='Generating plan...' to show the spinner. Define a new message type (e.g., planGenerateResultMsg) to receive the agent response. In the Update method, handle this message by updating the model's plan on success or showing an error ActionOutput on failure, then clearing the spinner and action mode.",
-      "parentId": null,
-      "childIds": [],
-      "deps": [
-        "modal-integration",
-        "in-memory-command"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T02:54:46.252942Z",
-      "depRationale": {
-        "in-memory-command": "In-memory command must exist to have something to show progress for",
-        "modal-integration": "Modal must be integrated before we can handle its submission"
-      }
-    },
-    "test-validation": {
-      "id": "test-validation",
-      "title": "Test and Validate Complete Flow",
-      "description": "Comprehensive end-to-end testing of the plan generation modal feature, including edge cases and error scenarios.",
-      "acceptanceCriteria": [
-        "Can open modal with 'g', enter inputs, and submit successfully",
-        "Spinner shows during generation and clears on completion",
-        "Generated plan is displayed correctly in tree view after acceptance",
-        "Agent questions are displayed and answered correctly",
-        "Plan revision works and re-runs agent with changes",
-        "Overwrite confirmation prevents accidental data loss",
-        "ESC key cancels modal at each stage without side effects",
-        "Error scenarios (agent failure, invalid input) display appropriate messages",
-        "All keyboard shortcuts continue to work after using modal"
-      ],
-      "prompt": "Perform comprehensive testing of the plan generation modal feature. Test the full happy path: press 'g', fill in form, submit, answer any agent questions, review plan, accept/revise. Test edge cases: ESC at each stage, empty inputs, very long inputs, agent errors, network timeouts. Test with existing plan (overwrite prompt). Verify all error messages are clear and the TUI remains stable. Test that other TUI features (tree navigation, execute, set-status) still work correctly after using the modal. Document any bugs found and fix them.",
-      "parentId": null,
-      "childIds": [],
-      "deps": [
-        "modal-form",
-        "modal-integration",
-        "in-memory-command",
-        "spinner-progress",
-        "agent-questions",
-        "plan-review",
-        "overwrite-check"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-28T00:00:00Z",
-      "updatedAt": "2026-01-29T03:14:06.514662Z",
-      "depRationale": {
-        "agent-questions": "All components must be implemented before testing",
-        "in-memory-command": "All components must be implemented before testing",
-        "modal-form": "All components must be implemented before testing",
-        "modal-integration": "All components must be implemented before testing",
-        "overwrite-check": "All components must be implemented before testing",
-        "plan-review": "All components must be implemented before testing",
-        "spinner-progress": "All components must be implemented before testing"
+        "home-view-renderer": "Error banner is rendered within the Home view",
+        "plan-refresh-missing": "Validation error tracking builds on the refresh logic that distinguishes missing vs invalid plan states"
       }
     }
   }
