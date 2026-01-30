@@ -13,13 +13,13 @@ import (
 
 // AgentQuestionForm represents the state of the agent question modal
 type AgentQuestionForm struct {
-	questions       []agent.Question
-	currentIndex    int
-	textInput       textinput.Model
-	selectedOption  int // For questions with options (0-indexed, -1 means none selected)
-	answers         []agent.Answer
-	width           int
-	height          int
+	questions      []agent.Question
+	currentIndex   int
+	textInput      textinput.Model
+	selectedOption int // For questions with options (0-indexed, -1 means none selected)
+	answers        []agent.Answer
+	width          int
+	height         int
 }
 
 // NewAgentQuestionForm creates a new agent question form

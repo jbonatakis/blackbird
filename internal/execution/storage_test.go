@@ -20,7 +20,7 @@ func TestSaveRunWritesRecord(t *testing.T) {
 		Status:    RunStatusRunning,
 		Context: ContextPack{
 			SchemaVersion: ContextPackSchemaVersion,
-			Task: TaskContext{ID: "task-1", Title: "Task"},
+			Task:          TaskContext{ID: "task-1", Title: "Task"},
 		},
 	}
 

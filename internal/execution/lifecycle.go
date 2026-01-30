@@ -29,7 +29,7 @@ var allowedTransitions = map[plan.Status]map[plan.Status]bool{
 		plan.StatusBlocked:    true,
 	},
 	plan.StatusFailed: {
-		plan.StatusTodo:  true,
+		plan.StatusTodo:   true,
 		plan.StatusQueued: true,
 	},
 	plan.StatusBlocked: {

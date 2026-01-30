@@ -159,10 +159,10 @@ func TestRenderTreeView_CollapsedParent(t *testing.T) {
 
 func TestFilterMatch(t *testing.T) {
 	tests := []struct {
-		name       string
-		mode       FilterMode
-		readiness  string
-		wantMatch  bool
+		name      string
+		mode      FilterMode
+		readiness string
+		wantMatch bool
 	}{
 		{"FilterModeAll matches READY", FilterModeAll, "READY", true},
 		{"FilterModeAll matches BLOCKED", FilterModeAll, "BLOCKED", true},

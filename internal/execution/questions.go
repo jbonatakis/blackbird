@@ -33,10 +33,10 @@ func ParseQuestions(agentOutput string) ([]agent.Question, error) {
 		}
 
 		var payload struct {
-			ID      string   `json:"id"`
-			Prompt  string   `json:"prompt"`
-			Question string  `json:"question"`
-			Options []string `json:"options"`
+			ID       string   `json:"id"`
+			Prompt   string   `json:"prompt"`
+			Question string   `json:"question"`
+			Options  []string `json:"options"`
 		}
 		if err := json.Unmarshal([]byte(candidate), &payload); err != nil {
 			return nil, fmt.Errorf("decode question payload: %w", err)

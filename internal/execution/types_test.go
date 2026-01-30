@@ -13,15 +13,15 @@ func TestRunRecordJSONRoundTrip(t *testing.T) {
 	exitCode := 0
 
 	record := RunRecord{
-		ID:        "run-123",
-		TaskID:    "task-456",
-		Provider:  "test-provider",
-		StartedAt: started,
+		ID:          "run-123",
+		TaskID:      "task-456",
+		Provider:    "test-provider",
+		StartedAt:   started,
 		CompletedAt: &completed,
-		Status:    RunStatusSuccess,
-		ExitCode:  &exitCode,
-		Stdout:    "hello",
-		Stderr:    "",
+		Status:      RunStatusSuccess,
+		ExitCode:    &exitCode,
+		Stdout:      "hello",
+		Stderr:      "",
 		Context: ContextPack{
 			SchemaVersion: ContextPackSchemaVersion,
 			Task: TaskContext{
@@ -69,7 +69,7 @@ func TestRunRecordJSONOmitEmptyFields(t *testing.T) {
 		Status:    RunStatusRunning,
 		Context: ContextPack{
 			SchemaVersion: ContextPackSchemaVersion,
-			Task: TaskContext{ID: "task-omit", Title: "Task"},
+			Task:          TaskContext{ID: "task-omit", Title: "Task"},
 		},
 	}
 
