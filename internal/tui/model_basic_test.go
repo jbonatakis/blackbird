@@ -38,10 +38,10 @@ func TestWindowSizeMsgUpdatesDimensions(t *testing.T) {
 
 func TestViewRendersPlaceholderText(t *testing.T) {
 	model := Model{windowHeight: 2}
-
+	// Default view is Home; empty plan shows home screen with "No plan found"
 	view := model.View()
-	if !strings.Contains(view, "No items.") {
-		t.Fatalf("expected 'No items.' text in view for empty plan, got %q", view)
+	if !strings.Contains(view, "No plan found") {
+		t.Fatalf("expected home view 'No plan found' for empty plan, got %q", view)
 	}
 }
 

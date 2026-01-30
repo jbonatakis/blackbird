@@ -558,3 +558,12 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 - Added `newStartupModel` helper and test to assert startup state with no plan file (planExists=false, Home view).
 - Added missing-plan PlanDataLoaded update coverage to ensure planExists stays false without error output.
 - Added execute gating test to ensure home execute action stays disabled when no ready tasks exist.
+
+## 2026-01-30 — TUI home-screen test fixes
+
+- **cli**: `TestRunZeroArgsWithoutPlanFile` now skips (TUI starts without plan file; Run would block in tui.Start()).
+- **tui**: `TestViewRendersPlaceholderText` asserts home view "No plan found" for default empty-plan view.
+- **tui**: `TestModelViewRendersTreeAndDetail` sets `viewMode: ViewModeMain` and `planExists: true` so main view (tree/detail) is rendered.
+- **tui**: `TestLoadPlanData` fixture now includes `AcceptanceCriteria: []string{}` so validation passes.
+- **tui**: `TestTabModeToggle` and `TestTabModeResetsDetailOffset` set `viewMode: ViewModeMain` so 't' key toggles tab.
+- All tests pass: `go test ./...`

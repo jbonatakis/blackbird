@@ -27,6 +27,8 @@ func TestModelViewRendersTreeAndDetail(t *testing.T) {
 	model := Model{
 		plan:         g,
 		selectedID:   "task-1",
+		viewMode:     ViewModeMain,
+		planExists:   true,
 		windowWidth:  120,
 		windowHeight: 40,
 		activePane:   PaneTree,
