@@ -41,3 +41,20 @@ func TestModelViewRendersTreeAndDetail(t *testing.T) {
 		t.Fatalf("expected detail content to include Item section, got %q", out)
 	}
 }
+
+func TestModelViewRendersHomeView(t *testing.T) {
+	model := Model{
+		viewMode:     ViewModeHome,
+		planExists:   false,
+		windowWidth:  100,
+		windowHeight: 20,
+	}
+
+	out := model.View()
+	if !strings.Contains(out, "blackbird") {
+		t.Fatalf("expected home view title in output, got %q", out)
+	}
+	if !strings.Contains(out, "Durable, dependency-aware planning and execution") {
+		t.Fatalf("expected home view tagline in output, got %q", out)
+	}
+}
