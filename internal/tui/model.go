@@ -834,20 +834,25 @@ func splitPaneWidths(total int) (int, int) {
 	if total <= 0 {
 		return 0, 0
 	}
+	// Each pane's rendered width is content width + 2 (left and right border).
+	// So we need left + right + 4 = total, i.e. left + right = total - 4.
 	minLeft := 24
 	minRight := 30
-	gap := 1
-	left := total / 3
+	available := total - 4
+	if available < 0 {
+		available = 0
+	}
+	left := available / 3
 	if left < minLeft {
 		left = minLeft
 	}
-	if total-left-gap < minRight {
-		left = total - minRight - gap
+	if available-left < minRight {
+		left = available - minRight
 		if left < minLeft {
-			left = total / 2
+			left = available / 2
 		}
 	}
-	right := total - left - gap
+	right := available - left
 	if right < 0 {
 		right = 0
 	}
