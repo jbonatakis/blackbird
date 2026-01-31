@@ -2,18 +2,15 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/jbonatakis/blackbird/internal/agent"
 	"github.com/jbonatakis/blackbird/internal/execution"
-	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
 func runExecute(args []string) error {
@@ -40,72 +37,46 @@ func runExecute(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	baseDir := filepath.Dir(path)
-
-	for {
-		if ctx.Err() != nil {
-			fmt.Fprintln(os.Stdout, "execution interrupted")
-			return nil
-		}
-
-		g, err := loadValidatedPlan(path)
-		if err != nil {
-			return err
-		}
-
-		ready := execution.ReadyTasks(g)
-		if len(ready) == 0 {
-			fmt.Fprintln(os.Stdout, "no ready tasks remaining")
-			return nil
-		}
-
-		taskID := ready[0]
-		fmt.Fprintf(os.Stdout, "starting %s\n", taskID)
-
-		ctxPack, err := execution.BuildContext(g, taskID)
-		if err != nil {
-			return err
-		}
-
-		if err := execution.UpdateTaskStatus(path, taskID, plan.StatusInProgress); err != nil {
-			return err
-		}
-
-		record, execErr := execution.LaunchAgent(ctx, runtime, ctxPack)
-		if err := execution.SaveRun(baseDir, record); err != nil {
-			return err
-		}
-
-		switch record.Status {
-		case execution.RunStatusSuccess:
-			if err := execution.UpdateTaskStatus(path, taskID, plan.StatusDone); err != nil {
-				return err
+	result, err := execution.RunExecute(ctx, execution.ExecuteConfig{
+		PlanPath: path,
+		Runtime:  runtime,
+		OnTaskStart: func(taskID string) {
+			fmt.Fprintf(os.Stdout, "starting %s\n", taskID)
+		},
+		OnTaskFinish: func(taskID string, record execution.RunRecord, execErr error) {
+			switch record.Status {
+			case execution.RunStatusSuccess:
+				fmt.Fprintf(os.Stdout, "completed %s\n", taskID)
+			case execution.RunStatusFailed:
+				if execErr != nil {
+					fmt.Fprintf(os.Stdout, "failed %s: %v\n", taskID, execErr)
+				} else {
+					fmt.Fprintf(os.Stdout, "failed %s\n", taskID)
+				}
 			}
-			fmt.Fprintf(os.Stdout, "completed %s\n", taskID)
-		case execution.RunStatusWaitingUser:
-			if err := execution.UpdateTaskStatus(path, taskID, plan.StatusWaitingUser); err != nil {
-				return err
-			}
-			fmt.Fprintf(os.Stdout, "%s is waiting for user input\n", taskID)
-			return nil
-		case execution.RunStatusFailed:
-			if err := execution.UpdateTaskStatus(path, taskID, plan.StatusFailed); err != nil {
-				return err
-			}
-			if execErr != nil {
-				fmt.Fprintf(os.Stdout, "failed %s: %v\n", taskID, execErr)
-			} else {
-				fmt.Fprintf(os.Stdout, "failed %s\n", taskID)
-			}
-		default:
-			return fmt.Errorf("unexpected run status %q", record.Status)
-		}
-
-		if execErr != nil {
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				return execErr
-			}
-			continue
-		}
+		},
+	})
+	if err != nil {
+		return err
 	}
+
+	switch result.Reason {
+	case execution.ExecuteReasonCompleted:
+		fmt.Fprintln(os.Stdout, "no ready tasks remaining")
+	case execution.ExecuteReasonWaitingUser:
+		if result.TaskID != "" {
+			fmt.Fprintf(os.Stdout, "%s is waiting for user input\n", result.TaskID)
+		} else {
+			fmt.Fprintln(os.Stdout, "waiting for user input")
+		}
+	case execution.ExecuteReasonCanceled:
+		fmt.Fprintln(os.Stdout, "execution interrupted")
+	case execution.ExecuteReasonError:
+		if result.Err != nil {
+			return result.Err
+		}
+		return fmt.Errorf("execution stopped with error")
+	}
+
+	return nil
 }

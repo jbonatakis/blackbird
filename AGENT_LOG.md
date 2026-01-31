@@ -567,3 +567,23 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 - **tui**: `TestLoadPlanData` fixture now includes `AcceptanceCriteria: []string{}` so validation passes.
 - **tui**: `TestTabModeToggle` and `TestTabModeResetsDetailOffset` set `viewMode: ViewModeMain` so 't' key toggles tab.
 - All tests pass: `go test ./...`
+
+## 2026-01-31 — Shared execution runner API
+
+- Added `internal/execution` runner API with `ExecuteConfig`/`ResumeConfig`, `RunExecute`, `RunResume`, and `ExecuteResult` stop reasons.
+- Moved CLI execute/resume orchestration onto the shared runner with task-start/finish hooks for logging.
+- Added helper for pulling questions from the latest waiting run and error helpers for waiting/no-question cases.
+- Added runner unit tests covering execute completion, waiting-user stop, and resume success; verified `go test ./...` passes.
+
+## 2026-01-31 — CLI runner integration touch-ups
+
+- Updated `runResume` to build a resume context pack from the latest waiting run using `ListRuns` + `ResumeWithAnswer`, added SIGINT/SIGTERM context handling, and passed the prebuilt context into `execution.RunResume`.
+- Extended `execution.ResumeConfig` to accept an optional prebuilt `ContextPack` and validate task ID alignment before resuming.
+
+## 2026-01-31 — Runner tests, TUI in-process execution, and docs
+
+- Expanded `internal/execution/runner_test.go` with table-driven coverage for stop reasons, ready-loop ordering, status updates, and context cancellation in execute/resume.
+- Updated TUI execute/resume actions to run in-process via the shared runner with cancellable contexts; quit/ctrl+c now invokes the cancel func.
+- Added TUI tests for action completion/cancel behavior plus in-process ExecuteCmd/ResumeCmd integration coverage.
+- Documented the in-process execution model in `README.md` and marked `specs/improvements/IN_PROCESS_EXECUTIONS.md` complete.
+- Marked `runner-tests-and-docs` and `tui-runner-integration` as done in `blackbird.plan.json`.

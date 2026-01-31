@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -190,9 +191,19 @@ func HandleAgentQuestionKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	if msg.String() == "enter" && m.agentQuestionForm.IsComplete() {
 		answers := m.agentQuestionForm.GetAnswers()
 
-		// Close modal and continue plan generation with answers
+		// Close modal and continue with the appropriate flow
 		m.actionMode = ActionModeNone
 		m.agentQuestionForm = nil
+		if m.pendingResumeTask != "" {
+			taskID := m.pendingResumeTask
+			m.pendingResumeTask = ""
+			m.actionInProgress = true
+			m.actionName = "Resuming..."
+			ctx, cancel := context.WithCancel(context.Background())
+			m.actionCancel = cancel
+			return m, tea.Batch(ResumeCmdWithContext(ctx, taskID, answers), spinnerTickCmd())
+		}
+
 		m.actionInProgress = true
 		m.actionName = "Generating plan..."
 
