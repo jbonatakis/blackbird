@@ -226,7 +226,7 @@ func GeneratePlanInMemory(ctx context.Context, description string, constraints [
 		}
 
 		// Convert response to plan
-		resultPlan, err := responseToPlan(plan.NewEmptyWorkGraph(), resp)
+		resultPlan, err := responseToPlan(plan.NewEmptyWorkGraph(), resp, time.Now().UTC())
 		if err != nil {
 			return PlanGenerateInMemoryResult{Success: false, Err: err}
 		}
@@ -280,7 +280,7 @@ func GeneratePlanInMemoryWithAnswers(ctx context.Context, description string, co
 		}
 
 		// Convert response to plan
-		resultPlan, err := responseToPlan(plan.NewEmptyWorkGraph(), resp)
+		resultPlan, err := responseToPlan(plan.NewEmptyWorkGraph(), resp, time.Now().UTC())
 		if err != nil {
 			return PlanGenerateInMemoryResult{Success: false, Err: err}
 		}
@@ -293,15 +293,15 @@ func GeneratePlanInMemoryWithAnswers(ctx context.Context, description string, co
 }
 
 // responseToPlan converts an agent response to a plan
-func responseToPlan(base plan.WorkGraph, resp agent.Response) (plan.WorkGraph, error) {
+func responseToPlan(base plan.WorkGraph, resp agent.Response, now time.Time) (plan.WorkGraph, error) {
 	if resp.Plan != nil {
-		return *resp.Plan, nil
+		return plan.NormalizeWorkGraphTimestamps(*resp.Plan, now), nil
 	}
 	if len(resp.Patch) == 0 {
 		return plan.WorkGraph{}, agent.RuntimeError{Message: "agent response contained no plan or patch"}
 	}
 	next := plan.Clone(base)
-	if err := agent.ApplyPatch(&next, resp.Patch, time.Now().UTC()); err != nil {
+	if err := agent.ApplyPatch(&next, resp.Patch, now); err != nil {
 		return plan.WorkGraph{}, err
 	}
 	return next, nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
@@ -443,7 +444,7 @@ func RefinePlanInMemory(ctx context.Context, changeRequest string, currentPlan p
 		}
 
 		// Convert response to plan
-		resultPlan, err := responseToPlan(currentPlan, resp)
+		resultPlan, err := responseToPlan(currentPlan, resp, time.Now().UTC())
 		if err != nil {
 			return PlanGenerateInMemoryResult{Success: false, Err: err}
 		}

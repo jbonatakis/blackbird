@@ -598,3 +598,25 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 - Added TUI tests for action completion/cancel behavior plus in-process ExecuteCmd/ResumeCmd integration coverage.
 - Documented the in-process execution model in `README.md` and marked `specs/improvements/IN_PROCESS_EXECUTIONS.md` complete.
 - Marked `runner-tests-and-docs` and `tui-runner-integration` as done in `blackbird.plan.json`.
+
+## 2026-01-31 — Plan timestamp normalizer helper
+
+- Added `plan.NormalizeWorkGraphTimestamps` to normalize all work-item `createdAt`/`updatedAt` values using a single provided time.
+- Wired CLI/TUI plan response handling to normalize full-plan responses using the shared helper and pass a single timestamp through patch application.
+- Added plan normalization unit test to ensure timestamps update without mutating other fields.
+- `go test ./internal/plan/...` failed locally due to Go build cache permission restrictions.
+
+## 2026-01-31 — Full-plan timestamp normalization follow-up test
+
+- Added execution lifecycle coverage ensuring status updates succeed after normalized full-plan timestamps (`internal/execution/lifecycle_test.go`).
+- `go test ./internal/execution/...` failed locally due to Go build cache permission restrictions (`operation not permitted` in Go build cache).
+
+## 2026-01-31 — Plan normalization wiring verification
+
+- Verified `responseToPlan` in `internal/cli/agent_helpers.go` and `internal/tui/action_wrappers.go` already normalizes full-plan responses via `plan.NormalizeWorkGraphTimestamps` with caller-provided `now` and leaves patch application unchanged; no code changes required.
+
+## 2026-01-31 — Plan normalization tests (full-plan responses)
+
+- Added CLI and TUI tests to ensure full-plan agent responses normalize createdAt/updatedAt to a single now and pass plan.Validate.
+- CLI test builds a parent/child plan to validate normalization across items; TUI test covers single-item full-plan response.
+- Ran `go test ./...` (all packages passed).

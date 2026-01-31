@@ -1,93 +1,88 @@
 {
   "schemaVersion": 1,
   "items": {
-    "cli-runner-integration": {
-      "id": "cli-runner-integration",
-      "title": "Hook CLI execute/resume into the runner",
-      "description": "Refactor the cli execute and resume commands to call the shared runner so the CLI loop no longer implements the orchestration itself.",
+    "add-normalization-tests": {
+      "id": "add-normalization-tests",
+      "title": "Add tests for full-plan normalization and status update validation",
+      "description": "Add tests ensuring full-plan responses normalize timestamps and that subsequent status changes do not violate updatedAt \u003e= createdAt.",
       "acceptanceCriteria": [
-        "runExecute builds the ctx via signal.NotifyContext, planPath(), and the agent runtime, then calls RunExecute and prints the same start/completed/failed/\"waiting for user\"/\"no ready tasks\" messages.",
-        "runResume still loads the waiting run, gathers answers, builds the resume context pack, then calls RunResume and prints the same status updates (done/waiting/failed) and returns the runner error if any.",
-        "A progress hook (or ExecuteResult) is used to emit the existing fmt.Fprintf logs instead of hardcoding print statements inside the runner.",
-        "The CLI behavior for SIGINT/termination remains unchanged (prints \u201cexecution interrupted\u201d and breaks out) by interpreting the result reason returned by RunExecute."
+        "Test: full-plan response yields createdAt == updatedAt for all items and plan.Validate passes.",
+        "Test: after full-plan normalization, status update does not fail updatedAt \u003e= createdAt validation.",
+        "Tests cover both CLI/TUI or shared logic as appropriate."
       ],
-      "prompt": "In internal/cli/execute.go and resume.go, replace the manual loop with calls to the new execution.RunExecute/RunResume API, still constructing ctx via signal.NotifyContext, planPath(), and agent.NewRuntimeFromEnv(). Pass a hook that prints \u201cstarting X\u201d / \u201ccompleted X\u201d so the output matches the current behavior. For resume, keep the answer-prompting logic (ListRuns, promptAnswers, ResumeWithAnswer) but hand the resulting ctxPack to RunResume, then map the returned RunRecord/ExecuteResult into the existing stdout messages and status updates.",
-      "parentId": null,
+      "prompt": "Add tests covering full-plan timestamp normalization and follow-up status updates per specs/bugs/PLAN_TIMESTAMPS.md.",
+      "parentId": "normalize-full-plan-timestamps",
       "childIds": [],
       "deps": [
-        "execution-runner-api"
+        "add-plan-normalizer-helper",
+        "wire-cli-tui-normalizer"
       ],
       "status": "done",
       "createdAt": "2026-01-31T12:00:00Z",
-      "updatedAt": "2026-01-31T17:41:23.036616Z",
+      "updatedAt": "2026-01-31T19:10:02.667028Z",
       "depRationale": {
-        "execution-runner-api": "CLI commands need the runner API to be in place before they can delegate to it."
+        "add-plan-normalizer-helper": "Tests should exercise the shared helper behavior.",
+        "wire-cli-tui-normalizer": "Integration tests should reflect wired behavior."
       }
     },
-    "execution-runner-api": {
-      "id": "execution-runner-api",
-      "title": "Implement shared execution runner API",
-      "description": "Move the execute and resume orchestration out of the CLI and into a shared runner in internal/execution so both the CLI and TUI call the same context-aware loop.",
+    "add-plan-normalizer-helper": {
+      "id": "add-plan-normalizer-helper",
+      "title": "Add shared plan timestamp normalizer",
+      "description": "Create a shared helper (e.g., internal/plan) that takes a plan and a single now time, returning a plan where every work item has createdAt and updatedAt set to now.",
       "acceptanceCriteria": [
-        "Expose ExecuteConfig and ResumeConfig structs that accept a plan path (or preloaded graph+path), agent runtime, and optional progress hooks/events.",
-        "Provide RunExecute(ctx, cfg) that loads/validates the plan, loops over ready tasks, updates statuses (in-progress/done/waiting/failed), saves run records, and returns a result enum when the loop ends, context cancels, or a waiting run stops the loop.",
-        "Provide RunResume(ctx, cfg) that loads the plan, validates the task ID/waiting run, resumes via execution.ResumeWithAnswer, saves the resulting run, updates status, and returns the final RunRecord.",
-        "Both runners honor context cancellation (stop starting new tasks, return promptly, rely on LaunchAgent\u2019s CommandContext to kill the agent).",
-        "Expose a result type (e.g., ExecuteResult) that reports the stopping reason so the CLI/TUI can print the same messages as today, and support optional callbacks/events for task start/finish so the TUI can refresh status."
+        "Helper exists in shared code and is reusable by CLI and TUI.",
+        "Normalization uses a single now for all items; no per-item time calls.",
+        "Helper does not change any non-timestamp fields."
       ],
-      "prompt": "Using internal/cli/execute.go and internal/cli/resume.go as the blueprint, add a runner API in internal/execution: define ExecuteConfig/ResumeConfig (plan path, agent runtime, hooks), implement RunExecute(context.Context, ExecuteConfig) and RunResume(context.Context, ResumeConfig), reuse execution.BuildContext + LaunchAgent + SaveRun, load the plan each iteration, enforce context cancellation, update task statuses/plan file, and publish an ExecuteResult that captures whether the run ended because of completion, waiting-for-user, cancellation, or error. The runner should also offer hooks (callbacks or channel events) so callers can log \u201cstarting/completed task\u201d and refresh run data without parsing stdout.",
-      "parentId": null,
+      "prompt": "Add a shared plan normalization helper that sets createdAt and updatedAt to a single provided time for every work item.",
+      "parentId": "normalize-full-plan-timestamps",
       "childIds": [],
       "deps": [],
       "status": "done",
       "createdAt": "2026-01-31T12:00:00Z",
-      "updatedAt": "2026-01-31T17:36:09.251292Z"
+      "updatedAt": "2026-01-31T19:04:35.786976Z"
     },
-    "runner-tests-and-docs": {
-      "id": "runner-tests-and-docs",
-      "title": "Test and document the new runner behavior",
-      "description": "Add unit tests and documentation that prove RunExecute/RunResume respect context cancellation, update the plan file, and keep CLI/TUI behavior unchanged, plus describe the new in-process execution model.",
+    "normalize-full-plan-timestamps": {
+      "id": "normalize-full-plan-timestamps",
+      "title": "Normalize timestamps for full-plan agent responses",
+      "description": "Ensure full-plan agent responses never persist model-supplied timestamps by normalizing createdAt/updatedAt with a single authoritative time in shared code, used by both CLI and TUI paths.",
       "acceptanceCriteria": [
-        "Unit tests for RunExecute confirm ready-task loops, status updates, 'no ready tasks', and context cancellation stop the loop promptly.",
-        "Unit tests for RunResume confirm waiting-run resumption updates statuses and returns the RunRecord, including a cancel/error path when ctx is canceled.",
-        "CLI/TUI tests are updated (or added) to ensure actionInProgress/cancel handling works and that quit cancels any running goroutine.",
-        "README (execution section) and specs/improvements/IN_PROCESS_EXECUTIONS.md (or a new doc) describe the in-process execution behavior so the project history clearly records the change.",
-        "All new tests compile without network dependencies and can be run via go test ./internal/execution ./internal/cli ./internal/tui."
+        "Full-plan agent responses result in all items having createdAt == updatedAt == normalization time.",
+        "CLI and TUI paths use the same shared normalization logic.",
+        "Plan validation passes after normalization and subsequent status updates do not fail updatedAt \u003e= createdAt."
       ],
-      "prompt": "Write table-driven tests in internal/execution/runner_test.go that cover the new ExecuteResult types, context cancellation, and status transitions, mocking execution.BuildContext/LaunchAgent if necessary. Extend or add CLI/TUI tests that hit the new ExecuteCmd/ResumeCmd goroutines, ensuring actionInProgress is cleared when the goroutine returns and the cancel func is invoked when quitting mid-run. Update README.md (execution section) and specs/improvements/IN_PROCESS_EXECUTIONS.md to explain that execute/resume now share the runner and run in-process from the TUI with cancel-on-quit semantics.",
+      "prompt": "Implement full-plan timestamp normalization using shared code and wire it into both CLI and TUI response handling per specs/bugs/PLAN_TIMESTAMPS.md.",
       "parentId": null,
+      "childIds": [
+        "add-plan-normalizer-helper",
+        "wire-cli-tui-normalizer",
+        "add-normalization-tests"
+      ],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-01-31T12:00:00Z",
+      "updatedAt": "2026-01-31T19:06:53.318481Z"
+    },
+    "wire-cli-tui-normalizer": {
+      "id": "wire-cli-tui-normalizer",
+      "title": "Wire normalizer into CLI and TUI full-plan flows",
+      "description": "Update responseToPlan in CLI and TUI to call the shared normalization helper when resp.Plan != nil; patch flows remain unchanged.",
+      "acceptanceCriteria": [
+        "CLI responseToPlan normalizes full-plan timestamps using shared helper.",
+        "TUI responseToPlan normalizes full-plan timestamps using shared helper.",
+        "Patch path behavior is unchanged."
+      ],
+      "prompt": "Use the shared normalizer in internal/cli/agent_helpers.go and internal/tui/action_wrappers.go when resp.Plan != nil, passing a single now time; keep patch logic unchanged.",
+      "parentId": "normalize-full-plan-timestamps",
       "childIds": [],
       "deps": [
-        "execution-runner-api"
+        "add-plan-normalizer-helper"
       ],
       "status": "done",
       "createdAt": "2026-01-31T12:00:00Z",
-      "updatedAt": "2026-01-31T18:30:00Z",
+      "updatedAt": "2026-01-31T19:07:44.723859Z",
       "depRationale": {
-        "execution-runner-api": "Tests and docs depend on the runner implementation to exist first."
-      }
-    },
-    "tui-runner-integration": {
-      "id": "tui-runner-integration",
-      "title": "Run execute and resume in-process from the TUI",
-      "description": "Replace the exec.Command-based execute/resume pathways in internal/tui with goroutines that call the shared runner API and tie cancellation to the TUI lifecycle.",
-      "acceptanceCriteria": [
-        "ExecuteCmd/ResumeCmd no longer spawn the blackbird binary; instead they build the same ExecuteConfig/ResumeConfig (plan path, runtime, optional hooks) and run execution.RunExecute/RunResume in a goroutine.",
-        "The TUI model stores the cancel func for the currently running execute/resume and calls it on quit/Ctrl-C so the runner context is canceled and the agent subprocess terminates.",
-        "ActionInProgress / actionOutput state in the model updates to reflect the runner\u2019s progress and completion messages (success/failure/cancelled).",
-        "The new pathway emits ExecuteActionComplete (or similar) messages so the TUI can show the final status without parsing stdout, and the runCommand helper remains available for other commands (plan actions, set-status)."
-      ],
-      "prompt": "In internal/tui/action_wrappers.go, replace the old runExecuteAction/runCommand usage for execute and resume with goroutines that call execution.RunExecute/RunResume using contexts derived from tea.Cmd (store the cancel func inside the action wrappers or model). Update internal/tui/model.go so ExecuteActionComplete carries the final ExecuteResult and RunRecord so it can refresh run data. Ensure the cancel func is invoked from the TUI quit handler (e.g., tea.Cmd returning ctrl+c) so a running execute or resume is canceled when the user exits. Keep the action trigger logic (actionInProgress, spinner) so the UI still shows an in-progress state.",
-      "parentId": null,
-      "childIds": [],
-      "deps": [
-        "execution-runner-api"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-31T12:00:00Z",
-      "updatedAt": "2026-01-31T18:30:00Z",
-      "depRationale": {
-        "execution-runner-api": "TUI needs the shared runner before it can execute tasks in-process."
+        "add-plan-normalizer-helper": "Shared helper must exist before wiring in CLI/TUI."
       }
     }
   }

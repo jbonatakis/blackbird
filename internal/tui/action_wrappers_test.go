@@ -122,6 +122,45 @@ func TestResumeCmdWithContextRunsInProcess(t *testing.T) {
 	}
 }
 
+func TestResponseToPlanNormalizesFullPlanTimestamps(t *testing.T) {
+	now := time.Date(2026, 1, 31, 10, 0, 0, 0, time.UTC)
+	agentTime := time.Date(2026, 1, 31, 9, 0, 0, 0, time.UTC)
+	resp := agent.Response{
+		SchemaVersion: agent.SchemaVersion,
+		Type:          agent.RequestPlanGenerate,
+		Plan: &plan.WorkGraph{
+			SchemaVersion: plan.SchemaVersion,
+			Items: map[string]plan.WorkItem{
+				"task": {
+					ID:                 "task",
+					Title:              "Task",
+					Description:        "",
+					AcceptanceCriteria: []string{},
+					Prompt:             "do it",
+					ParentID:           nil,
+					ChildIDs:           []string{},
+					Deps:               []string{},
+					Status:             plan.StatusTodo,
+					CreatedAt:          agentTime,
+					UpdatedAt:          agentTime,
+				},
+			},
+		},
+	}
+
+	result, err := responseToPlan(plan.NewEmptyWorkGraph(), resp, now)
+	if err != nil {
+		t.Fatalf("responseToPlan: %v", err)
+	}
+	if errs := plan.Validate(result); len(errs) != 0 {
+		t.Fatalf("plan validation failed: %v", errs)
+	}
+	item := result.Items["task"]
+	if !item.CreatedAt.Equal(now) || !item.UpdatedAt.Equal(now) {
+		t.Fatalf("timestamps not normalized: got %s/%s want %s", item.CreatedAt, item.UpdatedAt, now)
+	}
+}
+
 func makeTestItem(id string, status plan.Status) plan.WorkItem {
 	now := time.Date(2026, 1, 31, 8, 0, 0, 0, time.UTC)
 	return plan.WorkItem{
