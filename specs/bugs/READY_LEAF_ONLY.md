@@ -1,4 +1,6 @@
 Spec: Only leaf tasks eligible for execution
+status: complete
+
 TITLE
 Only leaf tasks eligible for execution (exclude parent/container tasks)
 OBJECTIVE
