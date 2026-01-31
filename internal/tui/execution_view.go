@@ -17,10 +17,15 @@ func RenderExecutionView(model Model) string {
 	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 
 	active := findActiveRun(model.runData)
+	useLiveOutput := model.actionInProgress && (model.actionName == "Executing..." || model.actionName == "Resuming...")
 
 	var b strings.Builder
 	writeSectionHeader(&b, headerStyle, "Active Run")
-	if active == nil {
+	if active == nil && useLiveOutput {
+		b.WriteString(labelStyle.Render("Status: "))
+		b.WriteString(renderRunStatus(execution.RunStatusRunning))
+		b.WriteString("\n\n")
+	} else if active == nil {
 		b.WriteString(mutedStyle.Render("No active runs."))
 		b.WriteString("\n\n")
 	} else {
@@ -41,13 +46,17 @@ func RenderExecutionView(model Model) string {
 	}
 
 	writeSectionHeader(&b, headerStyle, "Log Output")
-	if active == nil {
-		b.WriteString(mutedStyle.Render("(no logs)"))
-		b.WriteString("\n\n")
-	} else {
+	if useLiveOutput {
+		writeLogExcerpt(&b, "stdout", model.liveStdout, mutedStyle)
+		writeLogExcerpt(&b, "stderr", model.liveStderr, mutedStyle)
+		b.WriteString("\n")
+	} else if active != nil {
 		writeLogExcerpt(&b, "stdout", active.Stdout, mutedStyle)
 		writeLogExcerpt(&b, "stderr", active.Stderr, mutedStyle)
 		b.WriteString("\n")
+	} else {
+		b.WriteString(mutedStyle.Render("(no logs)"))
+		b.WriteString("\n\n")
 	}
 
 	writeSectionHeader(&b, headerStyle, "Task Summary")

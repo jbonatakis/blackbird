@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 
 	"github.com/jbonatakis/blackbird/internal/agent"
@@ -30,6 +31,8 @@ type ExecuteConfig struct {
 	PlanPath     string
 	Graph        *plan.WorkGraph
 	Runtime      agent.Runtime
+	StreamStdout io.Writer
+	StreamStderr io.Writer
 	OnTaskStart  func(taskID string)
 	OnTaskFinish func(taskID string, record RunRecord, execErr error)
 }
@@ -41,6 +44,8 @@ type ResumeConfig struct {
 	Answers      []agent.Answer
 	Context      *ContextPack
 	Runtime      agent.Runtime
+	StreamStdout io.Writer
+	StreamStderr io.Writer
 	OnTaskStart  func(taskID string)
 	OnTaskFinish func(taskID string, record RunRecord, execErr error)
 }
@@ -103,7 +108,10 @@ func RunExecute(ctx context.Context, cfg ExecuteConfig) (ExecuteResult, error) {
 			return ExecuteResult{Reason: ExecuteReasonError, TaskID: taskID, Err: err}, err
 		}
 
-		record, execErr := LaunchAgent(ctx, cfg.Runtime, ctxPack)
+		record, execErr := LaunchAgentWithStream(ctx, cfg.Runtime, ctxPack, StreamConfig{
+			Stdout: cfg.StreamStdout,
+			Stderr: cfg.StreamStderr,
+		})
 		if err := SaveRun(baseDir, record); err != nil {
 			return ExecuteResult{Reason: ExecuteReasonError, TaskID: taskID, Err: err}, err
 		}
@@ -196,7 +204,10 @@ func RunResume(ctx context.Context, cfg ResumeConfig) (RunRecord, error) {
 		return RunRecord{}, err
 	}
 
-	record, execErr := LaunchAgent(ctx, cfg.Runtime, ctxPack)
+	record, execErr := LaunchAgentWithStream(ctx, cfg.Runtime, ctxPack, StreamConfig{
+		Stdout: cfg.StreamStdout,
+		Stderr: cfg.StreamStderr,
+	})
 	if err := SaveRun(baseDir, record); err != nil {
 		return RunRecord{}, err
 	}

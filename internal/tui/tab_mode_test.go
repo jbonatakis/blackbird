@@ -58,6 +58,7 @@ func TestTabModeResetsDetailOffset(t *testing.T) {
 func TestTabModeIgnoredDuringAction(t *testing.T) {
 	model := NewModel(testWorkGraph())
 	model.actionInProgress = true
+	model.actionName = "Generating plan..."
 
 	// Press 't' while action is in progress
 	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
@@ -66,5 +67,31 @@ func TestTabModeIgnoredDuringAction(t *testing.T) {
 	// Tab mode should remain as TabDetails
 	if model.tabMode != TabDetails {
 		t.Fatalf("expected tab mode to remain TabDetails when action is in progress, got %v", model.tabMode)
+	}
+}
+
+func TestTabModeToggleDuringExecuteOrResume(t *testing.T) {
+	cases := []struct {
+		name       string
+		actionName string
+	}{
+		{name: "execute", actionName: "Executing..."},
+		{name: "resume", actionName: "Resuming..."},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			model := NewModel(testWorkGraph())
+			model.viewMode = ViewModeMain
+			model.actionInProgress = true
+			model.actionName = tc.actionName
+
+			updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}})
+			model = updated.(Model)
+
+			if model.tabMode != TabExecution {
+				t.Fatalf("expected tab mode to switch to TabExecution during %s, got %v", tc.name, model.tabMode)
+			}
+		})
 	}
 }

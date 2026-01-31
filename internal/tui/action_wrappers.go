@@ -3,6 +3,7 @@ package tui
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -51,15 +52,24 @@ func ExecuteCmd() tea.Cmd {
 }
 
 func ExecuteCmdWithContext(ctx context.Context) tea.Cmd {
+	return ExecuteCmdWithContextAndStream(ctx, nil, nil, nil)
+}
+
+func ExecuteCmdWithContextAndStream(ctx context.Context, stdout io.Writer, stderr io.Writer, liveOutput chan liveOutputMsg) tea.Cmd {
 	return func() tea.Msg {
+		if liveOutput != nil {
+			defer close(liveOutput)
+		}
 		runtime, err := agent.NewRuntimeFromEnv()
 		if err != nil {
 			return ExecuteActionComplete{Action: "execute", Success: false, Err: err}
 		}
 
 		result, runErr := execution.RunExecute(ctx, execution.ExecuteConfig{
-			PlanPath: planPath(),
-			Runtime:  runtime,
+			PlanPath:     planPath(),
+			Runtime:      runtime,
+			StreamStdout: stdout,
+			StreamStderr: stderr,
 		})
 		msg := ExecuteActionComplete{
 			Action: "execute",
@@ -81,17 +91,26 @@ func ResumeCmd(taskID string, answers []agent.Answer) tea.Cmd {
 }
 
 func ResumeCmdWithContext(ctx context.Context, taskID string, answers []agent.Answer) tea.Cmd {
+	return ResumeCmdWithContextAndStream(ctx, taskID, answers, nil, nil, nil)
+}
+
+func ResumeCmdWithContextAndStream(ctx context.Context, taskID string, answers []agent.Answer, stdout io.Writer, stderr io.Writer, liveOutput chan liveOutputMsg) tea.Cmd {
 	return func() tea.Msg {
+		if liveOutput != nil {
+			defer close(liveOutput)
+		}
 		runtime, err := agent.NewRuntimeFromEnv()
 		if err != nil {
 			return ExecuteActionComplete{Action: "resume", Success: false, Err: err}
 		}
 
 		record, runErr := execution.RunResume(ctx, execution.ResumeConfig{
-			PlanPath: planPath(),
-			TaskID:   taskID,
-			Answers:  answers,
-			Runtime:  runtime,
+			PlanPath:     planPath(),
+			TaskID:       taskID,
+			Answers:      answers,
+			Runtime:      runtime,
+			StreamStdout: stdout,
+			StreamStderr: stderr,
 		})
 		msg := ExecuteActionComplete{
 			Action: "resume",

@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"time"
@@ -72,6 +73,9 @@ type Model struct {
 	spinnerIndex       int
 	runData            map[string]execution.RunRecord
 	timerActive        bool
+	liveStdout         string
+	liveStderr         string
+	liveOutputChan     chan liveOutputMsg
 	expandedItems      map[string]bool
 	filterMode         FilterMode
 	detailOffset       int
@@ -191,6 +195,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.actionInProgress = false
 		m.actionName = ""
 		m.actionCancel = nil
+		if typed.Action == "execute" || typed.Action == "resume" {
+			m.clearLiveOutput()
+		}
 		if typed.Err != nil {
 			m.actionOutput = &ActionOutput{
 				Message: fmt.Sprintf("Action failed: %v\n\n%s", typed.Err, typed.Output),
@@ -242,6 +249,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.timerActive = false
+		return m, nil
+	case liveOutputMsg:
+		switch typed.stream {
+		case "stdout":
+			m.liveStdout += typed.data
+		case "stderr":
+			m.liveStderr += typed.data
+		}
+		if m.liveOutputChan != nil {
+			return m, listenLiveOutputCmd(m.liveOutputChan)
+		}
+		return m, nil
+	case liveOutputDoneMsg:
+		m.liveOutputChan = nil
 		return m, nil
 	case runDataRefreshMsg:
 		return m, tea.Batch(m.LoadRunData(), RunDataRefreshCmd())
@@ -371,7 +392,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.actionName = "Executing..."
 				ctx, cancel := context.WithCancel(context.Background())
 				m.actionCancel = cancel
-				return m, tea.Batch(ExecuteCmdWithContext(ctx), spinnerTickCmd())
+				streamCh, stdout, stderr := m.startLiveOutput()
+				return m, tea.Batch(
+					ExecuteCmdWithContextAndStream(ctx, stdout, stderr, streamCh),
+					listenLiveOutputCmd(streamCh),
+					spinnerTickCmd(),
+				)
 			default:
 				return m, nil
 			}
@@ -388,7 +414,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		case "t":
-			if m.actionMode != ActionModeNone || m.actionInProgress {
+			if m.actionMode != ActionModeNone {
+				return m, nil
+			}
+			if m.actionInProgress && m.actionName != "Executing..." && m.actionName != "Resuming..." {
 				return m, nil
 			}
 			if m.tabMode == TabDetails {
@@ -492,7 +521,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.actionName = "Executing..."
 			ctx, cancel := context.WithCancel(context.Background())
 			m.actionCancel = cancel
-			return m, tea.Batch(ExecuteCmdWithContext(ctx), spinnerTickCmd())
+			streamCh, stdout, stderr := m.startLiveOutput()
+			return m, tea.Batch(
+				ExecuteCmdWithContextAndStream(ctx, stdout, stderr, streamCh),
+				listenLiveOutputCmd(streamCh),
+				spinnerTickCmd(),
+			)
 		case "s":
 			if m.actionMode != ActionModeNone || m.actionInProgress {
 				return m, nil
@@ -647,6 +681,22 @@ func spinnerTickCmd() tea.Cmd {
 	return tea.Tick(120*time.Millisecond, func(time.Time) tea.Msg {
 		return spinnerTickMsg{}
 	})
+}
+
+func (m *Model) startLiveOutput() (chan liveOutputMsg, io.Writer, io.Writer) {
+	m.liveStdout = ""
+	m.liveStderr = ""
+	streamCh := make(chan liveOutputMsg, 256)
+	m.liveOutputChan = streamCh
+	return streamCh,
+		liveOutputWriter{ch: streamCh, stream: "stdout"},
+		liveOutputWriter{ch: streamCh, stream: "stderr"}
+}
+
+func (m *Model) clearLiveOutput() {
+	m.liveStdout = ""
+	m.liveStderr = ""
+	m.liveOutputChan = nil
 }
 
 func (m Model) nextVisibleItem() string {

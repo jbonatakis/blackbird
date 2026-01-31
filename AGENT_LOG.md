@@ -1,5 +1,14 @@
 # AGENT_LOG
 
+## 2026-01-31 — TUI live output append test
+
+- Added a unit test to validate live output buffer appending and continued listening on live stream updates (`internal/tui/live_output_model_test.go`).
+
+## 2026-01-31 — TUI streaming output cmd
+
+- Added a live-output done message and updated the streaming Cmd/Update loop to stop cleanly when the channel closes.
+- Added unit tests for live output command chunk delivery and channel-close behavior.
+
 ## 2026-01-31 — TUI plan view visual fixes
 
 - **Top cut off (root cause)**: Lipgloss applies Height to the inner block then adds top+bottom border, so each pane is `availableHeight + 2` lines. Total = `(availableHeight+2) + 2` (newline + bar). Use `availableHeight = windowHeight - 5` so total = `windowHeight - 1`, staying under terminal height. Rendering exactly `windowHeight` lines can cause first-line redraw bugs in some terminals/bubbletea; keeping output one line short ensures the top border is visible.
@@ -641,3 +650,37 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 - Added `plan.PropagateParentCompletion(g, childID, now)` in `internal/plan/parent.go`; called from `execution.UpdateTaskStatus` and `cli.runSetStatus` when status is set to done.
 - Tests: `plan/parent_test.go` (no parent, parent not all children done, parent all children done, grandparent chain); `execution/lifecycle_test.go` TestUpdateTaskStatusPropagatesParentCompletion.
 - Ran `go test ./...` (all packages passed).
+
+## 2026-01-31 — Execution streaming hooks
+
+- Added optional stdout/stderr streaming writers to `execution.ExecuteConfig` and `execution.ResumeConfig`, wired through the runner to the agent launcher.
+- Introduced `LaunchAgentWithStream` and `StreamConfig` to support per-run live output sinks while preserving existing `LaunchAgent` behavior.
+- Added launcher test coverage to ensure provided stream writers receive output.
+
+## 2026-01-31 — Execution runner stream tee
+
+- Updated execution launcher stream wiring so stdout/stderr are always copied to capture buffers and any streaming sink (plus env-based streaming when enabled).
+- Extended launcher streaming test to assert captured stdout remains populated when streaming is active.
+
+## 2026-01-31 — TUI live execution buffers
+
+- Added live stdout/stderr buffers to the TUI model with streaming listeners for execute/resume, plus safe reset on completion.
+- Wired in-process execution/resume to stream output into the TUI via `StreamStdout`/`StreamStderr` writers.
+- Execution view now shows live output when no active run record exists, without changing completed-run rendering.
+- Tests: added `TestRenderExecutionViewLiveOutput`; ran `go test ./...`.
+
+## 2026-01-31 — Execution view live buffers routing
+
+- Updated execution view log output selection to prefer live buffers during execute/resume actions and fall back to run record output otherwise.
+- Added tests to cover live output overriding run logs and run logs used when not in progress.
+- Ran `go test ./...` (all packages passed).
+
+## 2026-01-31 — TUI execution tab guard tweak
+
+- Allowed `t` tab toggling during execute/resume actions while keeping the guard for other in-progress actions.
+- Added tab toggle tests for execute/resume and updated the in-progress guard test to use a non-exec action name.
+
+## 2026-01-31 — TUI tab toggle test consolidation
+
+- Consolidated execute/resume tab-toggle coverage into a table-driven test to assert `t` switches tabs during action-in-progress execute/resume states in `internal/tui/tab_mode_test.go`.
+- Tests: `go test ./internal/tui/...` failed due to Go build cache permission restrictions (`operation not permitted`).

@@ -18,6 +18,11 @@ import (
 
 // LaunchAgent executes the agent command with the provided context pack.
 func LaunchAgent(ctx context.Context, runtime agent.Runtime, contextPack ContextPack) (RunRecord, error) {
+	return LaunchAgentWithStream(ctx, runtime, contextPack, StreamConfig{})
+}
+
+// LaunchAgentWithStream executes the agent command with optional live output streaming.
+func LaunchAgentWithStream(ctx context.Context, runtime agent.Runtime, contextPack ContextPack, stream StreamConfig) (RunRecord, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -61,8 +66,8 @@ func LaunchAgent(ctx context.Context, runtime agent.Runtime, contextPack Context
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
-	cmd.Stdout = streamWriter(&stdout, os.Stdout)
-	cmd.Stderr = streamWriter(&stderr, os.Stderr)
+	cmd.Stdout = streamWriter(&stdout, stream.Stdout, os.Stdout)
+	cmd.Stderr = streamWriter(&stderr, stream.Stderr, os.Stderr)
 
 	execErr := cmd.Run()
 	completed := time.Now().UTC()
@@ -95,11 +100,23 @@ func LaunchAgent(ctx context.Context, runtime agent.Runtime, contextPack Context
 	return record, nil
 }
 
-func streamWriter(buf *bytes.Buffer, live io.Writer) io.Writer {
-	if os.Getenv(agent.EnvStream) == "1" {
-		return io.MultiWriter(buf, live)
+type StreamConfig struct {
+	Stdout io.Writer
+	Stderr io.Writer
+}
+
+func streamWriter(buf *bytes.Buffer, cfgWriter io.Writer, envWriter io.Writer) io.Writer {
+	writers := []io.Writer{buf}
+	if cfgWriter != nil {
+		writers = append(writers, cfgWriter)
 	}
-	return buf
+	if os.Getenv(agent.EnvStream) == "1" && envWriter != nil {
+		writers = append(writers, envWriter)
+	}
+	if len(writers) == 1 {
+		return buf
+	}
+	return io.MultiWriter(writers...)
 }
 
 func newRunID() string {
