@@ -1,4 +1,9 @@
-status: incomplete
+status: complete
+
+Implementation update (2026-01-31)
+- Execute/resume orchestration now lives in the shared runner (`internal/execution.RunExecute` / `RunResume`).
+- The TUI runs execute/resume in-process with a cancellable context; quit/ctrl+c invokes the cancel func to stop the runner and agent subprocess.
+- Execute/resume UI actions now send completion messages directly instead of shelling out to `blackbird execute` or `blackbird resume`.
 
 1. Goals
 Single orchestration process: The process that runs the TUI (or CLI) runs the execute/resume loop in-process. Only the agent runs as a subprocess.

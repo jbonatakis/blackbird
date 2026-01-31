@@ -1,13 +1,15 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 
 	"github.com/jbonatakis/blackbird/internal/agent"
 	"github.com/jbonatakis/blackbird/internal/execution"
-	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
 func runResume(taskID string) error {
@@ -24,8 +26,15 @@ func runResume(taskID string) error {
 		return fmt.Errorf("unknown id %q", taskID)
 	}
 
-	baseDir := filepath.Dir(path)
-	runs, err := execution.ListRuns(baseDir, taskID)
+	runtime, err := agent.NewRuntimeFromEnv()
+	if err != nil {
+		return err
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	runs, err := execution.ListRuns(filepath.Dir(path), taskID)
 	if err != nil {
 		return err
 	}
@@ -46,7 +55,8 @@ func runResume(taskID string) error {
 		return err
 	}
 	if len(questions) == 0 {
-		return fmt.Errorf("no questions found in waiting run for %s", taskID)
+		fmt.Fprintf(os.Stdout, "no questions found in waiting run for %s\n", taskID)
+		return nil
 	}
 
 	answers, err := promptAnswers(questions)
@@ -59,37 +69,26 @@ func runResume(taskID string) error {
 		return err
 	}
 
-	runtime, err := agent.NewRuntimeFromEnv()
+	record, err := execution.RunResume(ctx, execution.ResumeConfig{
+		PlanPath: path,
+		Graph:    &g,
+		TaskID:   taskID,
+		Answers:  answers,
+		Context:  &ctxPack,
+		Runtime:  runtime,
+	})
 	if err != nil {
-		return err
-	}
-
-	if err := execution.UpdateTaskStatus(path, taskID, plan.StatusInProgress); err != nil {
-		return err
-	}
-
-	record, execErr := execution.LaunchAgent(nil, runtime, ctxPack)
-	if err := execution.SaveRun(baseDir, record); err != nil {
 		return err
 	}
 
 	switch record.Status {
 	case execution.RunStatusSuccess:
-		if err := execution.UpdateTaskStatus(path, taskID, plan.StatusDone); err != nil {
-			return err
-		}
 		fmt.Fprintf(os.Stdout, "completed %s\n", taskID)
 	case execution.RunStatusWaitingUser:
-		if err := execution.UpdateTaskStatus(path, taskID, plan.StatusWaitingUser); err != nil {
-			return err
-		}
 		fmt.Fprintf(os.Stdout, "%s is waiting for user input\n", taskID)
 	case execution.RunStatusFailed:
-		if err := execution.UpdateTaskStatus(path, taskID, plan.StatusFailed); err != nil {
-			return err
-		}
-		if execErr != nil {
-			fmt.Fprintf(os.Stdout, "failed %s: %v\n", taskID, execErr)
+		if record.Error != "" {
+			fmt.Fprintf(os.Stdout, "failed %s: %s\n", taskID, record.Error)
 		} else {
 			fmt.Fprintf(os.Stdout, "failed %s\n", taskID)
 		}

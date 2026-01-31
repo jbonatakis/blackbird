@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -67,6 +68,7 @@ type Model struct {
 	windowHeight       int
 	actionInProgress   bool
 	actionName         string
+	actionCancel       context.CancelFunc
 	spinnerIndex       int
 	runData            map[string]execution.RunRecord
 	timerActive        bool
@@ -78,6 +80,7 @@ type Model struct {
 	agentQuestionForm  *AgentQuestionForm
 	planReviewForm     *PlanReviewForm
 	pendingPlanRequest PendingPlanRequest
+	pendingResumeTask  string
 }
 
 func NewModel(g plan.WorkGraph) Model {
@@ -187,15 +190,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ExecuteActionComplete:
 		m.actionInProgress = false
 		m.actionName = ""
+		m.actionCancel = nil
 		if typed.Err != nil {
 			m.actionOutput = &ActionOutput{
 				Message: fmt.Sprintf("Action failed: %v\n\n%s", typed.Err, typed.Output),
 				IsError: true,
 			}
 		} else {
-			m.actionOutput = &ActionOutput{
-				Message: fmt.Sprintf("Action completed successfully\n\n%s", typed.Output),
-				IsError: false,
+			if typed.Action == "execute" || typed.Action == "resume" {
+				message := typed.Output
+				if message == "" {
+					message = "Action completed successfully"
+				}
+				m.actionOutput = &ActionOutput{
+					Message: message,
+					IsError: false,
+				}
+			} else {
+				m.actionOutput = &ActionOutput{
+					Message: fmt.Sprintf("Action completed successfully\n\n%s", typed.Output),
+					IsError: false,
+				}
 			}
 		}
 		if typed.Action == "execute" || typed.Action == "resume" || typed.Action == "set-status" {
@@ -249,6 +264,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.actionMode == ActionModeSetStatus {
 			switch typed.String() {
 			case "ctrl+c":
+				m = cancelRunningAction(m)
 				return m, tea.Quit
 			default:
 				return HandleSetStatusKey(m, typed.String())
@@ -257,6 +273,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.actionMode == ActionModeConfirmOverwrite {
 			switch typed.String() {
 			case "ctrl+c":
+				m = cancelRunningAction(m)
 				return m, tea.Quit
 			default:
 				return HandleConfirmOverwriteKey(m, typed.String())
@@ -265,6 +282,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.actionMode == ActionModeGeneratePlan {
 			switch typed.String() {
 			case "ctrl+c":
+				m = cancelRunningAction(m)
 				return m, tea.Quit
 			case "esc":
 				// Cancel modal
@@ -278,12 +296,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.actionMode == ActionModeAgentQuestion {
 			switch typed.String() {
 			case "ctrl+c":
+				m = cancelRunningAction(m)
 				return m, tea.Quit
 			case "esc":
 				// Cancel modal
 				m.actionMode = ActionModeNone
 				m.agentQuestionForm = nil
 				m.pendingPlanRequest = PendingPlanRequest{}
+				m.pendingResumeTask = ""
 				return m, nil
 			default:
 				return HandleAgentQuestionKey(m, typed)
@@ -292,6 +312,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.actionMode == ActionModePlanReview {
 			switch typed.String() {
 			case "ctrl+c":
+				m = cancelRunningAction(m)
 				return m, tea.Quit
 			case "esc":
 				// Cancel modal - discard plan
@@ -326,6 +347,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.viewMode == ViewModeHome && m.actionMode == ActionModeNone {
 			switch key {
 			case "ctrl+c":
+				m = cancelRunningAction(m)
 				return m, tea.Quit
 			case "g":
 				return m.startPlanGenerate()
@@ -347,13 +369,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.actionInProgress = true
 				m.actionName = "Executing..."
-				return m, tea.Batch(ExecuteCmd(), spinnerTickCmd())
+				ctx, cancel := context.WithCancel(context.Background())
+				m.actionCancel = cancel
+				return m, tea.Batch(ExecuteCmdWithContext(ctx), spinnerTickCmd())
 			default:
 				return m, nil
 			}
 		}
 		switch key {
 		case "ctrl+c":
+			m = cancelRunningAction(m)
 			return m, tea.Quit
 		case "tab":
 			if m.activePane == PaneTree {
@@ -469,7 +494,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.actionInProgress = true
 			m.actionName = "Executing..."
-			return m, tea.Batch(ExecuteCmd(), spinnerTickCmd())
+			ctx, cancel := context.WithCancel(context.Background())
+			m.actionCancel = cancel
+			return m, tea.Batch(ExecuteCmdWithContext(ctx), spinnerTickCmd())
 		case "s":
 			if m.actionMode != ActionModeNone || m.actionInProgress {
 				return m, nil
@@ -487,9 +514,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !CanResume(m) {
 				return m, nil
 			}
-			m.actionInProgress = true
-			m.actionName = "Resuming..."
-			return m, tea.Batch(ResumeCmd(m.selectedID), spinnerTickCmd())
+			questions, err := execution.ParseQuestionsFromLatestWaitingRun(planPath(), m.plan, m.selectedID)
+			if err != nil {
+				m.actionOutput = &ActionOutput{
+					Message: fmt.Sprintf("Resume failed: %v", err),
+					IsError: true,
+				}
+				return m, nil
+			}
+			if len(questions) == 0 {
+				m.actionOutput = &ActionOutput{
+					Message: fmt.Sprintf("No questions found in waiting run for %s", m.selectedID),
+					IsError: false,
+				}
+				return m, nil
+			}
+
+			form := NewAgentQuestionForm(questions)
+			form.SetSize(m.windowWidth, m.windowHeight)
+			m.agentQuestionForm = &form
+			m.actionMode = ActionModeAgentQuestion
+			m.pendingResumeTask = m.selectedID
+			return m, nil
 		}
 	}
 	return m, nil
@@ -515,6 +561,14 @@ func (m Model) startPlanGenerate() (Model, tea.Cmd) {
 	m.planGenerateForm = &form
 	m.actionMode = ActionModeGeneratePlan
 	return m, nil
+}
+
+func cancelRunningAction(m Model) Model {
+	if m.actionCancel != nil {
+		m.actionCancel()
+		m.actionCancel = nil
+	}
+	return m
 }
 
 func (m Model) View() string {

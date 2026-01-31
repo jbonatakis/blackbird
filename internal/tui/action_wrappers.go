@@ -10,6 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jbonatakis/blackbird/internal/agent"
+	"github.com/jbonatakis/blackbird/internal/execution"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
@@ -25,6 +26,8 @@ type ExecuteActionComplete struct {
 	Success bool
 	Output  string
 	Err     error
+	Result  *execution.ExecuteResult
+	Record  *execution.RunRecord
 }
 
 type PlanGenerateInMemoryResult struct {
@@ -43,11 +46,65 @@ func PlanRefineCmd() tea.Cmd {
 }
 
 func ExecuteCmd() tea.Cmd {
-	return runExecuteAction("execute", []string{"execute"})
+	ctx := context.Background()
+	return ExecuteCmdWithContext(ctx)
 }
 
-func ResumeCmd(taskID string) tea.Cmd {
-	return runExecuteAction("resume", []string{"resume", taskID})
+func ExecuteCmdWithContext(ctx context.Context) tea.Cmd {
+	return func() tea.Msg {
+		runtime, err := agent.NewRuntimeFromEnv()
+		if err != nil {
+			return ExecuteActionComplete{Action: "execute", Success: false, Err: err}
+		}
+
+		result, runErr := execution.RunExecute(ctx, execution.ExecuteConfig{
+			PlanPath: planPath(),
+			Runtime:  runtime,
+		})
+		msg := ExecuteActionComplete{
+			Action: "execute",
+			Result: &result,
+			Err:    runErr,
+		}
+		if runErr != nil {
+			return msg
+		}
+		msg.Success = true
+		msg.Output = summarizeExecuteResult(result)
+		return msg
+	}
+}
+
+func ResumeCmd(taskID string, answers []agent.Answer) tea.Cmd {
+	ctx := context.Background()
+	return ResumeCmdWithContext(ctx, taskID, answers)
+}
+
+func ResumeCmdWithContext(ctx context.Context, taskID string, answers []agent.Answer) tea.Cmd {
+	return func() tea.Msg {
+		runtime, err := agent.NewRuntimeFromEnv()
+		if err != nil {
+			return ExecuteActionComplete{Action: "resume", Success: false, Err: err}
+		}
+
+		record, runErr := execution.RunResume(ctx, execution.ResumeConfig{
+			PlanPath: planPath(),
+			TaskID:   taskID,
+			Answers:  answers,
+			Runtime:  runtime,
+		})
+		msg := ExecuteActionComplete{
+			Action: "resume",
+			Record: &record,
+			Err:    runErr,
+		}
+		if runErr != nil {
+			return msg
+		}
+		msg.Success = true
+		msg.Output = summarizeResumeRecord(record, taskID)
+		return msg
+	}
 }
 
 func SetStatusCmd(id string, status string) tea.Cmd {
@@ -84,6 +141,43 @@ func runCommand(args []string) (string, error) {
 
 	runErr := cmd.Run()
 	return buf.String(), runErr
+}
+
+func summarizeExecuteResult(result execution.ExecuteResult) string {
+	switch result.Reason {
+	case execution.ExecuteReasonCompleted:
+		return "no ready tasks remaining"
+	case execution.ExecuteReasonWaitingUser:
+		if result.TaskID != "" {
+			return result.TaskID + " is waiting for user input"
+		}
+		return "waiting for user input"
+	case execution.ExecuteReasonCanceled:
+		return "execution interrupted"
+	case execution.ExecuteReasonError:
+		if result.Err != nil {
+			return result.Err.Error()
+		}
+		return "execution stopped with error"
+	default:
+		return "execution finished"
+	}
+}
+
+func summarizeResumeRecord(record execution.RunRecord, taskID string) string {
+	switch record.Status {
+	case execution.RunStatusSuccess:
+		return "completed " + taskID
+	case execution.RunStatusWaitingUser:
+		return taskID + " is waiting for user input"
+	case execution.RunStatusFailed:
+		if record.Error != "" {
+			return "failed " + taskID + ": " + record.Error
+		}
+		return "failed " + taskID
+	default:
+		return "resume finished"
+	}
 }
 
 // GeneratePlanInMemory invokes the agent runtime directly without spawning a subprocess

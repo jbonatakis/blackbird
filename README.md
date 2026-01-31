@@ -1,6 +1,6 @@
 # Blackbird
 
-Go-first CLI for durable, dependency-aware planning and execution with AI agents.
+The control plane for durable, dependency-aware planning and execution with AI agents.
 
 ## What it does
 
@@ -91,6 +91,10 @@ Execution:
 - `blackbird runs <taskID>` lists runs for a task (`--verbose` shows logs).
 - `blackbird resume <taskID>` answers questions and continues a waiting task.
 - `blackbird retry <taskID>` resets failed tasks with failed runs back to `todo`.
+
+Execute/resume share the execution runner in `internal/execution`. The CLI and TUI
+call the same runner API; the TUI runs execute/resume in-process (no subprocess)
+and cancels the shared context on quit so any in-flight run stops promptly.
 
 ## Readiness rules
 

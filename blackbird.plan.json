@@ -1,204 +1,93 @@
 {
   "schemaVersion": 1,
   "items": {
-    "home-view-renderer": {
-      "id": "home-view-renderer",
-      "title": "Create Home View renderer",
-      "description": "Create a new file internal/tui/home_view.go with a RenderHomeView(m Model) string function. The home view is a centered, minimal layout showing: title + tagline, plan status line, and an action list with single-key shortcuts. Disabled actions are shown in dim/muted style when their requirements are not met.",
+    "cli-runner-integration": {
+      "id": "cli-runner-integration",
+      "title": "Hook CLI execute/resume into the runner",
+      "description": "Refactor the cli execute and resume commands to call the shared runner so the CLI loop no longer implements the orchestration itself.",
       "acceptanceCriteria": [
-        "New file internal/tui/home_view.go exists with RenderHomeView(m Model) string function",
-        "Displays title 'blackbird' and a short tagline",
-        "Shows plan status: 'No plan found' when planExists=false, or 'Plan found: N items, M ready, K blocked' when true",
-        "Shows action list: Generate plan [g], View plan [v], Refine plan [r], Execute [e], Quit [ctrl+c]",
-        "Actions that require a plan are shown in muted/dim lipgloss style when planExists=false",
-        "Execute action is shown dim when no ready tasks exist",
-        "Layout is centered both horizontally and vertically using lipgloss",
-        "Uses existing color scheme constants (Color 240 for muted, Color 69 for accent, etc.)"
+        "runExecute builds the ctx via signal.NotifyContext, planPath(), and the agent runtime, then calls RunExecute and prints the same start/completed/failed/\"waiting for user\"/\"no ready tasks\" messages.",
+        "runResume still loads the waiting run, gathers answers, builds the resume context pack, then calls RunResume and prints the same status updates (done/waiting/failed) and returns the runner error if any.",
+        "A progress hook (or ExecuteResult) is used to emit the existing fmt.Fprintf logs instead of hardcoding print statements inside the runner.",
+        "The CLI behavior for SIGINT/termination remains unchanged (prints \u201cexecution interrupted\u201d and breaks out) by interpreting the result reason returned by RunExecute."
       ],
-      "prompt": "Create internal/tui/home_view.go:\n1. Define RenderHomeView(m Model) string.\n2. Layout (centered with lipgloss):\n   - Title: 'blackbird' in bold/accent color.\n   - Tagline: 'Durable, dependency-aware planning and execution' in muted.\n   - Blank line separator.\n   - Plan status line:\n     - If !m.planExists: '⊘ No plan found' in muted.\n     - If m.planExists: '✓ Plan loaded: N items, M ready, K blocked' in success color, computing counts from m.plan.Items and execution.ReadyTasks.\n   - Blank line separator.\n   - Action list (each on its own line):\n     - '[g] Generate plan' — always enabled.\n     - '[v] View plan' — dim if !planExists.\n     - '[r] Refine plan' — dim if !planExists.\n     - '[e] Execute' — dim if !canExecute().\n     - '[ctrl+c] Quit' — always enabled.\n   - Use lipgloss Color(240) for dim/disabled, Color(69) for shortcuts, Color(42) for enabled actions.\n3. Center the block in the terminal using m.windowWidth and m.windowHeight with lipgloss.Place().",
+      "prompt": "In internal/cli/execute.go and resume.go, replace the manual loop with calls to the new execution.RunExecute/RunResume API, still constructing ctx via signal.NotifyContext, planPath(), and agent.NewRuntimeFromEnv(). Pass a hook that prints \u201cstarting X\u201d / \u201ccompleted X\u201d so the output matches the current behavior. For resume, keep the answer-prompting logic (ListRuns, promptAnswers, ResumeWithAnswer) but hand the resulting ctxPack to RunResume, then map the returned RunRecord/ExecuteResult into the existing stdout messages and status updates.",
       "parentId": null,
       "childIds": [],
       "deps": [
-        "tui-model-state"
+        "execution-runner-api"
       ],
       "status": "done",
-      "createdAt": "2026-01-29T00:00:00Z",
-      "updatedAt": "2026-01-30T01:28:13.72322Z",
+      "createdAt": "2026-01-31T12:00:00Z",
+      "updatedAt": "2026-01-31T17:41:23.036616Z",
       "depRationale": {
-        "tui-model-state": "Home view renderer needs viewMode, planExists, hasPlan(), and canExecute() to be defined on the Model"
+        "execution-runner-api": "CLI commands need the runner API to be in place before they can delegate to it."
       }
     },
-    "integrate-home-view": {
-      "id": "integrate-home-view",
-      "title": "Integrate Home View into Model.View()",
-      "description": "Update Model.View() in model.go to render the Home view when viewMode is ViewModeHome. When viewMode is ViewModeMain, render the existing split-pane layout as before. Also update the bottom bar to show Home-relevant hints when on the Home screen.",
+    "execution-runner-api": {
+      "id": "execution-runner-api",
+      "title": "Implement shared execution runner API",
+      "description": "Move the execute and resume orchestration out of the CLI and into a shared runner in internal/execution so both the CLI and TUI call the same context-aware loop.",
       "acceptanceCriteria": [
-        "Model.View() renders RenderHomeView when viewMode == ViewModeHome",
-        "Model.View() renders existing split-pane layout when viewMode == ViewModeMain",
-        "Bottom bar shows Home-relevant hints (g/v/r/e/ctrl+c) when on Home screen",
-        "Bottom bar hides status counts when planExists is false on Home screen",
-        "Modals still overlay correctly on top of the Home view"
+        "Expose ExecuteConfig and ResumeConfig structs that accept a plan path (or preloaded graph+path), agent runtime, and optional progress hooks/events.",
+        "Provide RunExecute(ctx, cfg) that loads/validates the plan, loops over ready tasks, updates statuses (in-progress/done/waiting/failed), saves run records, and returns a result enum when the loop ends, context cancels, or a waiting run stops the loop.",
+        "Provide RunResume(ctx, cfg) that loads the plan, validates the task ID/waiting run, resumes via execution.ResumeWithAnswer, saves the resulting run, updates status, and returns the final RunRecord.",
+        "Both runners honor context cancellation (stop starting new tasks, return promptly, rely on LaunchAgent\u2019s CommandContext to kill the agent).",
+        "Expose a result type (e.g., ExecuteResult) that reports the stopping reason so the CLI/TUI can print the same messages as today, and support optional callbacks/events for task start/finish so the TUI can refresh status."
       ],
-      "prompt": "In model.go's View() method:\n1. At the top of View(), check m.viewMode.\n2. If ViewModeHome: call RenderHomeView(m) for the main content instead of the split-pane layout.\n3. If ViewModeMain: use existing split-pane rendering logic unchanged.\n4. Modal overlay logic should remain after the view selection (modals work on both views).\n\nIn bottom_bar.go:\n1. When viewMode == ViewModeHome, render a simplified hint bar with only Home-relevant keys.\n2. When planExists is false, omit plan item counts from the bar.\n3. When viewMode == ViewModeMain, keep existing bottom bar unchanged.",
-      "parentId": null,
-      "childIds": [],
-      "deps": [
-        "home-view-renderer",
-        "startup-no-plan"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-29T00:00:00Z",
-      "updatedAt": "2026-01-30T01:35:00.856881Z",
-      "depRationale": {
-        "home-view-renderer": "Need the RenderHomeView function to exist before integrating it into View()",
-        "startup-no-plan": "Need planExists and viewMode to be properly initialized at startup"
-      }
-    },
-    "key-routing": {
-      "id": "key-routing",
-      "title": "Implement Home screen key routing and action gating",
-      "description": "Update Model.Update() key handling to support the Home screen keybindings. Add 'h' to toggle between Home and Main views. Gate plan-dependent actions (v, r, e) when on Home screen and plan doesn't exist. Ensure 'g' works from Home screen to open the generate modal.",
-      "acceptanceCriteria": [
-        "'h' toggles between Home and Main views (Main only accessible if planExists)",
-        "'g' opens generate plan modal from Home screen",
-        "'v' switches to Main view only if planExists, ignored otherwise",
-        "'r' opens refine only if planExists, ignored otherwise",
-        "'e' opens execute only if canExecute(), ignored otherwise",
-        "ctrl+c quits from Home screen",
-        "When on Main view, existing key behavior is preserved unchanged",
-        "After successful plan generation, planExists becomes true"
-      ],
-      "prompt": "In model.go's Update() method, in the tea.KeyMsg handler:\n1. Add 'h' key handler: if viewMode == ViewModeHome and planExists, switch to ViewModeMain. If viewMode == ViewModeMain, switch to ViewModeHome.\n2. When viewMode == ViewModeHome and actionMode == ActionModeNone:\n   - 'g': open generate plan modal (existing flow, same as current 'g' handler).\n   - 'v': if planExists, set viewMode = ViewModeMain. Otherwise ignore.\n   - 'r': if planExists, trigger refine (existing flow). Otherwise ignore.\n   - 'e': if canExecute(), trigger execute (existing flow). Otherwise ignore.\n   - ctrl+c: quit.\n   - All other keys: ignore (don't pass to tree/detail handlers).\n3. When viewMode == ViewModeMain: keep all existing key handling unchanged.\n4. In the PlanGenerateInMemoryResult handler (or PlanActionComplete for generate), when a plan is successfully generated: set planExists=true. Optionally switch viewMode to ViewModeMain.",
-      "parentId": null,
-      "childIds": [],
-      "deps": [
-        "integrate-home-view"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-29T00:00:00Z",
-      "updatedAt": "2026-01-30T01:37:51.554914Z",
-      "depRationale": {
-        "integrate-home-view": "Key routing depends on the Home view being integrated into the render pipeline so transitions are visible"
-      }
-    },
-    "plan-refresh-missing": {
-      "id": "plan-refresh-missing",
-      "title": "Handle missing plan gracefully in refresh tick",
-      "description": "Update the plan refresh tick handler so that a missing plan file is treated as a non-error state. When the plan disappears (e.g., deleted), set planExists=false and keep an empty in-memory graph. When a plan appears (e.g., created externally), set planExists=true and refresh counts.",
-      "acceptanceCriteria": [
-        "Plan refresh tick does not error or crash when plan file is missing",
-        "If plan was present and becomes missing, planExists transitions to false and plan resets to empty graph",
-        "If plan was missing and appears, planExists transitions to true and plan data loads",
-        "Validation errors on an existing plan file show an error state but do not crash"
-      ],
-      "prompt": "In plan_loader.go, update the plan refresh logic (the tea.Tick handler or PlanDataRefreshMsg handler):\n1. When the plan file is not found (os.IsNotExist), set planExists=false, plan to NewEmptyWorkGraph(). Do NOT return an error.\n2. When the plan file exists but has validation errors, set planExists=true but track the validation error for display.\n3. When the plan file exists and is valid, set planExists=true, load normally.\n4. Ensure the refresh continues ticking regardless of file state.",
-      "parentId": null,
-      "childIds": [],
-      "deps": [
-        "startup-no-plan"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-29T00:00:00Z",
-      "updatedAt": "2026-01-30T01:40:25.416092Z",
-      "depRationale": {
-        "startup-no-plan": "Refresh logic builds on the same missing-plan handling patterns established in startup"
-      }
-    },
-    "startup-no-plan": {
-      "id": "startup-no-plan",
-      "title": "Handle missing plan file on TUI startup",
-      "description": "Modify the TUI startup flow so that a missing blackbird.plan.json is not an error. When the plan file does not exist, initialize an in-memory empty graph via plan.NewEmptyWorkGraph(), set planExists=false, and start on the Home screen. When the plan file exists and loads successfully, set planExists=true.",
-      "acceptanceCriteria": [
-        "TUI starts without error when blackbird.plan.json is missing",
-        "When plan is missing, model.plan is set to plan.NewEmptyWorkGraph()",
-        "When plan is missing, planExists is false",
-        "When plan exists and loads, planExists is true",
-        "TUI always starts on Home screen (viewMode=ViewModeHome) regardless of plan existence"
-      ],
-      "prompt": "Modify the TUI startup in start.go and plan_loader.go:\n1. In start.go, initialize the model with `plan: plan.NewEmptyWorkGraph()`, `planExists: false`, and `viewMode: ViewModeHome`.\n2. In plan_loader.go's LoadPlanData (or equivalent), handle the case where the plan file does not exist (os.IsNotExist error) as a non-error: set planExists=false, plan to NewEmptyWorkGraph(), and return success.\n3. When the plan file exists and loads+validates successfully, set planExists=true and load the plan data normally.\n4. Ensure no error messages or panics occur when the file is missing.",
-      "parentId": null,
-      "childIds": [],
-      "deps": [
-        "tui-model-state"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-29T00:00:00Z",
-      "updatedAt": "2026-01-30T01:31:17.176583Z",
-      "depRationale": {
-        "tui-model-state": "Startup code needs the viewMode and planExists fields to exist on the Model"
-      }
-    },
-    "tests": {
-      "id": "tests",
-      "title": "Add tests for Home screen and missing plan handling",
-      "description": "Write unit tests covering: TUI startup without a plan file, plan refresh when plan is missing, Home screen action gating (disabled keys ignored, enabled keys work), and plan-exists transitions.",
-      "acceptanceCriteria": [
-        "Test: TUI Model initializes without error when no plan file exists, planExists=false, viewMode=ViewModeHome",
-        "Test: Plan refresh when plan file missing does not crash, planExists stays false",
-        "Test: On Home screen with no plan, 'v' key does not change viewMode",
-        "Test: On Home screen with no plan, 'g' key opens generate modal",
-        "Test: On Home screen with plan, 'v' switches to ViewModeMain",
-        "Test: Execute key only enabled when ready tasks exist",
-        "All tests pass with go test ./internal/tui/..."
-      ],
-      "prompt": "Create or extend test files in internal/tui/ (e.g., home_view_test.go):\n1. Test startup without plan: construct Model with empty graph, verify viewMode=ViewModeHome, planExists=false.\n2. Test plan refresh missing: simulate PlanDataLoaded message with file-not-found error, verify planExists=false, no error state.\n3. Test action gating (no plan):\n   - Send 'v' key when planExists=false → viewMode should remain ViewModeHome.\n   - Send 'r' key when planExists=false → no refine action triggered.\n   - Send 'g' key when planExists=false → actionMode should become ActionModeGeneratePlan.\n4. Test action gating (plan exists):\n   - Set planExists=true, send 'v' → viewMode should become ViewModeMain.\n   - Set planExists=true with no ready tasks, send 'e' → no execute triggered.\n5. Test 'h' toggle: from Home with plan, press 'h' → Main. From Main, press 'h' → Home.\n6. Run tests with: go test ./internal/tui/...",
-      "parentId": null,
-      "childIds": [],
-      "deps": [
-        "key-routing",
-        "validation-error-banner"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-29T00:00:00Z",
-      "updatedAt": "2026-01-30T01:46:12.681809Z",
-      "depRationale": {
-        "key-routing": "Tests verify key routing behavior which must be implemented first",
-        "validation-error-banner": "Tests should also cover validation error display which must be implemented first"
-      }
-    },
-    "tui-model-state": {
-      "id": "tui-model-state",
-      "title": "Add viewMode and planExists fields to TUI Model",
-      "description": "Extend the TUI Model struct with `viewMode` (enum: Home, Main) and `planExists` (bool) fields. Add a `ViewMode` type with constants `ViewModeHome` and `ViewModeMain`. Add helper methods `hasPlan()` and `canExecute()` for gating logic. Default `viewMode` to `ViewModeHome` in initialization.",
-      "acceptanceCriteria": [
-        "Model struct has viewMode field of type ViewMode with constants ViewModeHome and ViewModeMain",
-        "Model struct has planExists bool field",
-        "hasPlan() method returns planExists value",
-        "canExecute() method returns true only when planExists is true AND there are ready tasks (using execution.ReadyTasks)",
-        "viewMode defaults to ViewModeHome when Model is initialized"
-      ],
-      "prompt": "In internal/tui/model.go:\n1. Add a new `ViewMode` type (int) with constants `ViewModeHome` and `ViewModeMain`.\n2. Add `viewMode ViewMode` and `planExists bool` fields to the Model struct.\n3. Add `func (m Model) hasPlan() bool` that returns `m.planExists`.\n4. Add `func (m Model) canExecute() bool` that returns `m.planExists \u0026\u0026 len(execution.ReadyTasks(m.plan)) \u003e 0`.\n5. In the Model initialization (start.go or wherever the Model is constructed), set `viewMode: ViewModeHome`.",
+      "prompt": "Using internal/cli/execute.go and internal/cli/resume.go as the blueprint, add a runner API in internal/execution: define ExecuteConfig/ResumeConfig (plan path, agent runtime, hooks), implement RunExecute(context.Context, ExecuteConfig) and RunResume(context.Context, ResumeConfig), reuse execution.BuildContext + LaunchAgent + SaveRun, load the plan each iteration, enforce context cancellation, update task statuses/plan file, and publish an ExecuteResult that captures whether the run ended because of completion, waiting-for-user, cancellation, or error. The runner should also offer hooks (callbacks or channel events) so callers can log \u201cstarting/completed task\u201d and refresh run data without parsing stdout.",
       "parentId": null,
       "childIds": [],
       "deps": [],
       "status": "done",
-      "createdAt": "2026-01-29T00:00:00Z",
-      "updatedAt": "2026-01-30T01:25:03.998082Z"
+      "createdAt": "2026-01-31T12:00:00Z",
+      "updatedAt": "2026-01-31T17:36:09.251292Z"
     },
-    "validation-error-banner": {
-      "id": "validation-error-banner",
-      "title": "Show validation error banner on Home screen",
-      "description": "When a plan file exists but has validation errors, display an error banner on the Home screen with a short message and prompt to regenerate or view the plan. Track validation error state in the Model.",
+    "runner-tests-and-docs": {
+      "id": "runner-tests-and-docs",
+      "title": "Test and document the new runner behavior",
+      "description": "Add unit tests and documentation that prove RunExecute/RunResume respect context cancellation, update the plan file, and keep CLI/TUI behavior unchanged, plus describe the new in-process execution model.",
       "acceptanceCriteria": [
-        "Model has a field to track plan validation errors (e.g., planValidationErr string)",
-        "When plan file exists but is invalid, the validation error is stored",
-        "Home view renders an error banner when planValidationErr is non-empty",
-        "Error banner suggests regenerating or viewing the plan for fixes",
-        "Error banner uses the existing error color (Color 196)"
+        "Unit tests for RunExecute confirm ready-task loops, status updates, 'no ready tasks', and context cancellation stop the loop promptly.",
+        "Unit tests for RunResume confirm waiting-run resumption updates statuses and returns the RunRecord, including a cancel/error path when ctx is canceled.",
+        "CLI/TUI tests are updated (or added) to ensure actionInProgress/cancel handling works and that quit cancels any running goroutine.",
+        "README (execution section) and specs/improvements/IN_PROCESS_EXECUTIONS.md (or a new doc) describe the in-process execution behavior so the project history clearly records the change.",
+        "All new tests compile without network dependencies and can be run via go test ./internal/execution ./internal/cli ./internal/tui."
       ],
-      "prompt": "1. Add a `planValidationErr string` field to the Model struct in model.go.\n2. In plan_loader.go, when the plan file exists but Validate() returns errors, set planValidationErr to a summary message (e.g., first error's text). Set planExists=true (file exists, just invalid).\n3. When plan loads successfully, clear planValidationErr to empty string.\n4. In home_view.go's RenderHomeView, if m.planValidationErr is non-empty, render an error banner between the status line and action list:\n   - Use lipgloss with Color(196) background or foreground.\n   - Show: '⚠ Plan has errors: \u003cmessage\u003e'\n   - Below it: 'Press [g] to regenerate or [v] to view and fix'.\n5. Style the banner with a border or standout color to draw attention.",
+      "prompt": "Write table-driven tests in internal/execution/runner_test.go that cover the new ExecuteResult types, context cancellation, and status transitions, mocking execution.BuildContext/LaunchAgent if necessary. Extend or add CLI/TUI tests that hit the new ExecuteCmd/ResumeCmd goroutines, ensuring actionInProgress is cleared when the goroutine returns and the cancel func is invoked when quitting mid-run. Update README.md (execution section) and specs/improvements/IN_PROCESS_EXECUTIONS.md to explain that execute/resume now share the runner and run in-process from the TUI with cancel-on-quit semantics.",
       "parentId": null,
       "childIds": [],
       "deps": [
-        "plan-refresh-missing",
-        "home-view-renderer"
+        "execution-runner-api"
       ],
       "status": "done",
-      "createdAt": "2026-01-29T00:00:00Z",
-      "updatedAt": "2026-01-30T01:43:18.218933Z",
+      "createdAt": "2026-01-31T12:00:00Z",
+      "updatedAt": "2026-01-31T18:30:00Z",
       "depRationale": {
-        "home-view-renderer": "Error banner is rendered within the Home view",
-        "plan-refresh-missing": "Validation error tracking builds on the refresh logic that distinguishes missing vs invalid plan states"
+        "execution-runner-api": "Tests and docs depend on the runner implementation to exist first."
+      }
+    },
+    "tui-runner-integration": {
+      "id": "tui-runner-integration",
+      "title": "Run execute and resume in-process from the TUI",
+      "description": "Replace the exec.Command-based execute/resume pathways in internal/tui with goroutines that call the shared runner API and tie cancellation to the TUI lifecycle.",
+      "acceptanceCriteria": [
+        "ExecuteCmd/ResumeCmd no longer spawn the blackbird binary; instead they build the same ExecuteConfig/ResumeConfig (plan path, runtime, optional hooks) and run execution.RunExecute/RunResume in a goroutine.",
+        "The TUI model stores the cancel func for the currently running execute/resume and calls it on quit/Ctrl-C so the runner context is canceled and the agent subprocess terminates.",
+        "ActionInProgress / actionOutput state in the model updates to reflect the runner\u2019s progress and completion messages (success/failure/cancelled).",
+        "The new pathway emits ExecuteActionComplete (or similar) messages so the TUI can show the final status without parsing stdout, and the runCommand helper remains available for other commands (plan actions, set-status)."
+      ],
+      "prompt": "In internal/tui/action_wrappers.go, replace the old runExecuteAction/runCommand usage for execute and resume with goroutines that call execution.RunExecute/RunResume using contexts derived from tea.Cmd (store the cancel func inside the action wrappers or model). Update internal/tui/model.go so ExecuteActionComplete carries the final ExecuteResult and RunRecord so it can refresh run data. Ensure the cancel func is invoked from the TUI quit handler (e.g., tea.Cmd returning ctrl+c) so a running execute or resume is canceled when the user exits. Keep the action trigger logic (actionInProgress, spinner) so the UI still shows an in-progress state.",
+      "parentId": null,
+      "childIds": [],
+      "deps": [
+        "execution-runner-api"
+      ],
+      "status": "done",
+      "createdAt": "2026-01-31T12:00:00Z",
+      "updatedAt": "2026-01-31T18:30:00Z",
+      "depRationale": {
+        "execution-runner-api": "TUI needs the shared runner before it can execute tasks in-process."
       }
     }
   }

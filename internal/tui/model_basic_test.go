@@ -21,6 +21,51 @@ func TestUpdateQuitCommand(t *testing.T) {
 	}
 }
 
+func TestUpdateQuitCancelsAction(t *testing.T) {
+	cancelCalled := false
+	model := Model{
+		actionInProgress: true,
+		actionCancel: func() {
+			cancelCalled = true
+		},
+	}
+
+	_, cmd := model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if !cancelCalled {
+		t.Fatalf("expected cancel func to be invoked on quit")
+	}
+	if cmd == nil {
+		t.Fatalf("expected quit command, got nil")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatalf("expected quit command to return tea.QuitMsg")
+	}
+}
+
+func TestExecuteActionCompleteClearsInProgress(t *testing.T) {
+	model := Model{
+		actionInProgress: true,
+		actionName:       "Executing...",
+		actionCancel:     func() {},
+	}
+
+	updated, _ := model.Update(ExecuteActionComplete{
+		Action:  "execute",
+		Success: true,
+		Output:  "no ready tasks remaining",
+	})
+	next := updated.(Model)
+	if next.actionInProgress {
+		t.Fatalf("expected actionInProgress to be false after completion")
+	}
+	if next.actionCancel != nil {
+		t.Fatalf("expected actionCancel to be cleared after completion")
+	}
+	if next.actionOutput == nil || next.actionOutput.IsError {
+		t.Fatalf("expected non-error action output")
+	}
+}
+
 func TestWindowSizeMsgUpdatesDimensions(t *testing.T) {
 	model := Model{}
 	msg := tea.WindowSizeMsg{Width: 120, Height: 40}
