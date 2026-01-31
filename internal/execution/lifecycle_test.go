@@ -154,3 +154,57 @@ func TestUpdateTaskStatusAfterNormalize(t *testing.T) {
 		t.Fatalf("updatedAt before createdAt: %s < %s", item.UpdatedAt, item.CreatedAt)
 	}
 }
+
+func TestUpdateTaskStatusPropagatesParentCompletion(t *testing.T) {
+	tempDir := t.TempDir()
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("chdir temp: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldWD) })
+
+	now := time.Date(2026, 1, 28, 19, 0, 0, 0, time.UTC)
+	parentID := "parent"
+	g := plan.WorkGraph{
+		SchemaVersion: plan.SchemaVersion,
+		Items: map[string]plan.WorkItem{
+			"parent": {
+				ID: "parent", Title: "Parent", Status: plan.StatusTodo,
+				AcceptanceCriteria: []string{}, Deps: []string{},
+				ChildIDs: []string{"a", "b"},
+				CreatedAt: now, UpdatedAt: now,
+			},
+			"a": {
+				ID: "a", Title: "A", Status: plan.StatusDone,
+				ParentID: &parentID, ChildIDs: []string{},
+				AcceptanceCriteria: []string{}, Deps: []string{},
+				CreatedAt: now, UpdatedAt: now,
+			},
+			"b": {
+				ID: "b", Title: "B", Status: plan.StatusInProgress,
+				ParentID: &parentID, ChildIDs: []string{},
+				AcceptanceCriteria: []string{}, Deps: []string{},
+				CreatedAt: now, UpdatedAt: now,
+			},
+		},
+	}
+	planFile := filepath.Join(tempDir, plan.DefaultPlanFilename)
+	if err := plan.SaveAtomic(planFile, g); err != nil {
+		t.Fatalf("save plan: %v", err)
+	}
+
+	if err := UpdateTaskStatus(planFile, "b", plan.StatusDone); err != nil {
+		t.Fatalf("set b done: %v", err)
+	}
+
+	updated, err := plan.Load(planFile)
+	if err != nil {
+		t.Fatalf("load plan: %v", err)
+	}
+	if updated.Items["parent"].Status != plan.StatusDone {
+		t.Fatalf("parent should be done after last child set done, got %s", updated.Items["parent"].Status)
+	}
+}

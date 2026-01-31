@@ -634,3 +634,10 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 ## 2026-01-31 — ReadyTasks leaf-only tests
 
 - Added `TestReadyTasksLeafOnly` in `internal/execution/selector_test.go` to assert non-leaf todo tasks (with `childIds`) are excluded even when deps are satisfied, while leaf tasks with satisfied deps are returned.
+
+## 2026-01-31 — Parent completion propagation
+
+- When a task is set to done, parents are now auto-marked done when all of their children are done (and recursion up the hierarchy). This unblocks tasks that depend on parent containers (e.g. a top-level "testing" task that depends on "chess-core" and "cli-interface").
+- Added `plan.PropagateParentCompletion(g, childID, now)` in `internal/plan/parent.go`; called from `execution.UpdateTaskStatus` and `cli.runSetStatus` when status is set to done.
+- Tests: `plan/parent_test.go` (no parent, parent not all children done, parent all children done, grandparent chain); `execution/lifecycle_test.go` TestUpdateTaskStatusPropagatesParentCompletion.
+- Ran `go test ./...` (all packages passed).

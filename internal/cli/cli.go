@@ -422,6 +422,10 @@ func runSetStatus(id string, statusStr string) error {
 	it.UpdatedAt = time.Now().UTC()
 	g.Items[id] = it
 
+	if s == plan.StatusDone {
+		plan.PropagateParentCompletion(&g, id, it.UpdatedAt)
+	}
+
 	if err := plan.SaveAtomic(path, g); err != nil {
 		return fmt.Errorf("write plan file: %w", err)
 	}
