@@ -134,10 +134,12 @@ func formatTimestamp(t time.Time) string {
 	return t.UTC().Format(time.RFC3339)
 }
 
+// applyViewport renders content in a viewport. model.windowHeight is the pane's
+// content height (the Height passed to renderPane); the viewport fills that area.
 func applyViewport(model Model, content string) string {
 	height := model.windowHeight
-	if height > 0 {
-		height--
+	if height < 0 {
+		height = 0
 	}
 	width := model.windowWidth
 	if height <= 0 || width <= 0 {

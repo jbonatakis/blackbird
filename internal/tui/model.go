@@ -410,7 +410,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			next := m.prevVisibleItem()
 			if next != "" && next != m.selectedID {
 				m.selectedID = next
-				m.detailOffset = 0
 			}
 			return m, nil
 		case "down", "j":
@@ -420,7 +419,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			next := m.nextVisibleItem()
 			if next != "" && next != m.selectedID {
 				m.selectedID = next
-				m.detailOffset = 0
 			}
 			return m, nil
 		case "home":
@@ -430,7 +428,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			visible := m.visibleItemIDs()
 			if len(visible) > 0 && m.selectedID != visible[0] {
 				m.selectedID = visible[0]
-				m.detailOffset = 0
 			}
 			return m, nil
 		case "end":
@@ -442,7 +439,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				last := visible[len(visible)-1]
 				if m.selectedID != last {
 					m.selectedID = last
-					m.detailOffset = 0
 				}
 			}
 			return m, nil
@@ -572,10 +568,13 @@ func cancelRunningAction(m Model) Model {
 }
 
 func (m Model) View() string {
-	availableHeight := m.windowHeight
-	if availableHeight > 0 {
-		availableHeight--
-	}
+	// Reserve space so total output is strictly less than windowHeight. Each pane
+	// gets Height(availableHeight) and lipgloss adds top+bottom border (2 lines),
+	// so pane height is availableHeight+2. We add a newline and the bar (2 lines).
+	// Total = (availableHeight+2)+2 = availableHeight+4. Use windowHeight-5 so
+	// total = windowHeight-1, avoiding exact-height redraw bugs and ensuring the
+	// top border is visible.
+	availableHeight := m.windowHeight - 5
 	if availableHeight < 0 {
 		availableHeight = 0
 	}
@@ -787,11 +786,10 @@ func nextFilterMode(current FilterMode) FilterMode {
 	}
 }
 
+// detailPageSize returns the number of lines per page in the detail viewport,
+// matching the pane content height (availableHeight = windowHeight-5).
 func (m Model) detailPageSize() int {
-	height := m.windowHeight
-	if height > 0 {
-		height--
-	}
+	height := m.windowHeight - 5
 	if height < 0 {
 		return 0
 	}
@@ -836,20 +834,25 @@ func splitPaneWidths(total int) (int, int) {
 	if total <= 0 {
 		return 0, 0
 	}
+	// Each pane's rendered width is content width + 2 (left and right border).
+	// So we need left + right + 4 = total, i.e. left + right = total - 4.
 	minLeft := 24
 	minRight := 30
-	gap := 1
-	left := total / 3
+	available := total - 4
+	if available < 0 {
+		available = 0
+	}
+	left := available / 3
 	if left < minLeft {
 		left = minLeft
 	}
-	if total-left-gap < minRight {
-		left = total - minRight - gap
+	if available-left < minRight {
+		left = available - minRight
 		if left < minLeft {
-			left = total / 2
+			left = available / 2
 		}
 	}
-	right := total - left - gap
+	right := available - left
 	if right < 0 {
 		right = 0
 	}
@@ -874,23 +877,32 @@ func renderPane(content string, width int, height int, title string, active bool
 	rendered := style.Render(content)
 
 	if title != "" {
-		titleStyle := lipgloss.NewStyle().Bold(true).Foreground(titleColor)
-		titleLine := titleStyle.Render(" " + title + " ")
-		// Insert title in the top border
+		// Rebuild the top border line so its display width matches the pane. The
+		// original top line contains ANSI escape codes; replacing runes corrupts them.
+		// Use the first content line's width as the target so we match lipgloss exactly.
 		lines := strings.Split(rendered, "\n")
-		if len(lines) > 0 {
-			// Replace part of the top border with the title
-			topLine := lines[0]
-			if len(topLine) > len(title)+4 {
-				runes := []rune(topLine)
-				titleRunes := []rune(titleLine)
-				// Insert title starting at position 2
-				for i := 0; i < len(titleRunes) && i+2 < len(runes); i++ {
-					runes[i+2] = titleRunes[i]
-				}
-				lines[0] = string(runes)
-				rendered = strings.Join(lines, "\n")
+		if len(lines) > 1 {
+			targetWidth := lipgloss.Width(lines[1])
+			borderStyle := lipgloss.NewStyle().Foreground(borderColor)
+			titleStyle := lipgloss.NewStyle().Bold(true).Foreground(titleColor)
+			titleWidth := lipgloss.Width(title)
+			// Top line: "╭ " (2) + " "+title+" " (4+titleWidth) + "─"*n + "╮" (1)
+			nMiddle := targetWidth - 7 - titleWidth
+			if nMiddle < 0 {
+				nMiddle = 0
 			}
+			topLine := borderStyle.Render("╭ ") +
+				titleStyle.Render(" "+title+" ") +
+				borderStyle.Render(strings.Repeat("─", nMiddle)+"╮")
+			// Pad with more middle dashes if short (rune-width or rounding)
+			if w := lipgloss.Width(topLine); w < targetWidth {
+				nMiddle += targetWidth - w
+				topLine = borderStyle.Render("╭ ") +
+					titleStyle.Render(" "+title+" ") +
+					borderStyle.Render(strings.Repeat("─", nMiddle)+"╮")
+			}
+			lines[0] = topLine
+			rendered = strings.Join(lines, "\n")
 		}
 	}
 

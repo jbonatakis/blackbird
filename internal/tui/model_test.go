@@ -289,9 +289,9 @@ func TestSplitPaneWidths(t *testing.T) {
 		wantRight int
 	}{
 		{"zero width", 0, 0, 0},
-		{"small width", 60, 24, 35},
-		{"medium width", 120, 40, 79},
-		{"large width", 180, 60, 119},
+		{"small width", 60, 24, 32},
+		{"medium width", 120, 38, 78},
+		{"large width", 180, 58, 118},
 	}
 
 	for _, tt := range tests {
@@ -300,9 +300,9 @@ func TestSplitPaneWidths(t *testing.T) {
 			if left != tt.wantLeft || right != tt.wantRight {
 				t.Errorf("splitPaneWidths(%d) = (%d, %d), want (%d, %d)", tt.total, left, right, tt.wantLeft, tt.wantRight)
 			}
-			// Verify they sum correctly (accounting for gap)
-			if tt.total > 0 && left+right+1 != tt.total {
-				t.Errorf("splitPaneWidths(%d) left+right+gap = %d, want %d", tt.total, left+right+1, tt.total)
+			// Rendered width is (left+2)+(right+2) = total
+			if tt.total > 0 && left+right+4 != tt.total {
+				t.Errorf("splitPaneWidths(%d) left+right+4 = %d, want %d", tt.total, left+right+4, tt.total)
 			}
 		})
 	}
@@ -316,8 +316,8 @@ func TestDetailPageSize(t *testing.T) {
 	}{
 		{"zero height", 0, 0},
 		{"single line", 1, 0},
-		{"small window", 10, 9},
-		{"medium window", 30, 29},
+		{"small window", 10, 5},
+		{"medium window", 30, 25},
 	}
 
 	for _, tt := range tests {

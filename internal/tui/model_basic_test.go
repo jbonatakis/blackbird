@@ -82,7 +82,8 @@ func TestWindowSizeMsgUpdatesDimensions(t *testing.T) {
 }
 
 func TestViewRendersPlaceholderText(t *testing.T) {
-	model := Model{windowHeight: 2}
+	// Need windowHeight >= 6 so availableHeight (windowHeight-5) >= 1 for content
+	model := Model{windowHeight: 6}
 	// Default view is Home; empty plan shows home screen with "No plan found"
 	view := model.View()
 	if !strings.Contains(view, "No plan found") {
