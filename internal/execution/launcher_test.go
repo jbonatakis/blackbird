@@ -1,6 +1,7 @@
 package execution
 
 import (
+	"bytes"
 	"context"
 	"testing"
 	"time"
@@ -79,5 +80,36 @@ func TestLaunchAgentFailure(t *testing.T) {
 	}
 	if record.ExitCode == nil || *record.ExitCode != 2 {
 		t.Fatalf("expected exit code 2, got %#v", record.ExitCode)
+	}
+}
+
+func TestLaunchAgentWithStreamWritesOutput(t *testing.T) {
+	runtime := agent.Runtime{
+		Provider: "test",
+		Command:  "printf 'streamed-output'",
+		UseShell: true,
+		Timeout:  2 * time.Second,
+	}
+
+	ctx := ContextPack{
+		SchemaVersion: ContextPackSchemaVersion,
+		Task:          TaskContext{ID: "task-4", Title: "Task"},
+	}
+
+	var streamed bytes.Buffer
+	record, err := LaunchAgentWithStream(context.Background(), runtime, ctx, StreamConfig{
+		Stdout: &streamed,
+	})
+	if err != nil {
+		t.Fatalf("LaunchAgentWithStream: %v", err)
+	}
+	if record.Status != RunStatusSuccess {
+		t.Fatalf("expected success, got %s", record.Status)
+	}
+	if streamed.String() == "" {
+		t.Fatalf("expected streamed stdout output")
+	}
+	if record.Stdout == "" {
+		t.Fatalf("expected captured stdout output")
 	}
 }

@@ -201,7 +201,12 @@ func HandleAgentQuestionKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.actionName = "Resuming..."
 			ctx, cancel := context.WithCancel(context.Background())
 			m.actionCancel = cancel
-			return m, tea.Batch(ResumeCmdWithContext(ctx, taskID, answers), spinnerTickCmd())
+			streamCh, stdout, stderr := m.startLiveOutput()
+			return m, tea.Batch(
+				ResumeCmdWithContextAndStream(ctx, taskID, answers, stdout, stderr, streamCh),
+				listenLiveOutputCmd(streamCh),
+				spinnerTickCmd(),
+			)
 		}
 
 		m.actionInProgress = true

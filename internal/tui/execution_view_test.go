@@ -81,6 +81,90 @@ func TestRenderExecutionViewEmptyState(t *testing.T) {
 	assertContains(t, out, "(no logs)")
 }
 
+func TestRenderExecutionViewLiveOutput(t *testing.T) {
+	model := Model{
+		actionInProgress: true,
+		actionName:       "Executing...",
+		liveStdout:       makeLines("live", 3),
+		liveStderr:       "boom",
+	}
+	out := RenderExecutionView(model)
+	assertContains(t, out, "Status: running")
+	assertContains(t, out, "STDOUT:")
+	assertContains(t, out, "live-03")
+	assertContains(t, out, "STDERR:")
+	assertContains(t, out, "boom")
+	if strings.Contains(out, "(no logs)") {
+		t.Fatalf("expected live output, got %q", out)
+	}
+}
+
+func TestRenderExecutionViewLiveOutputOverridesRunLogs(t *testing.T) {
+	runData := map[string]execution.RunRecord{
+		"task-1": {
+			ID:        "run-1",
+			TaskID:    "task-1",
+			StartedAt: time.Now().Add(-30 * time.Second),
+			Status:    execution.RunStatusRunning,
+			Stdout:    makeLines("run", 2),
+			Stderr:    "run-err",
+		},
+	}
+
+	model := Model{
+		actionInProgress: true,
+		actionName:       "Resuming...",
+		liveStdout:       makeLines("live", 2),
+		liveStderr:       "live-err",
+		runData:          runData,
+	}
+
+	out := RenderExecutionView(model)
+	assertContains(t, out, "STDOUT:")
+	assertContains(t, out, "live-02")
+	if strings.Contains(out, "run-02") {
+		t.Fatalf("expected live stdout to override run stdout, got %q", out)
+	}
+	assertContains(t, out, "STDERR:")
+	assertContains(t, out, "live-err")
+	if strings.Contains(out, "run-err") {
+		t.Fatalf("expected live stderr to override run stderr, got %q", out)
+	}
+}
+
+func TestRenderExecutionViewRunOutputWhenNotInProgress(t *testing.T) {
+	runData := map[string]execution.RunRecord{
+		"task-1": {
+			ID:        "run-1",
+			TaskID:    "task-1",
+			StartedAt: time.Now().Add(-30 * time.Second),
+			Status:    execution.RunStatusRunning,
+			Stdout:    makeLines("run", 2),
+			Stderr:    "run-err",
+		},
+	}
+
+	model := Model{
+		actionInProgress: false,
+		actionName:       "",
+		liveStdout:       makeLines("live", 2),
+		liveStderr:       "live-err",
+		runData:          runData,
+	}
+
+	out := RenderExecutionView(model)
+	assertContains(t, out, "STDOUT:")
+	assertContains(t, out, "run-02")
+	if strings.Contains(out, "live-02") {
+		t.Fatalf("expected run stdout when not in progress, got %q", out)
+	}
+	assertContains(t, out, "STDERR:")
+	assertContains(t, out, "run-err")
+	if strings.Contains(out, "live-err") {
+		t.Fatalf("expected run stderr when not in progress, got %q", out)
+	}
+}
+
 func makeLines(prefix string, count int) string {
 	lines := make([]string, 0, count)
 	for i := 1; i <= count; i++ {
