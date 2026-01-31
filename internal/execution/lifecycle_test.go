@@ -174,7 +174,7 @@ func TestUpdateTaskStatusPropagatesParentCompletion(t *testing.T) {
 			"parent": {
 				ID: "parent", Title: "Parent", Status: plan.StatusTodo,
 				AcceptanceCriteria: []string{}, Deps: []string{},
-				ChildIDs: []string{"a", "b"},
+				ChildIDs:  []string{"a", "b"},
 				CreatedAt: now, UpdatedAt: now,
 			},
 			"a": {

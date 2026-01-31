@@ -32,7 +32,7 @@ func TestPropagateParentCompletion(t *testing.T) {
 			Items: map[string]WorkItem{
 				"parent": {
 					ID: "parent", Title: "Parent", Status: StatusTodo,
-					ChildIDs: []string{"a", "b"},
+					ChildIDs:  []string{"a", "b"},
 					CreatedAt: now, UpdatedAt: now,
 				},
 				"a": {
@@ -60,7 +60,7 @@ func TestPropagateParentCompletion(t *testing.T) {
 			Items: map[string]WorkItem{
 				"parent": {
 					ID: "parent", Title: "Parent", Status: StatusTodo,
-					ChildIDs: []string{"a", "b"},
+					ChildIDs:  []string{"a", "b"},
 					CreatedAt: now, UpdatedAt: now,
 				},
 				"a": {
@@ -92,7 +92,7 @@ func TestPropagateParentCompletion(t *testing.T) {
 			Items: map[string]WorkItem{
 				"grandparent": {
 					ID: "grandparent", Title: "Grandparent", Status: StatusTodo,
-					ChildIDs: []string{"parent"},
+					ChildIDs:  []string{"parent"},
 					CreatedAt: now, UpdatedAt: now,
 				},
 				"parent": {
