@@ -233,7 +233,7 @@ func startProgressIndicator(w io.Writer, label string, interval time.Duration) f
 
 func responseToPlan(base plan.WorkGraph, resp agent.Response, now time.Time) (plan.WorkGraph, error) {
 	if resp.Plan != nil {
-		return *resp.Plan, nil
+		return plan.NormalizeWorkGraphTimestamps(*resp.Plan, now), nil
 	}
 	if len(resp.Patch) == 0 {
 		return plan.WorkGraph{}, errors.New("agent response contained no plan or patch")
