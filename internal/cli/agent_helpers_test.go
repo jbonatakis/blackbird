@@ -39,6 +39,16 @@ func TestResponseToPlanNormalizesFullPlanTimestamps(t *testing.T) {
 			t.Fatalf("%s timestamps not normalized: got %s/%s want %s", id, item.CreatedAt, item.UpdatedAt, now)
 		}
 	}
+
+	// Acceptance criterion (2): a subsequent status update (only updatedAt changes) still passes validation.
+	later := now.Add(time.Hour)
+	it := result.Items[childID]
+	it.Status = plan.StatusDone
+	it.UpdatedAt = later
+	result.Items[childID] = it
+	if errs := plan.Validate(result); len(errs) != 0 {
+		t.Fatalf("after status update, validation failed: %v", errs)
+	}
 }
 
 func makeTestItem(id string, ts time.Time, parentID *string, childIDs []string) plan.WorkItem {
