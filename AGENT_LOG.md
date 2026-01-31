@@ -7,6 +7,7 @@
 - **Plan pane top border short**: The title was inserted by replacing runes, which corrupted ANSI codes. Fixed by rebuilding the top border line; use first content line width as target and pad with middle dashes if short.
 - **Details box off-screen**: Each pane's rendered width is content width + 2 (left and right border). splitPaneWidths used left+right+gap=total so left+right=total-1, making total rendered width (left+2)+(right+2)=total+3. Fixed by splitting so left+right=total-4; then (left+2)+(right+2)=total and both panes fit on screen.
 - **Pane layout revert**: Reverted to the state when the top was fully visible: availableHeight = windowHeight-5, removed ensureContentHeight (no tree padding). Kept splitPaneWidths(total-4) and 1:3 split so both panes fit on screen. Bottom bar may jump when switching Details/Execution if pane heights differ.
+- **Lipgloss/TUI learnings**: Added `docs/notes/LIPGLOSS_TUI_LEARNINGS.md` with layout rules (height/width + borders, top-border rebuild, JoinHorizontal, viewport, testing).
 - **Jump on task change**: Removed reset of `detailOffset` when changing selection (up/down, j/k, home, end) so scroll position is preserved when moving between tasks. Tab switch and filter change still reset `detailOffset` to 0.
 - Tests: Adjusted `TestDetailPageSize` for the new formula; `TestViewRendersPlaceholderText` now uses `windowHeight: 3` so at least one content line is shown (with windowHeight 2, availableHeight was 0 so only the bar was rendered).
 
