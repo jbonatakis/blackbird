@@ -1,5 +1,13 @@
 # AGENT_LOG
 
+## 2026-01-31 — TUI plan view visual fixes
+
+- **Top cut off (root cause)**: Lipgloss applies Height to the inner block then adds top+bottom border, so each pane is `availableHeight + 2` lines. Total = `(availableHeight+2) + 2` (newline + bar). Use `availableHeight = windowHeight - 5` so total = `windowHeight - 1`, staying under terminal height. Rendering exactly `windowHeight` lines can cause first-line redraw bugs in some terminals/bubbletea; keeping output one line short ensures the top border is visible.
+- **Detail pane viewport**: `applyViewport` uses `model.windowHeight` (pane content height); `detailPageSize()` returns `windowHeight - 5` to match.
+- **Plan pane top border short**: The title was inserted by replacing runes, which corrupted ANSI codes. Fixed by rebuilding the top border line. Pane content lines are left border (1) + content (width) + right border (1) = width+2; the rebuilt top line must have the same total width (width+2), so nMiddle = (width+2) - 7 - titleWidth.
+- **Jump on task change**: Removed reset of `detailOffset` when changing selection (up/down, j/k, home, end) so scroll position is preserved when moving between tasks. Tab switch and filter change still reset `detailOffset` to 0.
+- Tests: Adjusted `TestDetailPageSize` for the new formula; `TestViewRendersPlaceholderText` now uses `windowHeight: 3` so at least one content line is shown (with windowHeight 2, availableHeight was 0 so only the bar was rendered).
+
 ## 2026-01-18 — Phase 1 implementation plan (initial)
 
 - Phase 1 target per `specs/phase_1/PHASE_1.md`: planning-only agent integration (generate/refine/deps infer), durable plan file, validation/explainability, and a usable ready-task loop (list/show/pick + manual status updates).

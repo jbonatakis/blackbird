@@ -316,8 +316,8 @@ func TestDetailPageSize(t *testing.T) {
 	}{
 		{"zero height", 0, 0},
 		{"single line", 1, 0},
-		{"small window", 10, 9},
-		{"medium window", 30, 29},
+		{"small window", 10, 5},
+		{"medium window", 30, 25},
 	}
 
 	for _, tt := range tests {
