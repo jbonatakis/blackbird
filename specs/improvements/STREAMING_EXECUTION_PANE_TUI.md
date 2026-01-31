@@ -1,6 +1,6 @@
 # Execution pane visible during run + live stdout/stderr streaming
 
-**status:** incomplete
+**status:** complete
 
 ## 1. Goals
 
