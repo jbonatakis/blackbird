@@ -2,28 +2,36 @@
 
 ## Getting started
 
-- Project overview: `../OVERVIEW.md`
-- CLI + TUI usage: `../README.md`
+- Project overview: [OVERVIEW.md](../OVERVIEW.md)
+- Quick start and install: [README.md](../README.md)
+
+## Reference
+
+- [COMMANDS.md](COMMANDS.md) — Plan, manual edits, execution
+- [TUI.md](TUI.md) — Layout and key bindings
+- [READINESS.md](READINESS.md) — Readiness rules
+- [CONFIGURATION.md](CONFIGURATION.md) — Agent runtime (env vars)
+- [FILES_AND_STORAGE.md](FILES_AND_STORAGE.md) — Plan file, runs, snapshot
 
 ## Workflows
 
-- Agent questions flow: `AGENT_QUESTIONS_FLOW.md`
-- Plan review flow: `PLAN_REVIEW_FLOW.md`
+- [AGENT_QUESTIONS_FLOW.md](AGENT_QUESTIONS_FLOW.md) — Agent question flow
+- [PLAN_REVIEW_FLOW.md](PLAN_REVIEW_FLOW.md) — Plan review flow
 
 ## Architecture and design
 
-- Execution package overview: `../internal/execution/README.md`
-- Specs and milestones: `../specs/`
+- Execution package: [internal/execution/README.md](../internal/execution/README.md)
+- Specs and milestones: [specs/](../specs/)
 
 ## Testing and quality
 
-- Testing quickstart: `testing/TESTING_QUICKSTART.md`
-- Test results: `testing/TEST_RESULTS.md`
-- Test validation report: `testing/TEST_VALIDATION_REPORT.md`
-- Test completion summary: `testing/TEST_COMPLETION_SUMMARY.md`
+- [testing/TESTING_QUICKSTART.md](testing/TESTING_QUICKSTART.md) — Testing quickstart
+- [testing/TEST_RESULTS.md](testing/TEST_RESULTS.md) — Test results
+- [testing/TEST_VALIDATION_REPORT.md](testing/TEST_VALIDATION_REPORT.md) — Validation report
+- [testing/TEST_COMPLETION_SUMMARY.md](testing/TEST_COMPLETION_SUMMARY.md) — Completion summary
 
 ## Notes and logs
 
-- Bugs and fixes log: `testing/BUGS_AND_FIXES.md`
-- Agent decisions log: `../AGENT_LOG.md`
-- Agent questions implementation notes: `notes/AGENT_QUESTIONS_IMPLEMENTATION.md`
+- [testing/BUGS_AND_FIXES.md](testing/BUGS_AND_FIXES.md) — Bugs and fixes log
+- [../AGENT_LOG.md](../AGENT_LOG.md) — Agent decisions log
+- [notes/AGENT_QUESTIONS_IMPLEMENTATION.md](notes/AGENT_QUESTIONS_IMPLEMENTATION.md) — Agent questions implementation notes

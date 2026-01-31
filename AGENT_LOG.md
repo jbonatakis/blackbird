@@ -1,5 +1,11 @@
 # AGENT_LOG
 
+## 2026-01-31 — README and docs rework
+
+- Reworked README to be high-level only: what Blackbird is, install, quickstart, short TUI pointer, and a documentation table linking to `docs/`.
+- Moved detailed content into `docs/`: COMMANDS.md (plan, manual edits, execution), TUI.md (layout and key bindings), READINESS.md, CONFIGURATION.md (agent env vars), FILES_AND_STORAGE.md.
+- Updated docs/README.md as the documentation index with a Reference section for the new docs and consistent markdown links.
+
 ## 2026-01-31 — TUI live output append test
 
 - Added a unit test to validate live output buffer appending and continued listening on live stream updates (`internal/tui/live_output_model_test.go`).

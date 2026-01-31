@@ -10,124 +10,48 @@ The control plane for durable, dependency-aware planning and execution with AI a
 - Executes ready tasks with a headless agent runtime, logging runs for traceability.
 - Provides a TUI for interactive navigation, detail views, and execution status.
 
-## Install (from source)
+## Install
 
 Requires Go 1.22+.
 
-- Build a local binary:
-  - `go build -o blackbird ./cmd/blackbird`
-- Or install into `GOBIN`:
-  - `go install ./cmd/blackbird`
+```bash
+go build -o blackbird ./cmd/blackbird
+# or: go install ./cmd/blackbird
+```
 
 ## Quickstart
 
-- Initialize a plan file:
-  - `blackbird init`
-- Generate an initial plan with the agent:
-  - `blackbird plan generate`
-- Launch the TUI (default entrypoint):
-  - `blackbird`
-- List ready work:
-  - `blackbird list`
-- Execute ready tasks:
-  - `blackbird execute`
-- Resume a waiting task:
-  - `blackbird resume <taskID>`
-- View run history:
-  - `blackbird runs <taskID>`
+1. **Initialize** a plan file: `blackbird init`
+2. **Generate** an initial plan: `blackbird plan generate`
+3. **Launch the TUI** (default entrypoint): `blackbird`
+4. **List** ready work: `blackbird list`
+5. **Execute** ready tasks: `blackbird execute`
+6. **Resume** a waiting task: `blackbird resume <taskID>`
+7. **View run history**: `blackbird runs <taskID>`
 
 The plan file lives at repo root as `blackbird.plan.json`.
 
-## TUI overview
+## TUI
 
-Running `blackbird` with no arguments launches the TUI. CLI commands like
-`blackbird plan`, `blackbird execute`, and `blackbird list` are unchanged.
+Running `blackbird` with no arguments opens the TUI: plan tree on the left, details/execution on the right, action shortcuts in the bottom bar.
 
-Layout:
+![TUI home screen](static/tui-home-screen.png)
 
-- Left pane: plan tree with status and readiness labels
-- Right pane: details or execution dashboard (toggle with `t`)
-- Bottom bar: action shortcuts and ready/blocked counts
-
-Key bindings:
-
-- `up/down` or `j/k`: move selection in the tree
-- `enter` or space: expand/collapse parent items
-- `tab`: switch focus between tree and detail panes
-- `f`: cycle filters (all, ready, blocked)
-- `pgup/pgdown`: scroll the detail pane
-- `t`: switch details/execution tab
-- `g`: plan generate
-- `r`: plan refine
-- `e`: execute ready tasks
-- `u`: resume waiting task (when available)
-- `s`: set status for selected item
-- `ctrl+c`: quit
-
-## Core commands
-
-Plan and graph management:
-
-- `blackbird plan generate` generates a plan from a project description.
-- `blackbird plan refine` applies agent-proposed edits to the current plan.
-- `blackbird deps infer` proposes dependency updates with rationale.
-- `blackbird validate` checks plan integrity and dependency consistency.
-- `blackbird show <id>` prints task details and readiness explanations.
-- `blackbird set-status <id> <status>` updates task status manually.
-
-Manual graph edits:
-
-- `blackbird add --title "..." [--parent <parentId|root>]`
-- `blackbird edit <id> --title "..." --description "..." --prompt "..."`
-- `blackbird move <id> --parent <parentId|root> [--index <n>]`
-- `blackbird delete <id> [--cascade-children] [--force]`
-- `blackbird deps add <id> <depId>`
-- `blackbird deps remove <id> <depId>`
-- `blackbird deps set <id> [<depId> ...]`
-
-Execution:
-
-- `blackbird execute` runs ready tasks in dependency order.
-- `blackbird runs <taskID>` lists runs for a task (`--verbose` shows logs).
-- `blackbird resume <taskID>` answers questions and continues a waiting task.
-- `blackbird retry <taskID>` resets failed tasks with failed runs back to `todo`.
-
-Execute/resume share the execution runner in `internal/execution`. The CLI and TUI
-call the same runner API; the TUI runs execute/resume in-process (no subprocess)
-and cancels the shared context on quit so any in-flight run stops promptly.
-
-## Readiness rules
-
-- Deps are satisfied when **all deps have status `done`**.
-- A task is actionable when **status is `todo`** and deps are satisfied.
-- `blocked` is a manual override even if deps are satisfied.
-
-## Agent runtime configuration
-
-Blackbird invokes an external agent command for plan generation/refinement and
-execution. Configuration is environment-based:
-
-- `BLACKBIRD_AGENT_PROVIDER=claude|codex` selects the default command (defaults to `claude`).
-- `BLACKBIRD_AGENT_CMD` overrides the command entirely (runs via `sh -c`).
-- `BLACKBIRD_AGENT_STREAM=1` streams agent stdout/stderr live to the terminal.
-- `BLACKBIRD_AGENT_DEBUG=1` prints the JSON request payload for debugging.
-
-The command must emit exactly one JSON object on stdout (either the full stdout
-or inside a fenced ```json block). Multiple objects or missing JSON fail fast.
-
-## Files and storage
-
-- Plan file: `blackbird.plan.json`
-- Run records: `.blackbird/runs/<taskID>/<runID>.json`
-- Optional snapshot file: `.blackbird/snapshot.md`
-  - Fallbacks to `OVERVIEW.md`, then `README.md` if missing.
+See [docs/TUI.md](docs/TUI.md) for layout and key bindings.
 
 ## Documentation
 
-- Documentation index: `docs/README.md`
-- Project overview: `OVERVIEW.md`
-- Execution architecture: `internal/execution/README.md`
-- Agent question flow: `docs/AGENT_QUESTIONS_FLOW.md`
-- Plan review flow: `docs/PLAN_REVIEW_FLOW.md`
-- Testing quickstart: `docs/testing/TESTING_QUICKSTART.md`
-- Specs and milestones: `specs/`
+| Topic                                        | Doc                                                                      |
+| -------------------------------------------- | ------------------------------------------------------------------------ |
+| **Commands** (plan, manual edits, execution) | [docs/COMMANDS.md](docs/COMMANDS.md)                                     |
+| **TUI** (layout, key bindings)               | [docs/TUI.md](docs/TUI.md)                                               |
+| **Readiness rules**                          | [docs/READINESS.md](docs/READINESS.md)                                   |
+| **Agent configuration**                      | [docs/CONFIGURATION.md](docs/CONFIGURATION.md)                           |
+| **Files and storage**                        | [docs/FILES_AND_STORAGE.md](docs/FILES_AND_STORAGE.md)                   |
+| **Documentation index**                      | [docs/README.md](docs/README.md)                                         |
+| **Project overview**                         | [OVERVIEW.md](OVERVIEW.md)                                               |
+| **Execution architecture**                   | [internal/execution/README.md](internal/execution/README.md)             |
+| **Agent question flow**                      | [docs/AGENT_QUESTIONS_FLOW.md](docs/AGENT_QUESTIONS_FLOW.md)             |
+| **Plan review flow**                         | [docs/PLAN_REVIEW_FLOW.md](docs/PLAN_REVIEW_FLOW.md)                     |
+| **Testing**                                  | [docs/testing/TESTING_QUICKSTART.md](docs/testing/TESTING_QUICKSTART.md) |
+| **Specs and milestones**                     | [specs/](specs/)                                                         |
