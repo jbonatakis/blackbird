@@ -1,3 +1,4 @@
+status: complete
 ---
 name: tui-home-screen
 overview: Add a Home screen to the TUI and allow startup without a plan file.

@@ -1,4 +1,5 @@
 # Blackbird Pause/Resume + Restart Spec
+status: incomplete
 
 ## Purpose
 

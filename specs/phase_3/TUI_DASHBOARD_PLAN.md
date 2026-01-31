@@ -1,3 +1,4 @@
+status: complete
 ---
 name: tui-dashboard
 overview: Add a Bubble Tea-based TUI that becomes the default when `blackbird` is run without args, while preserving existing subcommands and execution flows.
