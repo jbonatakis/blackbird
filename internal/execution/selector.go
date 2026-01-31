@@ -7,7 +7,7 @@ import (
 )
 
 // ReadyTasks returns task IDs that are eligible for execution.
-// A task is ready when it is todo, has all deps satisfied, and is not manually blocked or skipped.
+// A task is ready when it is a leaf, todo, and has all deps satisfied.
 func ReadyTasks(g plan.WorkGraph) []string {
 	ids := make([]string, 0, len(g.Items))
 	for id, it := range g.Items {
@@ -15,6 +15,9 @@ func ReadyTasks(g plan.WorkGraph) []string {
 			continue
 		}
 		if len(plan.UnmetDeps(g, it)) != 0 {
+			continue
+		}
+		if len(it.ChildIDs) != 0 {
 			continue
 		}
 		ids = append(ids, id)

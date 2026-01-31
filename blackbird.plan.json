@@ -1,89 +1,60 @@
 {
   "schemaVersion": 1,
   "items": {
-    "add-normalization-tests": {
-      "id": "add-normalization-tests",
-      "title": "Add tests for full-plan normalization and status update validation",
-      "description": "Add tests ensuring full-plan responses normalize timestamps and that subsequent status changes do not violate updatedAt \u003e= createdAt.",
+    "ready-leaf-exec": {
+      "id": "ready-leaf-exec",
+      "title": "Leaf-only readiness for execution",
+      "description": "Ensure execution readiness only includes leaf tasks and never dispatches parent/container tasks.",
       "acceptanceCriteria": [
-        "Test: full-plan response yields createdAt == updatedAt for all items and plan.Validate passes.",
-        "Test: after full-plan normalization, status update does not fail updatedAt \u003e= createdAt validation.",
-        "Tests cover both CLI/TUI or shared logic as appropriate."
+        "ReadyTasks never returns items with non-empty childIds.",
+        "CLI execute and TUI execute only act on leaf tasks.",
+        "Ready counts in UI reflect only executable leaves."
       ],
-      "prompt": "Add tests covering full-plan timestamp normalization and follow-up status updates per specs/bugs/PLAN_TIMESTAMPS.md.",
-      "parentId": "normalize-full-plan-timestamps",
-      "childIds": [],
-      "deps": [
-        "add-plan-normalizer-helper",
-        "wire-cli-tui-normalizer"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-31T12:00:00Z",
-      "updatedAt": "2026-01-31T19:10:02.667028Z",
-      "depRationale": {
-        "add-plan-normalizer-helper": "Tests should exercise the shared helper behavior.",
-        "wire-cli-tui-normalizer": "Integration tests should reflect wired behavior."
-      }
-    },
-    "add-plan-normalizer-helper": {
-      "id": "add-plan-normalizer-helper",
-      "title": "Add shared plan timestamp normalizer",
-      "description": "Create a shared helper (e.g., internal/plan) that takes a plan and a single now time, returning a plan where every work item has createdAt and updatedAt set to now.",
-      "acceptanceCriteria": [
-        "Helper exists in shared code and is reusable by CLI and TUI.",
-        "Normalization uses a single now for all items; no per-item time calls.",
-        "Helper does not change any non-timestamp fields."
-      ],
-      "prompt": "Add a shared plan normalization helper that sets createdAt and updatedAt to a single provided time for every work item.",
-      "parentId": "normalize-full-plan-timestamps",
-      "childIds": [],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-01-31T12:00:00Z",
-      "updatedAt": "2026-01-31T19:04:35.786976Z"
-    },
-    "normalize-full-plan-timestamps": {
-      "id": "normalize-full-plan-timestamps",
-      "title": "Normalize timestamps for full-plan agent responses",
-      "description": "Ensure full-plan agent responses never persist model-supplied timestamps by normalizing createdAt/updatedAt with a single authoritative time in shared code, used by both CLI and TUI paths.",
-      "acceptanceCriteria": [
-        "Full-plan agent responses result in all items having createdAt == updatedAt == normalization time.",
-        "CLI and TUI paths use the same shared normalization logic.",
-        "Plan validation passes after normalization and subsequent status updates do not fail updatedAt \u003e= createdAt."
-      ],
-      "prompt": "Implement full-plan timestamp normalization using shared code and wire it into both CLI and TUI response handling per specs/bugs/PLAN_TIMESTAMPS.md.",
+      "prompt": "Implement leaf-only readiness for execution and update tests per specs/bugs/READY_LEAF_ONLY.md.",
       "parentId": null,
       "childIds": [
-        "add-plan-normalizer-helper",
-        "wire-cli-tui-normalizer",
-        "add-normalization-tests"
+        "ready-leaf-exec-logic",
+        "ready-leaf-exec-tests"
       ],
       "deps": [],
       "status": "done",
-      "createdAt": "2026-01-31T12:00:00Z",
-      "updatedAt": "2026-01-31T19:06:53.318481Z"
+      "createdAt": "2026-01-31T19:23:02.304016Z",
+      "updatedAt": "2026-01-31T19:24:11.214331Z"
     },
-    "wire-cli-tui-normalizer": {
-      "id": "wire-cli-tui-normalizer",
-      "title": "Wire normalizer into CLI and TUI full-plan flows",
-      "description": "Update responseToPlan in CLI and TUI to call the shared normalization helper when resp.Plan != nil; patch flows remain unchanged.",
+    "ready-leaf-exec-logic": {
+      "id": "ready-leaf-exec-logic",
+      "title": "Exclude non-leaf tasks in ReadyTasks",
+      "description": "Update internal/execution/selector.go ReadyTasks to skip items with childIds and clarify comments.",
       "acceptanceCriteria": [
-        "CLI responseToPlan normalizes full-plan timestamps using shared helper.",
-        "TUI responseToPlan normalizes full-plan timestamps using shared helper.",
-        "Patch path behavior is unchanged."
+        "ReadyTasks checks len(childIds)==0 before returning readiness.",
+        "Comment/doc in selector.go reflects leaf-only readiness."
       ],
-      "prompt": "Use the shared normalizer in internal/cli/agent_helpers.go and internal/tui/action_wrappers.go when resp.Plan != nil, passing a single now time; keep patch logic unchanged.",
-      "parentId": "normalize-full-plan-timestamps",
+      "prompt": "Modify ReadyTasks in internal/execution/selector.go to skip items where len(childIds)\u003e0 and update related comments.",
+      "parentId": "ready-leaf-exec",
+      "childIds": [],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-01-31T19:23:02.304016Z",
+      "updatedAt": "2026-01-31T19:24:46.681167Z"
+    },
+    "ready-leaf-exec-tests": {
+      "id": "ready-leaf-exec-tests",
+      "title": "Add/adjust ReadyTasks tests for leaf-only behavior",
+      "description": "Ensure test coverage that non-leaf tasks are excluded and leaf tasks still return when deps satisfied.",
+      "acceptanceCriteria": [
+        "Tests cover that a todo task with childIds is not ready.",
+        "Tests cover that a leaf todo task with deps satisfied is ready.",
+        "Existing ReadyTasks tests updated as needed."
+      ],
+      "prompt": "Update or add tests for ReadyTasks to ensure only leaf tasks are returned.",
+      "parentId": "ready-leaf-exec",
       "childIds": [],
       "deps": [
-        "add-plan-normalizer-helper"
+        "ready-leaf-exec-logic"
       ],
       "status": "done",
-      "createdAt": "2026-01-31T12:00:00Z",
-      "updatedAt": "2026-01-31T19:07:44.723859Z",
-      "depRationale": {
-        "add-plan-normalizer-helper": "Shared helper must exist before wiring in CLI/TUI."
-      }
+      "createdAt": "2026-01-31T19:23:02.304016Z",
+      "updatedAt": "2026-01-31T19:25:28.892024Z"
     }
   }
 }
