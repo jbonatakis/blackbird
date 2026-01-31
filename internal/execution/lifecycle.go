@@ -71,6 +71,10 @@ func UpdateTaskStatus(planPath string, taskID string, next plan.Status) error {
 	it.UpdatedAt = time.Now().UTC()
 	g.Items[taskID] = it
 
+	if next == plan.StatusDone {
+		plan.PropagateParentCompletion(&g, taskID, it.UpdatedAt)
+	}
+
 	if err := plan.SaveAtomic(planPath, g); err != nil {
 		return fmt.Errorf("write plan file: %w", err)
 	}

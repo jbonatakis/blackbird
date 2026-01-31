@@ -1,4 +1,6 @@
 Spec: Normalize timestamps when accepting full plan from agent
+status: complete
+
 TITLE
 Normalize createdAt / updatedAt when accepting a full plan from the agent
 OBJECTIVE

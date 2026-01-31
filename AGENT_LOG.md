@@ -620,3 +620,24 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 - Added CLI and TUI tests to ensure full-plan agent responses normalize createdAt/updatedAt to a single now and pass plan.Validate.
 - CLI test builds a parent/child plan to validate normalization across items; TUI test covers single-item full-plan response.
 - Ran `go test ./...` (all packages passed).
+
+## 2026-01-31 — Leaf-only readiness
+
+- Updated ReadyTasks to exclude non-leaf items (childIds non-empty), so only leaf todo tasks with satisfied deps are executable.
+- Expanded ReadyTasks test coverage to include a parent/child case and assert parent containers are excluded.
+
+## 2026-01-31 — ReadyTasks leaf-only verification
+
+- Verified `internal/execution/selector.go` already skips items with non-empty `ChildIDs` and documents leaf-only readiness.
+- Confirmed ReadyTasks tests include a parent/child case to ensure containers are excluded.
+
+## 2026-01-31 — ReadyTasks leaf-only tests
+
+- Added `TestReadyTasksLeafOnly` in `internal/execution/selector_test.go` to assert non-leaf todo tasks (with `childIds`) are excluded even when deps are satisfied, while leaf tasks with satisfied deps are returned.
+
+## 2026-01-31 — Parent completion propagation
+
+- When a task is set to done, parents are now auto-marked done when all of their children are done (and recursion up the hierarchy). This unblocks tasks that depend on parent containers (e.g. a top-level "testing" task that depends on "chess-core" and "cli-interface").
+- Added `plan.PropagateParentCompletion(g, childID, now)` in `internal/plan/parent.go`; called from `execution.UpdateTaskStatus` and `cli.runSetStatus` when status is set to done.
+- Tests: `plan/parent_test.go` (no parent, parent not all children done, parent all children done, grandparent chain); `execution/lifecycle_test.go` TestUpdateTaskStatusPropagatesParentCompletion.
+- Ran `go test ./...` (all packages passed).
