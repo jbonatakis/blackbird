@@ -31,9 +31,9 @@
       "parentId": null,
       "childIds": [],
       "deps": [],
-      "status": "done",
+      "status": "waiting_user",
       "createdAt": "2026-02-01T04:22:01.067838Z",
-      "updatedAt": "2026-02-01T04:27:10.296869Z"
+      "updatedAt": "2026-02-01T04:52:35.897863Z"
     },
     "wi_shared_plan_path": {
       "id": "wi_shared_plan_path",
@@ -47,9 +47,9 @@
       "parentId": null,
       "childIds": [],
       "deps": [],
-      "status": "done",
+      "status": "failed",
       "createdAt": "2026-02-01T04:22:01.067838Z",
-      "updatedAt": "2026-02-01T04:29:30.451306Z"
+      "updatedAt": "2026-02-01T04:52:40.951727Z"
     },
     "wi_tests": {
       "id": "wi_tests",
