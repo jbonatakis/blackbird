@@ -215,6 +215,7 @@ func GeneratePlanInMemory(ctx context.Context, description string, constraints [
 		requestMeta := agent.RequestMetadata{
 			JSONSchema: agent.DefaultPlanJSONSchema(),
 		}
+		requestMeta = agent.ApplyRuntimeProvider(requestMeta, runtime)
 
 		// Build the agent request
 		req := agent.Request{
@@ -268,6 +269,7 @@ func GeneratePlanInMemoryWithAnswers(ctx context.Context, description string, co
 		requestMeta := agent.RequestMetadata{
 			JSONSchema: agent.DefaultPlanJSONSchema(),
 		}
+		requestMeta = agent.ApplyRuntimeProvider(requestMeta, runtime)
 
 		// Build the agent request with answers
 		req := agent.Request{
@@ -321,6 +323,7 @@ func RefinePlanInMemory(ctx context.Context, changeRequest string, currentPlan p
 		requestMeta := agent.RequestMetadata{
 			JSONSchema: agent.DefaultPlanJSONSchema(),
 		}
+		requestMeta = agent.ApplyRuntimeProvider(requestMeta, runtime)
 
 		// Build the agent request
 		req := agent.Request{
@@ -372,6 +375,7 @@ func RefinePlanInMemoryWithAnswers(ctx context.Context, changeRequest string, cu
 		requestMeta := agent.RequestMetadata{
 			JSONSchema: agent.DefaultPlanJSONSchema(),
 		}
+		requestMeta = agent.ApplyRuntimeProvider(requestMeta, runtime)
 
 		// Build the agent request with answers
 		req := agent.Request{

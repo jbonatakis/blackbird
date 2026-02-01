@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jbonatakis/blackbird/internal/agent"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
@@ -104,6 +105,22 @@ func TestHomeKeyPlanActionsWithPlan(t *testing.T) {
 	next = updated.(Model)
 	if !next.actionInProgress || next.actionName != "Executing..." {
 		t.Fatalf("expected execute action to start from home when ready tasks exist")
+	}
+}
+
+func TestHomeKeySelectAgentOpensModal(t *testing.T) {
+	model := Model{
+		viewMode:   ViewModeHome,
+		planExists: false,
+	}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	next := updated.(Model)
+	if next.actionMode != ActionModeSelectAgent {
+		t.Fatalf("expected agent selection modal to open from home view")
+	}
+	if next.agentSelectionHighlight < 0 || next.agentSelectionHighlight >= len(agent.AgentRegistry) {
+		t.Fatalf("expected valid agent selection highlight index, got %d", next.agentSelectionHighlight)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jbonatakis/blackbird/internal/agent"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
@@ -20,6 +21,9 @@ func TestRenderHomeViewNoPlan(t *testing.T) {
 	assertContains(t, out, "blackbird")
 	assertContains(t, out, "Durable, dependency-aware planning and execution")
 	assertContains(t, out, "No plan found")
+	assertContains(t, out, "Agent: Claude")
+	assertContains(t, out, "[a]")
+	assertContains(t, out, "Change agent")
 	assertContains(t, out, "[g]")
 	assertContains(t, out, "Generate plan")
 	assertContains(t, out, "[v]")
@@ -27,6 +31,21 @@ func TestRenderHomeViewNoPlan(t *testing.T) {
 	assertContains(t, out, "[e]")
 	assertContains(t, out, "Execute")
 	assertContains(t, out, "[ctrl+c]")
+}
+
+func TestRenderHomeViewShowsSelectedAgent(t *testing.T) {
+	model := Model{
+		plan:       plan.NewEmptyWorkGraph(),
+		planExists: false,
+		agentSelection: agent.AgentSelection{
+			Agent:         agent.AgentInfo{ID: agent.AgentCodex, Label: "Codex"},
+			ConfigPresent: true,
+		},
+	}
+
+	out := RenderHomeView(model)
+
+	assertContains(t, out, "Agent: Codex")
 }
 
 func TestRenderHomeViewWithPlan(t *testing.T) {

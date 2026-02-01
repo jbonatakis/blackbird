@@ -89,6 +89,7 @@ func runPlanGenerate(args []string) error {
 
 	requestMeta := buildAgentMetadata(meta)
 	requestMeta.JSONSchema = agent.DefaultPlanJSONSchema()
+	requestMeta = agent.ApplyRuntimeProvider(requestMeta, runtime)
 	req := agent.Request{
 		SchemaVersion:      agent.SchemaVersion,
 		Type:               agent.RequestPlanGenerate,
@@ -144,6 +145,7 @@ func runPlanGenerate(args []string) error {
 			}
 			revisionMeta := buildAgentMetadata(meta)
 			revisionMeta.JSONSchema = agent.DefaultPlanJSONSchema()
+			revisionMeta = agent.ApplyRuntimeProvider(revisionMeta, runtime)
 			refineReq := agent.Request{
 				SchemaVersion: agent.SchemaVersion,
 				Type:          agent.RequestPlanRefine,
@@ -206,6 +208,7 @@ func runPlanRefine(args []string) error {
 
 	requestMeta := buildAgentMetadata(meta)
 	requestMeta.JSONSchema = agent.DefaultPlanJSONSchema()
+	requestMeta = agent.ApplyRuntimeProvider(requestMeta, runtime)
 	req := agent.Request{
 		SchemaVersion: agent.SchemaVersion,
 		Type:          agent.RequestPlanRefine,
@@ -265,6 +268,7 @@ func runDepsInfer(args []string) error {
 
 	requestMeta := buildAgentMetadata(meta)
 	requestMeta.JSONSchema = agent.DefaultPlanJSONSchema()
+	requestMeta = agent.ApplyRuntimeProvider(requestMeta, runtime)
 	req := agent.Request{
 		SchemaVersion: agent.SchemaVersion,
 		Type:          agent.RequestDepsInfer,

@@ -1,7 +1,7 @@
 BINARY := blackbird
 CMD := ./cmd/blackbird
 
-.PHONY: build
+.PHONY: build test format
 
 build:
 	@branch=$$(git rev-parse --abbrev-ref HEAD); \
@@ -13,3 +13,9 @@ build:
 		go build -o $(HOME)/.local/bin/$(BINARY)-$$suffix $(CMD); \
 		echo "Built $(BINARY)-$$suffix for $$branch branch"; \
 	fi
+
+test:
+	go test ./...
+
+format:
+	go fmt ./...

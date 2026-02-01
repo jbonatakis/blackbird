@@ -18,6 +18,7 @@ func TestRefinePlanInMemoryRunsInProcess(t *testing.T) {
 	}
 
 	t.Setenv("BLACKBIRD_AGENT_CMD", "cat "+responsePath)
+	t.Setenv("BLACKBIRD_AGENT_PROVIDER", "test") // avoid --json-schema etc. being appended to the cat command
 
 	base := plan.WorkGraph{
 		SchemaVersion: plan.SchemaVersion,

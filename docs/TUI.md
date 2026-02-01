@@ -7,6 +7,7 @@ Running `blackbird` with no arguments launches the TUI. CLI commands like `black
 - **Left pane** — Plan tree with status and readiness labels.
 - **Right pane** — Details or execution dashboard (toggle with `t`).
 - **Bottom bar** — Action shortcuts and ready/blocked counts.
+- **Home view** — Shows the current agent selection; press `a` to open the agent picker (selection persists to `.blackbird/agent.json`).
 
 ## Key bindings
 
@@ -21,6 +22,7 @@ Running `blackbird` with no arguments launches the TUI. CLI commands like `black
 | `g` | Plan generate |
 | `r` | Plan refine |
 | `e` | Execute ready tasks |
+| `a` | Change agent (Home view) |
 | `u` | Resume waiting task (when available) |
 | `s` | Set status for selected item |
 | `ctrl+c` | Quit |

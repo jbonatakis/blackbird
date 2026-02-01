@@ -14,31 +14,85 @@ var spinnerFrames = []string{"|", "/", "-", "\\"}
 func RenderBottomBar(model Model) string {
 	readyCount := len(execution.ReadyTasks(model.plan))
 	blockedCount := blockedCount(model.plan)
+	agent := agentLabel(model)
 
 	actions := actionHints(model, readyCount)
+	contentWidth, padding := contentWidth(model.windowWidth)
+	if shouldTrimActions(model, contentWidth, actions, agent, readyCount, blockedCount) {
+		actions = trimBottomBarActions(actions, contentWidth, agent, readyCount, blockedCount)
+	}
 	left := strings.Join(actions, " ")
-
 	if model.actionInProgress {
 		frame := spinnerFrames[model.spinnerIndex%len(spinnerFrames)]
 		left = fmt.Sprintf("%s | %s %s", left, frame, model.actionName)
 	}
-
-	right := fmt.Sprintf("ready:%d blocked:%d", readyCount, blockedCount)
-	if model.viewMode == ViewModeHome && !model.planExists {
-		right = ""
-	}
-	contentWidth := model.windowWidth
-	padding := 1
-	if contentWidth > 0 {
-		contentWidth = contentWidth - padding*2
-		if contentWidth < 0 {
-			contentWidth = 0
-		}
-	}
+	right := selectBottomBarRight(model, agent, readyCount, blockedCount, left, contentWidth)
 	bar := layoutBar(left, right, contentWidth)
 
 	style := lipgloss.NewStyle().Reverse(true).Padding(0, padding)
 	return style.Render(bar)
+}
+
+func selectBottomBarRight(model Model, agent string, readyCount int, blockedCount int, left string, width int) string {
+	if model.viewMode == ViewModeHome && !model.planExists {
+		return fmt.Sprintf("agent:%s", agent)
+	}
+	full := fmt.Sprintf("agent:%s | ready:%d blocked:%d", agent, readyCount, blockedCount)
+	compact := fmt.Sprintf("agent:%s r:%d b:%d", agent, readyCount, blockedCount)
+	minimal := fmt.Sprintf("agent:%s", agent)
+	if width <= 0 {
+		return full
+	}
+	leftWidth := lipgloss.Width(left)
+	if leftWidth+1+lipgloss.Width(full) <= width {
+		return full
+	}
+	if leftWidth+1+lipgloss.Width(compact) <= width {
+		return compact
+	}
+	return minimal
+}
+
+func shouldTrimActions(model Model, width int, actions []string, agent string, readyCount int, blockedCount int) bool {
+	if width <= 0 || model.viewMode != ViewModeMain || model.actionMode != ActionModeNone || model.actionInProgress {
+		return false
+	}
+	left := strings.Join(actions, " ")
+	compact := fmt.Sprintf("agent:%s r:%d b:%d", agent, readyCount, blockedCount)
+	return lipgloss.Width(left)+1+lipgloss.Width(compact) > width
+}
+
+func trimBottomBarActions(actions []string, width int, agent string, readyCount int, blockedCount int) []string {
+	priorities := []string{
+		"[f]ilter",
+		"[t]ab",
+		"[s]et-status",
+		"[u]resume",
+		"[e]xecute",
+		"[r]efine",
+		"[g]enerate",
+		"[h]ome",
+	}
+	compact := fmt.Sprintf("agent:%s r:%d b:%d", agent, readyCount, blockedCount)
+	for _, remove := range priorities {
+		if lipgloss.Width(strings.Join(actions, " "))+1+lipgloss.Width(compact) <= width {
+			break
+		}
+		actions = removeAction(actions, remove)
+	}
+	return actions
+}
+
+func contentWidth(windowWidth int) (int, int) {
+	padding := 1
+	width := windowWidth
+	if width > 0 {
+		width = width - padding*2
+		if width < 0 {
+			width = 0
+		}
+	}
+	return width, padding
 }
 
 func actionHints(model Model, readyCount int) []string {
@@ -68,16 +122,23 @@ func actionHints(model Model, readyCount int) []string {
 			return []string{"[ctrl+s]submit", "[esc]back", "[ctrl+c]quit"}
 		}
 	}
+	if model.actionMode == ActionModeSelectAgent {
+		return []string{"[↑/↓]move", "[enter]select", "[esc]cancel", "[ctrl+c]quit"}
+	}
 	if model.actionInProgress {
 		return []string{"[ctrl+c]quit"}
 	}
 	if model.viewMode == ViewModeHome {
 		actions = []string{
+			"[a]gent",
 			"[g]enerate",
 			"[v]iew",
 			"[r]efine",
 			"[e]xecute",
 			"[ctrl+c]quit",
+		}
+		if agentIsFromEnv() {
+			actions = removeAction(actions, "[a]gent")
 		}
 		if !model.planExists {
 			actions = removeAction(actions, "[v]iew")

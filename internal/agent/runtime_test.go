@@ -1,6 +1,10 @@
 package agent
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestBuildFlagArgsJSONSchemaClaudeOnly(t *testing.T) {
 	meta := RequestMetadata{
@@ -35,6 +39,70 @@ func TestApplyProviderArgs(t *testing.T) {
 	claude := applyProviderArgs("claude", []string{"--model", "foo"})
 	if len(claude) < 2 || claude[0] != "--permission-mode" || claude[1] != "bypassPermissions" {
 		t.Fatalf("expected claude permission-mode prefix, got %v", claude)
+	}
+}
+
+func TestNewRuntimeFromEnvUsesSelection(t *testing.T) {
+	dir := t.TempDir()
+	if err := SaveAgentSelection(filepath.Join(dir, ".blackbird", "agent.json"), "codex"); err != nil {
+		t.Fatalf("SaveAgentSelection() error = %v", err)
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error = %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(wd)
+	}()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Chdir() error = %v", err)
+	}
+
+	t.Setenv(EnvProvider, "")
+	t.Setenv(EnvCommand, "")
+
+	runtime, err := NewRuntimeFromEnv()
+	if err != nil {
+		t.Fatalf("NewRuntimeFromEnv() error = %v", err)
+	}
+	if runtime.Provider != "codex" {
+		t.Fatalf("expected provider codex, got %q", runtime.Provider)
+	}
+	if runtime.Command != "codex" {
+		t.Fatalf("expected command codex, got %q", runtime.Command)
+	}
+}
+
+func TestNewRuntimeFromEnvEnvOverridesSelection(t *testing.T) {
+	dir := t.TempDir()
+	if err := SaveAgentSelection(filepath.Join(dir, ".blackbird", "agent.json"), "codex"); err != nil {
+		t.Fatalf("SaveAgentSelection() error = %v", err)
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd() error = %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(wd)
+	}()
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Chdir() error = %v", err)
+	}
+
+	t.Setenv(EnvProvider, "claude")
+	t.Setenv(EnvCommand, "")
+
+	runtime, err := NewRuntimeFromEnv()
+	if err != nil {
+		t.Fatalf("NewRuntimeFromEnv() error = %v", err)
+	}
+	if runtime.Provider != "claude" {
+		t.Fatalf("expected provider claude, got %q", runtime.Provider)
+	}
+	if runtime.Command != "claude" {
+		t.Fatalf("expected command claude, got %q", runtime.Command)
 	}
 }
 

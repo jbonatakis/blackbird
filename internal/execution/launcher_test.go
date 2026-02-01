@@ -3,6 +3,8 @@ package execution
 import (
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -111,5 +113,78 @@ func TestLaunchAgentWithStreamWritesOutput(t *testing.T) {
 	}
 	if record.Stdout == "" {
 		t.Fatalf("expected captured stdout output")
+	}
+}
+
+func TestLaunchAgentDefaultsProviderToSelectedAgent(t *testing.T) {
+	dir := t.TempDir()
+	if err := agent.SaveAgentSelection(filepath.Join(dir, ".blackbird", "agent.json"), "codex"); err != nil {
+		t.Fatalf("SaveAgentSelection: %v", err)
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(wd)
+	})
+
+	runtime := agent.Runtime{
+		Command:  "cat",
+		UseShell: true, // avoid provider args (e.g. codex "exec --full-auto") being passed to cat
+		Timeout:  2 * time.Second,
+	}
+	ctx := ContextPack{
+		SchemaVersion: ContextPackSchemaVersion,
+		Task:          TaskContext{ID: "task-5", Title: "Task"},
+	}
+
+	record, err := LaunchAgent(context.Background(), runtime, ctx)
+	if err != nil {
+		t.Fatalf("LaunchAgent: %v", err)
+	}
+	if record.Provider != "codex" {
+		t.Fatalf("expected provider codex, got %q", record.Provider)
+	}
+}
+
+func TestLaunchAgentKeepsExplicitProvider(t *testing.T) {
+	dir := t.TempDir()
+	if err := agent.SaveAgentSelection(filepath.Join(dir, ".blackbird", "agent.json"), "codex"); err != nil {
+		t.Fatalf("SaveAgentSelection: %v", err)
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Getwd: %v", err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("Chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.Chdir(wd)
+	})
+
+	runtime := agent.Runtime{
+		Provider: "claude",
+		Command:  "cat",
+		UseShell: true, // avoid provider args being passed to cat
+		Timeout:  2 * time.Second,
+	}
+	ctx := ContextPack{
+		SchemaVersion: ContextPackSchemaVersion,
+		Task:          TaskContext{ID: "task-6", Title: "Task"},
+	}
+
+	record, err := LaunchAgent(context.Background(), runtime, ctx)
+	if err != nil {
+		t.Fatalf("LaunchAgent: %v", err)
+	}
+	if record.Provider != "claude" {
+		t.Fatalf("expected provider claude, got %q", record.Provider)
 	}
 }
