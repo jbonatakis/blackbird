@@ -1,299 +1,81 @@
 {
   "schemaVersion": 1,
   "items": {
-    "feature-agent-runtime-wiring": {
-      "id": "feature-agent-runtime-wiring",
-      "title": "Agent Selection Wiring",
-      "description": "Ensure the selected agent is used for all agent-backed actions until changed.",
+    "plan-tree-compact-format": {
+      "id": "plan-tree-compact-format",
+      "title": "Compact line format",
+      "description": "Make each tree line horizontally compact to fit narrow terminals while remaining readable.",
       "acceptanceCriteria": [
-        "Plan generate/refine/deps infer use selected agent by default",
-        "Execution/Resume flows use the selected agent",
-        "Changing selection updates future actions without restarting"
+        "Line format minimizes extra spacing and columns.",
+        "Long fields are truncated or wrapped consistently.",
+        "Resulting layout is readable in small terminal widths."
       ],
-      "prompt": "Wire the selected agent into all agent-backed flows (plan generate/refine/deps infer, execute/resume). The selection should be the default provider unless explicitly overridden.",
-      "parentId": null,
-      "childIds": [
-        "task-wire-plan-flows",
-        "task-wire-execution-flows"
-      ],
-      "deps": [
-        "feature-agent-selection-persistence"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T13:08:23.030479Z",
-      "updatedAt": "2026-02-01T13:47:19.729483Z"
-    },
-    "feature-agent-selection-persistence": {
-      "id": "feature-agent-selection-persistence",
-      "title": "Persisted Agent Selection",
-      "description": "Add a durable, user-configurable agent selection that defaults sensibly and persists across sessions.",
-      "acceptanceCriteria": [
-        "A default agent is selected when no prior choice exists",
-        "User selection persists across restarts",
-        "Selection is stored in a stable repo-local config location"
-      ],
-      "prompt": "Implement persisted agent selection storage/loading. Choose a repo-local config location consistent with existing storage (.blackbird). Provide a default agent when unset and expose read/write helpers for the rest of the app.",
-      "parentId": null,
-      "childIds": [
-        "task-agent-registry",
-        "task-agent-config-store",
-        "task-agent-config-load"
-      ],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-02-01T13:08:23.030479Z",
-      "updatedAt": "2026-02-01T13:17:13.062051Z"
-    },
-    "feature-tests-docs": {
-      "id": "feature-tests-docs",
-      "title": "Tests and Documentation",
-      "description": "Add unit tests and update docs for agent selection and UI changes.",
-      "acceptanceCriteria": [
-        "New config load/save behavior is covered by tests",
-        "TUI Home and bottom bar updates are covered by tests",
-        "Docs mention how to change the active agent"
-      ],
-      "prompt": "Add tests for config persistence and TUI display/selection. Update docs (README or docs/CONFIGURATION.md) to explain agent selection.",
-      "parentId": null,
-      "childIds": [
-        "task-tests-config",
-        "task-tests-tui",
-        "task-docs-agent-selection"
-      ],
-      "deps": [
-        "feature-agent-selection-persistence",
-        "feature-tui-agent-selector",
-        "feature-agent-runtime-wiring"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T13:08:23.030479Z",
-      "updatedAt": "2026-02-01T13:34:48.643228Z"
-    },
-    "feature-tui-agent-selector": {
-      "id": "feature-tui-agent-selector",
-      "title": "TUI Agent Selector UI",
-      "description": "Expose agent selection on the TUI home screen and surface the current agent in the bottom bar.",
-      "acceptanceCriteria": [
-        "Home screen shows current agent and a clear action to change it",
-        "Bottom bar shows selected agent in both Home and Main views",
-        "Selection updates persist immediately"
-      ],
-      "prompt": "Update the TUI to display the selected agent on the Home screen and the bottom bar. Add a selection interaction (e.g., key to cycle or modal) that persists changes.",
-      "parentId": null,
-      "childIds": [
-        "task-tui-home-agent-display",
-        "task-tui-agent-selection-action",
-        "task-tui-bottom-bar-agent"
-      ],
-      "deps": [
-        "feature-agent-selection-persistence"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T13:08:23.030479Z",
-      "updatedAt": "2026-02-01T13:32:51.44394Z"
-    },
-    "task-agent-config-load": {
-      "id": "task-agent-config-load",
-      "title": "Load agent selection",
-      "description": "Read agent selection on startup with a safe default when missing or invalid.",
-      "acceptanceCriteria": [
-        "Missing config yields default agent",
-        "Invalid values fall back with a clear error path for UI"
-      ],
-      "prompt": "Implement load logic for agent selection. If missing, return the default agent and mark the config as absent. If invalid, return default plus an error for UI display.",
-      "parentId": "feature-agent-selection-persistence",
+      "prompt": "Adjust tree node text format to be compact; apply truncation or wrapping as needed for narrow terminals.",
+      "parentId": "plan-tree-rendering",
       "childIds": [],
       "deps": [
-        "task-agent-registry"
+        "plan-tree-renderer"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T13:08:23.030479Z",
-      "updatedAt": "2026-02-01T13:15:30.389637Z"
+      "createdAt": "2026-02-01T19:04:17.9557Z",
+      "updatedAt": "2026-02-01T19:15:08.329387Z"
     },
-    "task-agent-config-store": {
-      "id": "task-agent-config-store",
-      "title": "Persist agent selection",
-      "description": "Write agent selection to a durable config file under repo storage.",
+    "plan-tree-data-shape": {
+      "id": "plan-tree-data-shape",
+      "title": "Build task tree structure",
+      "description": "Derive a parent/child hierarchy from plan tasks for tree rendering, ensuring stable ordering.",
       "acceptanceCriteria": [
-        "Selection can be saved without altering unrelated config",
-        "Writes are atomic and resilient"
+        "Tree structure reflects parentId/childIds relationships correctly.",
+        "Ordering is stable and deterministic for siblings.",
+        "Missing/invalid parent references are handled gracefully (e.g., treated as roots)."
       ],
-      "prompt": "Implement save logic for the selected agent using existing atomic write helpers or similar patterns. Store data under .blackbird with a clear schema.",
-      "parentId": "feature-agent-selection-persistence",
-      "childIds": [],
-      "deps": [
-        "task-agent-registry"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T13:08:23.030479Z",
-      "updatedAt": "2026-02-01T13:17:13.062051Z"
-    },
-    "task-agent-registry": {
-      "id": "task-agent-registry",
-      "title": "Define agent registry",
-      "description": "Define the set of supported agents (Claude, Codex) and provide stable identifiers for selection.",
-      "acceptanceCriteria": [
-        "Agent identifiers are stable and human-readable",
-        "Registry is easy to extend for future agents"
-      ],
-      "prompt": "Add a small agent registry type or enum with entries for Claude and Codex. Ensure it is easy to add new agents later.",
-      "parentId": "feature-agent-selection-persistence",
+      "prompt": "Create a hierarchy from plan tasks and define stable ordering for siblings; handle missing parents safely.",
+      "parentId": "plan-tree-rendering",
       "childIds": [],
       "deps": [],
       "status": "done",
-      "createdAt": "2026-02-01T13:08:23.030479Z",
-      "updatedAt": "2026-02-01T13:13:08.341984Z"
+      "createdAt": "2026-02-01T19:04:17.9557Z",
+      "updatedAt": "2026-02-01T19:10:33.881087Z"
     },
-    "task-docs-agent-selection": {
-      "id": "task-docs-agent-selection",
-      "title": "Document agent selection",
-      "description": "Update documentation to explain how to choose and persist the active agent.",
+    "plan-tree-renderer": {
+      "id": "plan-tree-renderer",
+      "title": "Render tree with lipgloss",
+      "description": "Use lipgloss tree rendering to display the hierarchy with status labels and colors.",
       "acceptanceCriteria": [
-        "Docs mention Home screen selection key",
-        "Docs mention persisted selection location"
+        "Tree uses lipgloss tree renderer for branches/indentation.",
+        "Each node shows task title plus status label with existing colors.",
+        "No loss of data compared to prior list view."
       ],
-      "prompt": "Update the relevant docs to mention agent selection in the TUI and where the selection is persisted.",
-      "parentId": "feature-tests-docs",
+      "prompt": "Render the task hierarchy with lipgloss tree; include status labels with existing color styles.",
+      "parentId": "plan-tree-rendering",
       "childIds": [],
       "deps": [
-        "feature-tui-agent-selector"
+        "plan-tree-data-shape"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T13:08:23.030479Z",
-      "updatedAt": "2026-02-01T13:33:31.906452Z"
+      "createdAt": "2026-02-01T19:04:17.9557Z",
+      "updatedAt": "2026-02-01T19:13:23.9083Z"
     },
-    "task-tests-config": {
-      "id": "task-tests-config",
-      "title": "Test config persistence",
-      "description": "Unit tests for agent selection load/save and defaults.",
+    "plan-tree-rendering": {
+      "id": "plan-tree-rendering",
+      "title": "Tree render plan view",
+      "description": "Render parent/child tasks as a compact tree in the plan tab using lipgloss tree rendering while preserving status colors.",
       "acceptanceCriteria": [
-        "Load missing config uses default",
-        "Invalid config falls back with error",
-        "Save then load round-trip succeeds"
+        "Plan tab renders parent and child tasks as a visible tree with clear parent/child relationships.",
+        "Statuses and their colors remain intact in the tree output.",
+        "Rendering fits narrow terminals by keeping each line horizontally compact."
       ],
-      "prompt": "Add unit tests for the config persistence layer, including missing/invalid cases and round-trip behavior.",
-      "parentId": "feature-tests-docs",
-      "childIds": [],
-      "deps": [
-        "task-agent-config-store",
-        "task-agent-config-load"
+      "prompt": "Implement tree rendering in the plan tab using lipgloss tree output and keep status coloring; keep the format compact for narrow terminals.",
+      "parentId": null,
+      "childIds": [
+        "plan-tree-data-shape",
+        "plan-tree-renderer",
+        "plan-tree-compact-format"
       ],
+      "deps": [],
       "status": "done",
-      "createdAt": "2026-02-01T13:08:23.030479Z",
-      "updatedAt": "2026-02-01T13:17:58.557413Z"
-    },
-    "task-tests-tui": {
-      "id": "task-tests-tui",
-      "title": "Test TUI agent UI",
-      "description": "Tests for Home view agent display, selection action, and bottom bar label.",
-      "acceptanceCriteria": [
-        "Home view includes agent label",
-        "Selection action updates model state",
-        "Bottom bar renders agent label in Home and Main"
-      ],
-      "prompt": "Add TUI tests to cover agent label rendering and selection behavior using existing model/view test patterns.",
-      "parentId": "feature-tests-docs",
-      "childIds": [],
-      "deps": [
-        "task-tui-home-agent-display",
-        "task-tui-agent-selection-action",
-        "task-tui-bottom-bar-agent"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T13:08:23.030479Z",
-      "updatedAt": "2026-02-01T13:34:48.643228Z"
-    },
-    "task-tui-agent-selection-action": {
-      "id": "task-tui-agent-selection-action",
-      "title": "Add selection interaction",
-      "description": "Allow users to change the agent from the Home screen.",
-      "acceptanceCriteria": [
-        "User can change agent with a single, discoverable action",
-        "Selection updates the persisted config",
-        "UI refreshes to show the new agent"
-      ],
-      "prompt": "Add a Home-screen keybinding or modal to choose an agent (Claude/Codex). Persist the choice and refresh the model state.",
-      "parentId": "feature-tui-agent-selector",
-      "childIds": [],
-      "deps": [
-        "task-agent-config-store",
-        "task-agent-config-load"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T13:08:23.030479Z",
-      "updatedAt": "2026-02-01T13:25:32.868486Z"
-    },
-    "task-tui-bottom-bar-agent": {
-      "id": "task-tui-bottom-bar-agent",
-      "title": "Show agent in bottom bar",
-      "description": "Display the current agent in the bottom bar for Home and Main views.",
-      "acceptanceCriteria": [
-        "Bottom bar shows agent label consistently",
-        "Does not crowd existing status indicators"
-      ],
-      "prompt": "Update bottom bar rendering to include the active agent label in both Home and Main views.",
-      "parentId": "feature-tui-agent-selector",
-      "childIds": [],
-      "deps": [
-        "task-agent-config-load"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T13:08:23.030479Z",
-      "updatedAt": "2026-02-01T13:30:34.676811Z"
-    },
-    "task-tui-home-agent-display": {
-      "id": "task-tui-home-agent-display",
-      "title": "Show current agent on Home screen",
-      "description": "Render the selected agent in the Home view status area.",
-      "acceptanceCriteria": [
-        "Home view includes a line with the current agent",
-        "Layout remains aligned with existing Home view styling"
-      ],
-      "prompt": "Update home view rendering to include a line like 'Agent: Codex' (or equivalent), using existing styling helpers.",
-      "parentId": "feature-tui-agent-selector",
-      "childIds": [],
-      "deps": [
-        "task-agent-config-load"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T13:08:23.030479Z",
-      "updatedAt": "2026-02-01T13:32:51.44394Z"
-    },
-    "task-wire-execution-flows": {
-      "id": "task-wire-execution-flows",
-      "title": "Wire execution flows",
-      "description": "Use selected agent for execute/resume when launching the agent runtime.",
-      "acceptanceCriteria": [
-        "Execute/resume use selected agent by default",
-        "Provider override flags still work when explicitly set"
-      ],
-      "prompt": "Update execution launcher configuration to default to the selected agent unless the CLI explicitly specifies a provider.",
-      "parentId": "feature-agent-runtime-wiring",
-      "childIds": [],
-      "deps": [
-        "task-agent-config-load"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T13:08:23.030479Z",
-      "updatedAt": "2026-02-01T13:38:30.086467Z"
-    },
-    "task-wire-plan-flows": {
-      "id": "task-wire-plan-flows",
-      "title": "Wire plan flows",
-      "description": "Use selected agent for plan generate/refine/deps infer in CLI/TUI.",
-      "acceptanceCriteria": [
-        "Plan flows default to selected agent",
-        "Provider override flags still work when explicitly set"
-      ],
-      "prompt": "Update plan flow helpers to choose the selected agent unless the user passed an explicit provider override.",
-      "parentId": "feature-agent-runtime-wiring",
-      "childIds": [],
-      "deps": [
-        "task-agent-config-load"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T13:08:23.030479Z",
-      "updatedAt": "2026-02-01T13:47:19.729483Z"
+      "createdAt": "2026-02-01T19:04:17.9557Z",
+      "updatedAt": "2026-02-01T19:15:08.329387Z"
     }
   }
 }

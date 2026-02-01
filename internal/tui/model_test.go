@@ -231,12 +231,19 @@ func TestToggleExpanded(t *testing.T) {
 }
 
 func TestIsParent(t *testing.T) {
+	parentID := "parent"
 	g := plan.WorkGraph{
 		Items: map[string]plan.WorkItem{
-			"parent": {
-				ID:       "parent",
+			parentID: {
+				ID:       parentID,
 				Status:   plan.StatusTodo,
 				ChildIDs: []string{"child"},
+			},
+			"child": {
+				ID:       "child",
+				Status:   plan.StatusTodo,
+				ParentID: &parentID,
+				ChildIDs: []string{},
 			},
 			"leaf": {
 				ID:       "leaf",

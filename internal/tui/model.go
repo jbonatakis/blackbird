@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 	"time"
 
@@ -851,25 +850,22 @@ func (m Model) prevVisibleItem() string {
 }
 
 func (m Model) isParent(id string) bool {
-	it, ok := m.plan.Items[id]
-	if !ok {
-		return false
-	}
-	return len(it.ChildIDs) > 0
+	tree := plan.BuildTaskTree(m.plan)
+	return len(tree.Children[id]) > 0
 }
 
 func (m Model) visibleItemIDs() []string {
-	roots := rootIDs(m.plan)
+	tree := plan.BuildTaskTree(m.plan)
 	visited := map[string]bool{}
 	out := make([]string, 0)
-	for _, id := range roots {
-		items, _ := m.visibleBranch(id, visited)
+	for _, id := range tree.Roots {
+		items, _ := m.visibleBranch(tree, id, visited)
 		out = append(out, items...)
 	}
 	return out
 }
 
-func (m Model) visibleBranch(id string, visited map[string]bool) ([]string, bool) {
+func (m Model) visibleBranch(tree plan.TaskTree, id string, visited map[string]bool) ([]string, bool) {
 	if visited[id] {
 		return nil, false
 	}
@@ -878,8 +874,7 @@ func (m Model) visibleBranch(id string, visited map[string]bool) ([]string, bool
 	if !ok {
 		return nil, false
 	}
-	children := append([]string{}, it.ChildIDs...)
-	sort.Strings(children)
+	children := append([]string{}, tree.Children[it.ID]...)
 
 	depsOK := len(plan.UnmetDeps(m.plan, it)) == 0
 	label := plan.ReadinessLabel(it.Status, depsOK, it.Status == plan.StatusBlocked)
@@ -889,7 +884,7 @@ func (m Model) visibleBranch(id string, visited map[string]bool) ([]string, bool
 	var childLines []string
 	var childMatched bool
 	for _, childID := range children {
-		lines, matched := m.visibleBranch(childID, visited)
+		lines, matched := m.visibleBranch(tree, childID, visited)
 		if matched {
 			childMatched = true
 		}

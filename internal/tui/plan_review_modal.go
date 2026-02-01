@@ -306,7 +306,7 @@ func RenderPlanReviewModal(m Model, form PlanReviewForm) string {
 		lines = append(lines, "")
 
 		// Top-level features preview
-		roots := rootIDs(form.plan)
+		roots := plan.BuildTaskTree(form.plan).Roots
 		if len(roots) > 0 {
 			lines = append(lines, labelStyle.Render("Top-level features:"))
 			for i, rootID := range roots {
