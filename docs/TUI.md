@@ -26,3 +26,7 @@ Running `blackbird` with no arguments launches the TUI. CLI commands like `black
 | `u` | Resume waiting task (when available) |
 | `s` | Set status for selected item |
 | `ctrl+c` | Quit |
+
+## Plan generate/refine @path lookup
+
+The plan generate and plan refine modals support `@` file lookup inside their text areas (description/constraints/granularity and the refine change request). Type `@` to open the picker at the cursor, then keep typing to filter workspace paths. Use `up` / `down` to change selection, `enter` to insert the selected path (replacing the `@query` span), and `esc` to close without inserting. `tab` / `shift+tab` close the picker so focus can move between fields; `backspace` edits the query while the picker is open.

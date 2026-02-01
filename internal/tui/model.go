@@ -361,10 +361,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m = cancelRunningAction(m)
 				return m, tea.Quit
 			case "esc":
-				// Cancel modal
-				m.actionMode = ActionModeNone
-				m.planGenerateForm = nil
-				return m, nil
+				if m.planGenerateForm != nil && m.planGenerateForm.filePicker.Open {
+					updatedForm, cmd := m.planGenerateForm.Update(typed)
+					m.planGenerateForm = &updatedForm
+					return m, cmd
+				}
+				return HandlePlanGenerateKey(m, typed)
 			default:
 				return HandlePlanGenerateKey(m, typed)
 			}
@@ -375,10 +377,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m = cancelRunningAction(m)
 				return m, tea.Quit
 			case "esc":
-				// Cancel modal
-				m.actionMode = ActionModeNone
-				m.planRefineForm = nil
-				return m, nil
+				if m.planRefineForm != nil && m.planRefineForm.filePicker.Open {
+					updatedForm, cmd := m.planRefineForm.Update(typed)
+					m.planRefineForm = &updatedForm
+					return m, cmd
+				}
+				return HandlePlanRefineKey(m, typed)
 			default:
 				return HandlePlanRefineKey(m, typed)
 			}
