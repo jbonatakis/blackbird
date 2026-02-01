@@ -1,10 +1,10 @@
 package tui
 
 import (
-	"sort"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/tree"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
@@ -22,28 +22,30 @@ func RenderTreeView(model Model) string {
 		return muted.Render("No items.")
 	}
 
-	roots := rootIDs(model.plan)
-	if len(roots) == 0 {
+	taskTree := plan.BuildTaskTree(model.plan)
+	if len(taskTree.Roots) == 0 {
 		muted := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 		return muted.Render("No root items.")
 	}
 
-	var lines []string
+	root := tree.New()
 	visited := map[string]bool{}
-	for _, id := range roots {
-		branchLines, _ := renderTreeItem(model, id, 0, visited)
-		lines = append(lines, branchLines...)
+	for _, id := range taskTree.Roots {
+		node, matched := buildTreeNode(model, taskTree, id, visited)
+		if matched && node != nil {
+			root.Child(node)
+		}
 	}
 
-	if len(lines) == 0 {
+	if root.Children().Length() == 0 {
 		muted := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 		return muted.Render("No matching items.")
 	}
 
-	return strings.Join(lines, "\n")
+	return root.String()
 }
 
-func renderTreeItem(model Model, id string, depth int, visited map[string]bool) ([]string, bool) {
+func buildTreeNode(model Model, taskTree plan.TaskTree, id string, visited map[string]bool) (*tree.Tree, bool) {
 	if visited[id] {
 		return nil, false
 	}
@@ -54,23 +56,23 @@ func renderTreeItem(model Model, id string, depth int, visited map[string]bool) 
 		return nil, false
 	}
 
-	children := append([]string{}, it.ChildIDs...)
-	sort.Strings(children)
+	children := append([]string{}, taskTree.Children[it.ID]...)
 
 	depsOK := len(plan.UnmetDeps(model.plan, it)) == 0
 	label := plan.ReadinessLabel(it.Status, depsOK, it.Status == plan.StatusBlocked)
 	matchesSelf := filterMatch(model.filterMode, label)
 
 	isExpanded := isExpanded(model, it.ID)
-	var childLines []string
+	hasChildren := len(children) > 0
+	var childNodes []any
 	var childMatched bool
 	for _, childID := range children {
-		branchLines, matched := renderTreeItem(model, childID, depth+1, visited)
+		childNode, matched := buildTreeNode(model, taskTree, childID, visited)
 		if matched {
 			childMatched = true
 		}
-		if isExpanded {
-			childLines = append(childLines, branchLines...)
+		if isExpanded && childNode != nil {
+			childNodes = append(childNodes, childNode)
 		}
 	}
 
@@ -79,37 +81,35 @@ func renderTreeItem(model Model, id string, depth int, visited map[string]bool) 
 		return nil, false
 	}
 
-	line := renderTreeLine(model, it, label, depth)
-	lines := []string{line}
+	line := renderTreeLine(model, it, label, hasChildren, isExpanded)
+	node := tree.New().Root(line)
 	if isExpanded {
-		lines = append(lines, childLines...)
+		node.Child(childNodes...)
 	}
-	return lines, true
+	return node, true
 }
 
-func renderTreeLine(model Model, it plan.WorkItem, readiness string, depth int) string {
-	indent := strings.Repeat("  ", depth)
+func renderTreeLine(model Model, it plan.WorkItem, readiness string, hasChildren bool, isExpanded bool) string {
 	indicator := " "
-	if len(it.ChildIDs) > 0 {
-		if isExpanded(model, it.ID) {
+	if hasChildren {
+		if isExpanded {
 			indicator = "▼"
 		} else {
 			indicator = "▶"
 		}
 	}
 
-	statusStyle := statusStyle(it.Status, readiness)
 	readinessStyle := readinessLabelStyle(readiness)
 	indicatorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
 
-	status := statusStyle.Render(string(it.Status))
-	readinessLabel := readinessStyle.Render(readiness)
+	compactReadiness := readinessAbbrev(readiness)
+	rawTitle := truncateField(it.Title, maxTitleWidth(model.windowWidth, indicator, compactReadiness))
+
+	readinessLabel := readinessStyle.Render(compactReadiness)
 	line := strings.Join([]string{
-		indent + indicatorStyle.Render(indicator),
-		it.ID,
-		status,
+		indicatorStyle.Render(indicator),
 		readinessLabel,
-		it.Title,
+		rawTitle,
 	}, " ")
 
 	if it.ID == model.selectedID {
@@ -119,23 +119,54 @@ func renderTreeLine(model Model, it plan.WorkItem, readiness string, depth int) 
 	return line
 }
 
-func statusStyle(status plan.Status, readiness string) lipgloss.Style {
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	switch status {
-	case plan.StatusDone:
-		style = style.Foreground(lipgloss.Color("42"))
-	case plan.StatusInProgress:
-		style = style.Foreground(lipgloss.Color("214"))
-	case plan.StatusBlocked:
-		style = style.Foreground(lipgloss.Color("196"))
-	case plan.StatusTodo:
-		if readiness == "READY" {
-			style = style.Foreground(lipgloss.Color("39"))
-		} else if readiness == "BLOCKED" {
-			style = style.Foreground(lipgloss.Color("196"))
-		}
+func readinessAbbrev(label string) string {
+	switch label {
+	case "READY":
+		return "R"
+	case "DONE":
+		return "D"
+	case "IN_PROGRESS":
+		return "IP"
+	case "BLOCKED":
+		return "B"
+	case "QUEUED":
+		return "Q"
+	case "WAITING_USER":
+		return "W"
+	case "FAILED":
+		return "F"
+	case "SKIPPED":
+		return "S"
+	default:
+		return label
 	}
-	return style
+}
+
+func truncateField(value string, max int) string {
+	if max <= 0 || value == "" {
+		return ""
+	}
+	runes := []rune(value)
+	if len(runes) <= max {
+		return value
+	}
+	if max <= 3 {
+		return string(runes[:max])
+	}
+	return string(runes[:max-3]) + "..."
+}
+
+func maxTitleWidth(windowWidth int, indicator string, readiness string) int {
+	if windowWidth <= 0 {
+		return 48
+	}
+	overhead := lipgloss.Width(strings.Join([]string{indicator, readiness}, " "))
+	overhead += 4 // tree prefixes and padding
+	available := windowWidth - overhead
+	if available < 10 {
+		return 10
+	}
+	return available
 }
 
 func readinessLabelStyle(label string) lipgloss.Style {
@@ -173,19 +204,4 @@ func filterMatch(mode FilterMode, readiness string) bool {
 	default:
 		return true
 	}
-}
-
-func rootIDs(g plan.WorkGraph) []string {
-	out := make([]string, 0)
-	for id, it := range g.Items {
-		if it.ParentID == nil || *it.ParentID == "" {
-			out = append(out, id)
-			continue
-		}
-		if _, ok := g.Items[*it.ParentID]; !ok {
-			out = append(out, id)
-		}
-	}
-	sort.Strings(out)
-	return out
 }

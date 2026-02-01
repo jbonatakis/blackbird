@@ -43,9 +43,6 @@ func TestRenderTreeView_SingleItem(t *testing.T) {
 	}
 
 	result := RenderTreeView(model)
-	if !strings.Contains(result, "task-1") {
-		t.Errorf("expected tree to contain task-1, got %q", result)
-	}
 	if !strings.Contains(result, "Test Task") {
 		t.Errorf("expected tree to contain 'Test Task', got %q", result)
 	}
@@ -88,11 +85,11 @@ func TestRenderTreeView_ParentChildHierarchy(t *testing.T) {
 	}
 
 	result := RenderTreeView(model)
-	if !strings.Contains(result, "parent") {
-		t.Errorf("expected tree to contain parent, got %q", result)
+	if !strings.Contains(result, "Parent Task") {
+		t.Errorf("expected tree to contain 'Parent Task', got %q", result)
 	}
-	if !strings.Contains(result, "child") {
-		t.Errorf("expected tree to contain child, got %q", result)
+	if !strings.Contains(result, "Child Task") {
+		t.Errorf("expected tree to contain 'Child Task', got %q", result)
 	}
 
 	// Parent should have expansion indicator
@@ -140,20 +137,51 @@ func TestRenderTreeView_CollapsedParent(t *testing.T) {
 	}
 
 	result := RenderTreeView(model)
-	if !strings.Contains(result, "parent") {
-		t.Errorf("expected tree to contain parent, got %q", result)
+	if !strings.Contains(result, "Parent Task") {
+		t.Errorf("expected tree to contain 'Parent Task', got %q", result)
 	}
 	// Child should not be visible when parent is collapsed
-	lines := strings.Split(result, "\n")
-	childVisible := false
-	for _, line := range lines {
-		if strings.Contains(line, "child") && strings.Contains(line, "Child Task") {
-			childVisible = true
-			break
-		}
-	}
-	if childVisible {
+	if strings.Contains(result, "Child Task") {
 		t.Errorf("expected child to be hidden when parent is collapsed, got %q", result)
+	}
+}
+
+func TestRenderTreeView_CompactLineTruncation(t *testing.T) {
+	now := time.Now()
+	model := Model{
+		plan: plan.WorkGraph{
+			SchemaVersion: 1,
+			Items: map[string]plan.WorkItem{
+				"super-long-task-id": {
+					ID:        "super-long-task-id",
+					Title:     "Very long task title that should be truncated",
+					Status:    plan.StatusTodo,
+					ParentID:  nil,
+					ChildIDs:  []string{},
+					Deps:      []string{},
+					CreatedAt: now,
+					UpdatedAt: now,
+				},
+			},
+		},
+		selectedID:    "super-long-task-id",
+		filterMode:    FilterModeAll,
+		expandedItems: map[string]bool{},
+		windowWidth:   20,
+	}
+
+	result := RenderTreeView(model)
+	if strings.Contains(result, "READY") {
+		t.Errorf("expected readiness label to be compact, got %q", result)
+	}
+	if strings.Contains(result, "super-long-task-id") {
+		t.Errorf("expected id to be truncated, got %q", result)
+	}
+	if strings.Contains(result, "Very long task title that should be truncated") {
+		t.Errorf("expected title to be truncated, got %q", result)
+	}
+	if !strings.Contains(result, "...") {
+		t.Errorf("expected truncated fields to include ellipsis, got %q", result)
 	}
 }
 
@@ -180,102 +208,6 @@ func TestFilterMatch(t *testing.T) {
 			got := filterMatch(tt.mode, tt.readiness)
 			if got != tt.wantMatch {
 				t.Errorf("filterMatch(%v, %q) = %v, want %v", tt.mode, tt.readiness, got, tt.wantMatch)
-			}
-		})
-	}
-}
-
-func TestRootIDs(t *testing.T) {
-	now := time.Now()
-	parentID := "parent"
-	childID := "child"
-	orphanID := "orphan"
-
-	tests := []struct {
-		name     string
-		graph    plan.WorkGraph
-		wantRoot []string
-	}{
-		{
-			name: "empty graph",
-			graph: plan.WorkGraph{
-				SchemaVersion: 1,
-				Items:         map[string]plan.WorkItem{},
-			},
-			wantRoot: []string{},
-		},
-		{
-			name: "single item with nil parent",
-			graph: plan.WorkGraph{
-				SchemaVersion: 1,
-				Items: map[string]plan.WorkItem{
-					parentID: {
-						ID:        parentID,
-						Title:     "Root",
-						ParentID:  nil,
-						ChildIDs:  []string{},
-						CreatedAt: now,
-						UpdatedAt: now,
-					},
-				},
-			},
-			wantRoot: []string{parentID},
-		},
-		{
-			name: "parent with child",
-			graph: plan.WorkGraph{
-				SchemaVersion: 1,
-				Items: map[string]plan.WorkItem{
-					parentID: {
-						ID:        parentID,
-						Title:     "Parent",
-						ParentID:  nil,
-						ChildIDs:  []string{childID},
-						CreatedAt: now,
-						UpdatedAt: now,
-					},
-					childID: {
-						ID:        childID,
-						Title:     "Child",
-						ParentID:  &parentID,
-						ChildIDs:  []string{},
-						CreatedAt: now,
-						UpdatedAt: now,
-					},
-				},
-			},
-			wantRoot: []string{parentID},
-		},
-		{
-			name: "orphan with missing parent",
-			graph: plan.WorkGraph{
-				SchemaVersion: 1,
-				Items: map[string]plan.WorkItem{
-					orphanID: {
-						ID:        orphanID,
-						Title:     "Orphan",
-						ParentID:  strPtr("missing-parent"),
-						ChildIDs:  []string{},
-						CreatedAt: now,
-						UpdatedAt: now,
-					},
-				},
-			},
-			wantRoot: []string{orphanID},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := rootIDs(tt.graph)
-			if len(got) != len(tt.wantRoot) {
-				t.Errorf("rootIDs() = %v, want %v", got, tt.wantRoot)
-				return
-			}
-			for i := range got {
-				if got[i] != tt.wantRoot[i] {
-					t.Errorf("rootIDs()[%d] = %v, want %v", i, got[i], tt.wantRoot[i])
-				}
 			}
 		})
 	}
@@ -337,8 +269,4 @@ func TestIsExpanded(t *testing.T) {
 			}
 		})
 	}
-}
-
-func strPtr(s string) *string {
-	return &s
 }

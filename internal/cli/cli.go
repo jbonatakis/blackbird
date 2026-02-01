@@ -427,25 +427,23 @@ func leafIDs(g plan.WorkGraph) []string {
 }
 
 func rootIDs(g plan.WorkGraph) []string {
-	out := make([]string, 0)
-	for id, it := range g.Items {
-		if it.ParentID == nil || *it.ParentID == "" {
-			out = append(out, id)
-		}
-	}
-	return out
+	tree := plan.BuildTaskTree(g)
+	return append([]string{}, tree.Roots...)
 }
 
 func printTree(w io.Writer, g plan.WorkGraph) {
-	roots := rootIDs(g)
-	sort.Strings(roots)
+	tree := plan.BuildTaskTree(g)
+	if len(tree.Roots) == 0 {
+		fmt.Fprintln(w, "No root items.")
+		return
+	}
 	visited := map[string]bool{}
-	for _, id := range roots {
-		printTreeRec(w, g, id, "", visited)
+	for _, id := range tree.Roots {
+		printTreeRec(w, g, tree, id, "", visited)
 	}
 }
 
-func printTreeRec(w io.Writer, g plan.WorkGraph, id string, indent string, visited map[string]bool) {
+func printTreeRec(w io.Writer, g plan.WorkGraph, tree plan.TaskTree, id string, indent string, visited map[string]bool) {
 	if visited[id] {
 		fmt.Fprintf(w, "%s%s [cycle]\n", indent, id)
 		return
@@ -463,9 +461,8 @@ func printTreeRec(w io.Writer, g plan.WorkGraph, id string, indent string, visit
 	readyLabel := plan.ReadinessLabel(it.Status, depsOK, it.Status == plan.StatusBlocked)
 	fmt.Fprintf(w, "%s%s\t%s\t%s\n", indent, it.ID, it.Status, readyLabel)
 
-	children := append([]string{}, it.ChildIDs...)
-	sort.Strings(children)
+	children := append([]string{}, tree.Children[it.ID]...)
 	for _, cid := range children {
-		printTreeRec(w, g, cid, indent+"  ", visited)
+		printTreeRec(w, g, tree, cid, indent+"  ", visited)
 	}
 }

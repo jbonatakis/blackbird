@@ -1,5 +1,9 @@
 # AGENT_LOG
 
+## 2026-02-01 — Global config spec
+
+- Added `specs/improvements/GLOBAL_CONFIG.md`: spec for global configuration with `~/.blackbird/config.json` (global) and `<project>/.blackbird/config.json` (project overrides), precedence project > global > built-in, initial keys for TUI run/plan refresh intervals.
+
 ## 2026-02-01 — Execution launcher default agent selection
 
 - Defaulted execution launcher to use selected agent when runtime provider is unset.
@@ -808,3 +812,21 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 - Added agent metadata helper to default request provider from the active runtime while preserving explicit overrides.
 - Wired CLI/TUI plan generate/refine/deps infer flows to apply the runtime provider to plan request metadata.
 - Added unit tests covering provider defaults vs explicit metadata overrides.
+
+## 2026-02-01 — Plan task tree builder
+
+- Added `plan.BuildTaskTree` to derive ordered parent/child hierarchy from parentId references, with stable sibling ordering (childIds order + sorted remainder) and missing-parent roots.
+- Wired TUI tree rendering/visibility and plan review modal to use the shared tree structure; CLI tree listing and feature roots now use the shared tree roots/children.
+- Added plan-level tests for tree ordering, root handling, and missing-parent behavior; updated TUI tests for parent detection to include parentId.
+- `go test ./internal/plan/... ./internal/tui/... ./internal/cli/...` failed due to Go build cache permission restrictions (`operation not permitted`).
+
+## 2026-02-01 — TUI tree lipgloss renderer
+
+- Switched TUI tree rendering to use lipgloss tree renderer for branch/indent formatting.
+- Preserved task line data (id, status, readiness label, title) with existing color styles and expansion indicator.
+- Kept filter/expand behavior by building tree nodes conditionally and omitting collapsed children.
+
+## 2026-02-01 — Compact tree line format
+
+- Simplified TUI tree lines to compact readiness abbreviations and removed redundant status column.
+- Added truncation helpers for IDs/titles based on pane width to keep lines readable in narrow terminals.
