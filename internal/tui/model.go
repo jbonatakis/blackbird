@@ -25,6 +25,7 @@ const (
 	ActionModeAgentQuestion
 	ActionModePlanReview
 	ActionModePlanRefine
+	ActionModeSelectAgent
 )
 
 type ActivePane int
@@ -67,36 +68,39 @@ type PendingPlanRequest struct {
 }
 
 type Model struct {
-	plan               plan.WorkGraph
-	selectedID         string
-	pendingStatusID    string
-	actionMode         ActionMode
-	activePane         ActivePane
-	tabMode            TabMode
-	viewMode           ViewMode
-	planExists         bool
-	planValidationErr  string
-	windowWidth        int
-	windowHeight       int
-	actionInProgress   bool
-	actionName         string
-	actionCancel       context.CancelFunc
-	spinnerIndex       int
-	runData            map[string]execution.RunRecord
-	timerActive        bool
-	liveStdout         string
-	liveStderr         string
-	liveOutputChan     chan liveOutputMsg
-	expandedItems      map[string]bool
-	filterMode         FilterMode
-	detailOffset       int
-	actionOutput       *ActionOutput
-	planGenerateForm   *PlanGenerateForm
-	planRefineForm     *PlanRefineForm
-	agentQuestionForm  *AgentQuestionForm
-	planReviewForm     *PlanReviewForm
-	pendingPlanRequest PendingPlanRequest
-	pendingResumeTask  string
+	plan                    plan.WorkGraph
+	selectedID              string
+	pendingStatusID         string
+	actionMode              ActionMode
+	activePane              ActivePane
+	tabMode                 TabMode
+	viewMode                ViewMode
+	planExists              bool
+	planValidationErr       string
+	windowWidth             int
+	windowHeight            int
+	actionInProgress        bool
+	actionName              string
+	actionCancel            context.CancelFunc
+	spinnerIndex            int
+	runData                 map[string]execution.RunRecord
+	timerActive             bool
+	liveStdout              string
+	liveStderr              string
+	liveOutputChan          chan liveOutputMsg
+	expandedItems           map[string]bool
+	filterMode              FilterMode
+	detailOffset            int
+	actionOutput            *ActionOutput
+	planGenerateForm        *PlanGenerateForm
+	planRefineForm          *PlanRefineForm
+	agentQuestionForm       *AgentQuestionForm
+	planReviewForm          *PlanReviewForm
+	pendingPlanRequest      PendingPlanRequest
+	pendingResumeTask       string
+	agentSelection          agent.AgentSelection
+	agentSelectionErr       string
+	agentSelectionHighlight int // index into agent.AgentRegistry when modal is open
 }
 
 func NewModel(g plan.WorkGraph) Model {
@@ -110,6 +114,10 @@ func NewModel(g plan.WorkGraph) Model {
 		runData:       map[string]execution.RunRecord{},
 		expandedItems: map[string]bool{},
 		filterMode:    FilterModeAll,
+		agentSelection: agent.AgentSelection{
+			Agent:         agent.DefaultAgent(),
+			ConfigPresent: false,
+		},
 	}
 	for id := range g.Items {
 		m.selectedID = id
@@ -127,7 +135,7 @@ func (m Model) canExecute() bool {
 }
 
 func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{m.LoadRunData(), RunDataRefreshCmd(), m.LoadPlanData(), PlanDataRefreshCmd()}
+	cmds := []tea.Cmd{m.LoadRunData(), RunDataRefreshCmd(), m.LoadPlanData(), PlanDataRefreshCmd(), m.LoadAgentSelection()}
 	if hasActiveRuns(m.runData) {
 		cmds = append(cmds, StartTimerCmd())
 	}
@@ -261,6 +269,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.ensureSelectionVisible()
 		return m, nil
+	case AgentSelectionLoaded:
+		m.agentSelection = typed.Selection
+		if typed.Err != nil {
+			m.agentSelectionErr = typed.Err.Error()
+		} else {
+			m.agentSelectionErr = ""
+		}
+		return m, nil
+	case AgentSelectionSaved:
+		if typed.Err != nil {
+			m.actionOutput = &ActionOutput{
+				Message: fmt.Sprintf("Agent selection failed: %v", typed.Err),
+				IsError: true,
+			}
+			return m, nil
+		}
+		m.agentSelection = typed.Selection
+		m.agentSelectionErr = ""
+		m.actionOutput = &ActionOutput{
+			Message: fmt.Sprintf("Agent set to %s", typed.Selection.Agent.Label),
+			IsError: false,
+		}
+		return m, nil
 	case RunDataLoaded:
 		if typed.Err != nil {
 			return m, nil
@@ -388,6 +419,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return HandlePlanReviewKey(m, typed)
 			}
 		}
+		if m.actionMode == ActionModeSelectAgent {
+			switch typed.String() {
+			case "ctrl+c":
+				m = cancelRunningAction(m)
+				return m, tea.Quit
+			default:
+				return HandleAgentSelectionKey(m, typed.String())
+			}
+		}
 		// Clear action output on any key press (after reading)
 		if m.actionOutput != nil && !m.actionInProgress {
 			m.actionOutput = nil
@@ -435,6 +475,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					listenLiveOutputCmd(streamCh),
 					spinnerTickCmd(),
 				)
+			case "a":
+				if m.actionMode != ActionModeNone || m.actionInProgress {
+					return m, nil
+				}
+				if agentIsFromEnv() {
+					return m, nil // env overrides; change agent disabled
+				}
+				m.actionMode = ActionModeSelectAgent
+				m.agentSelectionHighlight = agentSelectionHighlightIndex(m)
+				return m, nil
 			default:
 				return m, nil
 			}
@@ -721,6 +771,14 @@ func (m Model) View() string {
 	// Overlay plan review modal if active
 	if m.actionMode == ActionModePlanReview && m.planReviewForm != nil {
 		modal := RenderPlanReviewModal(m, *m.planReviewForm)
+		if modal != "" {
+			content = modal
+		}
+	}
+
+	// Overlay agent selection modal if active
+	if m.actionMode == ActionModeSelectAgent {
+		modal := RenderAgentSelectionModal(m)
 		if modal != "" {
 			content = modal
 		}

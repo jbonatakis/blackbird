@@ -133,6 +133,7 @@ func RenderHomeView(m Model) string {
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69"))
 	taglineStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 	actionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
 	shortcutStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
 	errorStyle := lipgloss.NewStyle().
@@ -164,6 +165,15 @@ func RenderHomeView(m Model) string {
 	}
 	lines = append(lines, statusLines...)
 
+	agentLine := fmt.Sprintf("Agent: %s", agentLabel(m))
+	if agentIsFromEnv() {
+		agentLine += " (from environment)"
+	}
+	lines = append(lines, "", mutedStyle.Render(agentLine))
+	if m.agentSelectionErr != "" {
+		lines = append(lines, warnStyle.Render(fmt.Sprintf("Agent config warning: %s", m.agentSelectionErr)))
+	}
+
 	if m.planValidationErr != "" && !planOperationInProgress(m) {
 		lines = append(lines,
 			"",
@@ -171,10 +181,13 @@ func RenderHomeView(m Model) string {
 		)
 	}
 
-	// When generating/refining, gray out all options except quit
+	// When generating/refining, gray out all options except quit. Change agent
+	// is disabled when env (BLACKBIRD_AGENT_PROVIDER) overrides.
 	inProgress := planOperationInProgress(m)
+	changeAgentEnabled := !inProgress && !agentIsFromEnv()
 	lines = append(lines,
 		"",
+		renderActionLine("[a]", "Change agent", changeAgentEnabled, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[g]", "Generate plan", !inProgress, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[v]", "View plan", showPlanInfo, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[r]", "Refine plan", showPlanInfo, shortcutStyle, actionStyle, mutedStyle),

@@ -1,94 +1,299 @@
 {
   "schemaVersion": 1,
   "items": {
-    "wi_docs_log": {
-      "id": "wi_docs_log",
-      "title": "Update AGENT_LOG",
-      "description": "Record the consolidation work in AGENT_LOG.md per project instructions.",
+    "feature-agent-runtime-wiring": {
+      "id": "feature-agent-runtime-wiring",
+      "title": "Agent Selection Wiring",
+      "description": "Ensure the selected agent is used for all agent-backed actions until changed.",
       "acceptanceCriteria": [
-        "AGENT_LOG.md contains a concise entry about the consolidation"
+        "Plan generate/refine/deps infer use selected agent by default",
+        "Execution/Resume flows use the selected agent",
+        "Changing selection updates future actions without restarting"
       ],
-      "prompt": "Add a brief entry to AGENT_LOG.md summarizing the shared plan-agent consolidation work.",
+      "prompt": "Wire the selected agent into all agent-backed flows (plan generate/refine/deps infer, execute/resume). The selection should be the default provider unless explicitly overridden.",
       "parentId": null,
-      "childIds": [],
+      "childIds": [
+        "task-wire-plan-flows",
+        "task-wire-execution-flows"
+      ],
       "deps": [
-        "wi_wire_cli_tui"
+        "feature-agent-selection-persistence"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T04:22:01.067838Z",
-      "updatedAt": "2026-02-01T04:31:34.798109Z"
+      "createdAt": "2026-02-01T13:08:23.030479Z",
+      "updatedAt": "2026-02-01T13:47:19.729483Z"
     },
-    "wi_shared_defs": {
-      "id": "wi_shared_defs",
-      "title": "Create shared plan-agent definitions",
-      "description": "Add shared functions/constants for plan agent prompt, JSON schema, question rounds, and revision limits in a common internal package.",
+    "feature-agent-selection-persistence": {
+      "id": "feature-agent-selection-persistence",
+      "title": "Persisted Agent Selection",
+      "description": "Add a durable, user-configurable agent selection that defaults sensibly and persists across sessions.",
       "acceptanceCriteria": [
-        "A shared package exposes the default plan system prompt and default plan JSON schema",
-        "Shared constants exist for max agent question rounds and max generate revisions",
-        "No behavior change beyond consolidation"
+        "A default agent is selected when no prior choice exists",
+        "User selection persists across restarts",
+        "Selection is stored in a stable repo-local config location"
       ],
-      "prompt": "Implement a shared Go package (e.g., internal/agent or internal/plan) that owns the default plan system prompt, plan JSON schema string, and related constants for question rounds and revisions.",
+      "prompt": "Implement persisted agent selection storage/loading. Choose a repo-local config location consistent with existing storage (.blackbird). Provide a default agent when unset and expose read/write helpers for the rest of the app.",
       "parentId": null,
+      "childIds": [
+        "task-agent-registry",
+        "task-agent-config-store",
+        "task-agent-config-load"
+      ],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-02-01T13:08:23.030479Z",
+      "updatedAt": "2026-02-01T13:17:13.062051Z"
+    },
+    "feature-tests-docs": {
+      "id": "feature-tests-docs",
+      "title": "Tests and Documentation",
+      "description": "Add unit tests and update docs for agent selection and UI changes.",
+      "acceptanceCriteria": [
+        "New config load/save behavior is covered by tests",
+        "TUI Home and bottom bar updates are covered by tests",
+        "Docs mention how to change the active agent"
+      ],
+      "prompt": "Add tests for config persistence and TUI display/selection. Update docs (README or docs/CONFIGURATION.md) to explain agent selection.",
+      "parentId": null,
+      "childIds": [
+        "task-tests-config",
+        "task-tests-tui",
+        "task-docs-agent-selection"
+      ],
+      "deps": [
+        "feature-agent-selection-persistence",
+        "feature-tui-agent-selector",
+        "feature-agent-runtime-wiring"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T13:08:23.030479Z",
+      "updatedAt": "2026-02-01T13:34:48.643228Z"
+    },
+    "feature-tui-agent-selector": {
+      "id": "feature-tui-agent-selector",
+      "title": "TUI Agent Selector UI",
+      "description": "Expose agent selection on the TUI home screen and surface the current agent in the bottom bar.",
+      "acceptanceCriteria": [
+        "Home screen shows current agent and a clear action to change it",
+        "Bottom bar shows selected agent in both Home and Main views",
+        "Selection updates persist immediately"
+      ],
+      "prompt": "Update the TUI to display the selected agent on the Home screen and the bottom bar. Add a selection interaction (e.g., key to cycle or modal) that persists changes.",
+      "parentId": null,
+      "childIds": [
+        "task-tui-home-agent-display",
+        "task-tui-agent-selection-action",
+        "task-tui-bottom-bar-agent"
+      ],
+      "deps": [
+        "feature-agent-selection-persistence"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T13:08:23.030479Z",
+      "updatedAt": "2026-02-01T13:32:51.44394Z"
+    },
+    "task-agent-config-load": {
+      "id": "task-agent-config-load",
+      "title": "Load agent selection",
+      "description": "Read agent selection on startup with a safe default when missing or invalid.",
+      "acceptanceCriteria": [
+        "Missing config yields default agent",
+        "Invalid values fall back with a clear error path for UI"
+      ],
+      "prompt": "Implement load logic for agent selection. If missing, return the default agent and mark the config as absent. If invalid, return default plus an error for UI display.",
+      "parentId": "feature-agent-selection-persistence",
+      "childIds": [],
+      "deps": [
+        "task-agent-registry"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T13:08:23.030479Z",
+      "updatedAt": "2026-02-01T13:15:30.389637Z"
+    },
+    "task-agent-config-store": {
+      "id": "task-agent-config-store",
+      "title": "Persist agent selection",
+      "description": "Write agent selection to a durable config file under repo storage.",
+      "acceptanceCriteria": [
+        "Selection can be saved without altering unrelated config",
+        "Writes are atomic and resilient"
+      ],
+      "prompt": "Implement save logic for the selected agent using existing atomic write helpers or similar patterns. Store data under .blackbird with a clear schema.",
+      "parentId": "feature-agent-selection-persistence",
+      "childIds": [],
+      "deps": [
+        "task-agent-registry"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T13:08:23.030479Z",
+      "updatedAt": "2026-02-01T13:17:13.062051Z"
+    },
+    "task-agent-registry": {
+      "id": "task-agent-registry",
+      "title": "Define agent registry",
+      "description": "Define the set of supported agents (Claude, Codex) and provide stable identifiers for selection.",
+      "acceptanceCriteria": [
+        "Agent identifiers are stable and human-readable",
+        "Registry is easy to extend for future agents"
+      ],
+      "prompt": "Add a small agent registry type or enum with entries for Claude and Codex. Ensure it is easy to add new agents later.",
+      "parentId": "feature-agent-selection-persistence",
       "childIds": [],
       "deps": [],
-      "status": "waiting_user",
-      "createdAt": "2026-02-01T04:22:01.067838Z",
-      "updatedAt": "2026-02-01T04:52:35.897863Z"
+      "status": "done",
+      "createdAt": "2026-02-01T13:08:23.030479Z",
+      "updatedAt": "2026-02-01T13:13:08.341984Z"
     },
-    "wi_shared_plan_path": {
-      "id": "wi_shared_plan_path",
-      "title": "Centralize plan file path helper",
-      "description": "Provide a single helper for determining the plan file path in the current working directory for both CLI and TUI.",
+    "task-docs-agent-selection": {
+      "id": "task-docs-agent-selection",
+      "title": "Document agent selection",
+      "description": "Update documentation to explain how to choose and persist the active agent.",
       "acceptanceCriteria": [
-        "One shared helper computes plan path using cwd + plan.DefaultPlanFilename",
-        "CLI and TUI use the shared helper"
+        "Docs mention Home screen selection key",
+        "Docs mention persisted selection location"
       ],
-      "prompt": "Add a shared helper function (likely in internal/plan) to compute the plan file path in the current working directory.",
-      "parentId": null,
-      "childIds": [],
-      "deps": [],
-      "status": "failed",
-      "createdAt": "2026-02-01T04:22:01.067838Z",
-      "updatedAt": "2026-02-01T04:52:40.951727Z"
-    },
-    "wi_tests": {
-      "id": "wi_tests",
-      "title": "Update or add tests",
-      "description": "Adjust tests to cover the shared helper(s) and ensure existing behavior remains intact.",
-      "acceptanceCriteria": [
-        "Relevant tests compile and pass",
-        "New helpers have unit coverage when appropriate"
-      ],
-      "prompt": "Add or update tests for the new shared helpers and constants; run existing test suite as appropriate.",
-      "parentId": null,
+      "prompt": "Update the relevant docs to mention agent selection in the TUI and where the selection is persisted.",
+      "parentId": "feature-tests-docs",
       "childIds": [],
       "deps": [
-        "wi_wire_cli_tui"
+        "feature-tui-agent-selector"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T04:22:01.067838Z",
-      "updatedAt": "2026-02-01T04:33:08.348078Z"
+      "createdAt": "2026-02-01T13:08:23.030479Z",
+      "updatedAt": "2026-02-01T13:33:31.906452Z"
     },
-    "wi_wire_cli_tui": {
-      "id": "wi_wire_cli_tui",
-      "title": "Wire CLI and TUI to shared definitions",
-      "description": "Replace duplicated prompt/schema/path/constants in CLI and TUI with the shared package usages.",
+    "task-tests-config": {
+      "id": "task-tests-config",
+      "title": "Test config persistence",
+      "description": "Unit tests for agent selection load/save and defaults.",
       "acceptanceCriteria": [
-        "CLI uses shared plan system prompt and JSON schema",
-        "TUI uses shared plan system prompt and JSON schema",
-        "CLI and TUI use shared constants for question rounds and revisions",
-        "CLI and TUI use shared plan path helper"
+        "Load missing config uses default",
+        "Invalid config falls back with error",
+        "Save then load round-trip succeeds"
       ],
-      "prompt": "Update internal/cli and internal/tui to import and use the shared helper(s) and constants instead of local duplicates.",
-      "parentId": null,
+      "prompt": "Add unit tests for the config persistence layer, including missing/invalid cases and round-trip behavior.",
+      "parentId": "feature-tests-docs",
       "childIds": [],
       "deps": [
-        "wi_shared_defs",
-        "wi_shared_plan_path"
+        "task-agent-config-store",
+        "task-agent-config-load"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T04:22:01.067838Z",
-      "updatedAt": "2026-02-01T04:31:22.630511Z"
+      "createdAt": "2026-02-01T13:08:23.030479Z",
+      "updatedAt": "2026-02-01T13:17:58.557413Z"
+    },
+    "task-tests-tui": {
+      "id": "task-tests-tui",
+      "title": "Test TUI agent UI",
+      "description": "Tests for Home view agent display, selection action, and bottom bar label.",
+      "acceptanceCriteria": [
+        "Home view includes agent label",
+        "Selection action updates model state",
+        "Bottom bar renders agent label in Home and Main"
+      ],
+      "prompt": "Add TUI tests to cover agent label rendering and selection behavior using existing model/view test patterns.",
+      "parentId": "feature-tests-docs",
+      "childIds": [],
+      "deps": [
+        "task-tui-home-agent-display",
+        "task-tui-agent-selection-action",
+        "task-tui-bottom-bar-agent"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T13:08:23.030479Z",
+      "updatedAt": "2026-02-01T13:34:48.643228Z"
+    },
+    "task-tui-agent-selection-action": {
+      "id": "task-tui-agent-selection-action",
+      "title": "Add selection interaction",
+      "description": "Allow users to change the agent from the Home screen.",
+      "acceptanceCriteria": [
+        "User can change agent with a single, discoverable action",
+        "Selection updates the persisted config",
+        "UI refreshes to show the new agent"
+      ],
+      "prompt": "Add a Home-screen keybinding or modal to choose an agent (Claude/Codex). Persist the choice and refresh the model state.",
+      "parentId": "feature-tui-agent-selector",
+      "childIds": [],
+      "deps": [
+        "task-agent-config-store",
+        "task-agent-config-load"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T13:08:23.030479Z",
+      "updatedAt": "2026-02-01T13:25:32.868486Z"
+    },
+    "task-tui-bottom-bar-agent": {
+      "id": "task-tui-bottom-bar-agent",
+      "title": "Show agent in bottom bar",
+      "description": "Display the current agent in the bottom bar for Home and Main views.",
+      "acceptanceCriteria": [
+        "Bottom bar shows agent label consistently",
+        "Does not crowd existing status indicators"
+      ],
+      "prompt": "Update bottom bar rendering to include the active agent label in both Home and Main views.",
+      "parentId": "feature-tui-agent-selector",
+      "childIds": [],
+      "deps": [
+        "task-agent-config-load"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T13:08:23.030479Z",
+      "updatedAt": "2026-02-01T13:30:34.676811Z"
+    },
+    "task-tui-home-agent-display": {
+      "id": "task-tui-home-agent-display",
+      "title": "Show current agent on Home screen",
+      "description": "Render the selected agent in the Home view status area.",
+      "acceptanceCriteria": [
+        "Home view includes a line with the current agent",
+        "Layout remains aligned with existing Home view styling"
+      ],
+      "prompt": "Update home view rendering to include a line like 'Agent: Codex' (or equivalent), using existing styling helpers.",
+      "parentId": "feature-tui-agent-selector",
+      "childIds": [],
+      "deps": [
+        "task-agent-config-load"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T13:08:23.030479Z",
+      "updatedAt": "2026-02-01T13:32:51.44394Z"
+    },
+    "task-wire-execution-flows": {
+      "id": "task-wire-execution-flows",
+      "title": "Wire execution flows",
+      "description": "Use selected agent for execute/resume when launching the agent runtime.",
+      "acceptanceCriteria": [
+        "Execute/resume use selected agent by default",
+        "Provider override flags still work when explicitly set"
+      ],
+      "prompt": "Update execution launcher configuration to default to the selected agent unless the CLI explicitly specifies a provider.",
+      "parentId": "feature-agent-runtime-wiring",
+      "childIds": [],
+      "deps": [
+        "task-agent-config-load"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T13:08:23.030479Z",
+      "updatedAt": "2026-02-01T13:38:30.086467Z"
+    },
+    "task-wire-plan-flows": {
+      "id": "task-wire-plan-flows",
+      "title": "Wire plan flows",
+      "description": "Use selected agent for plan generate/refine/deps infer in CLI/TUI.",
+      "acceptanceCriteria": [
+        "Plan flows default to selected agent",
+        "Provider override flags still work when explicitly set"
+      ],
+      "prompt": "Update plan flow helpers to choose the selected agent unless the user passed an explicit provider override.",
+      "parentId": "feature-agent-runtime-wiring",
+      "childIds": [],
+      "deps": [
+        "task-agent-config-load"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T13:08:23.030479Z",
+      "updatedAt": "2026-02-01T13:47:19.729483Z"
     }
   }
 }

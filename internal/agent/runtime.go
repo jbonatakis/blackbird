@@ -58,6 +58,11 @@ func NewRuntimeFromEnv() (Runtime, error) {
 	override := strings.TrimSpace(os.Getenv(EnvCommand))
 
 	if override != "" {
+		if provider == "" {
+			if selection, err := LoadAgentSelection(AgentSelectionPath()); err == nil && selection.Agent.ID != "" {
+				provider = string(selection.Agent.ID)
+			}
+		}
 		return Runtime{
 			Provider:   provider,
 			Command:    override,
@@ -68,7 +73,12 @@ func NewRuntimeFromEnv() (Runtime, error) {
 	}
 
 	if provider == "" {
-		provider = "claude"
+		if selection, err := LoadAgentSelection(AgentSelectionPath()); err == nil && selection.Agent.ID != "" {
+			provider = string(selection.Agent.ID)
+		}
+	}
+	if provider == "" {
+		provider = string(AgentClaude)
 	}
 
 	cmd, ok := defaultCommand(provider)
@@ -177,9 +187,9 @@ func (r Runtime) runOnce(ctx context.Context, payload []byte, meta RequestMetada
 
 func defaultCommand(provider string) (string, bool) {
 	switch provider {
-	case "claude":
+	case string(AgentClaude):
 		return "claude", true
-	case "codex":
+	case string(AgentCodex):
 		return "codex", true
 	default:
 		return "", false
@@ -208,10 +218,10 @@ func buildFlagArgs(provider string, meta RequestMetadata) []string {
 
 func applyProviderArgs(provider string, args []string) []string {
 	switch strings.ToLower(provider) {
-	case "codex":
+	case string(AgentCodex):
 		// Match execution behavior for non-interactive runs.
 		return append([]string{"exec", "--full-auto", "--skip-git-repo-check"}, args...)
-	case "claude":
+	case string(AgentClaude):
 		// Claude Code permission mode to bypass prompts for edits and commands.
 		return append([]string{"--permission-mode", "bypassPermissions"}, args...)
 	default:

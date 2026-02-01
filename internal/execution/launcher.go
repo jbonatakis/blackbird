@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/jbonatakis/blackbird/internal/agent"
@@ -29,6 +30,7 @@ func LaunchAgentWithStream(ctx context.Context, runtime agent.Runtime, contextPa
 	if runtime.Timeout == 0 {
 		runtime.Timeout = agent.DefaultTimeout
 	}
+	runtime = applySelectedProvider(runtime)
 	if runtime.Command == "" {
 		return RunRecord{}, fmt.Errorf("agent command required")
 	}
@@ -149,4 +151,18 @@ func applyAutoApproveArgs(provider string, args []string) []string {
 	default:
 		return args
 	}
+}
+
+func applySelectedProvider(runtime agent.Runtime) agent.Runtime {
+	if strings.TrimSpace(runtime.Provider) != "" {
+		return runtime
+	}
+	selection, err := agent.LoadAgentSelection(agent.AgentSelectionPath())
+	if err != nil && selection.Agent.ID == "" {
+		return runtime
+	}
+	if selection.Agent.ID != "" {
+		runtime.Provider = string(selection.Agent.ID)
+	}
+	return runtime
 }

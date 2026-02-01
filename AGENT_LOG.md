@@ -1,8 +1,41 @@
 # AGENT_LOG
 
+## 2026-02-01 — Execution launcher default agent selection
+
+- Defaulted execution launcher to use selected agent when runtime provider is unset.
+- Added execution launcher tests for selected-agent defaulting and explicit provider preservation.
+- `go test ./internal/execution/...` failed due to Go build cache permission restrictions (`operation not permitted`).
+
+## 2026-02-01 — TUI bottom bar agent label
+
+- Added shared agent label helper and rendered active agent in bottom bar for Home/Main with compact counts when space is tight.
+- Trimmed low-priority main-view action hints to keep agent + status indicators visible.
+- Added/updated bottom bar tests; ran `go test ./...`.
+
+## 2026-02-01 — TUI agent label tests
+
+- Added model update coverage for agent selection save and explicit bottom bar agent-label assertions for Home/Main.
+
 ## 2026-02-01 — Plan agent consolidation log
 
 - Logged shared plan-agent consolidation (CLI/TUI parity, shared response/status helpers) per work item.
+
+## 2026-02-01 — Agent selection load
+
+- Added agent selection loader with defaults, config-path helper, and validation errors.
+- Added tests for missing/valid/invalid selection configs and default agent helper.
+
+## 2026-02-01 — TUI agent selection
+
+- Added Home-screen agent selection modal with keybinding, persisted selection save/load, and UI status display.
+- Wired agent selection loading into TUI init and refreshes in-memory state on save.
+- Updated runtime default provider selection to respect saved agent config when env vars are unset.
+- Added tests for agent selection modal, save command, home hints, and runtime selection; ran `go test ./...`.
+
+## 2026-02-01 — Agent registry
+
+- Added a small agent registry with stable IDs for Claude/Codex plus lookup helpers and tests.
+- Wired runtime defaults and provider arg selection to use the registry IDs.
 
 ## 2026-02-01 — Parity changes (TUI + shared helpers)
 
@@ -752,3 +785,26 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 
 - Added unit tests for shared plan defaults (constants, JSON schema, system prompt) in `internal/agent/plan_defaults_test.go`.
 - Fixed CLI execute/resume imports for shared plan helper and normalized plan path test to handle macOS tempdir symlinks.
+
+## 2026-02-01 — Agent selection persistence
+
+- Added atomic save helper for agent selection config under `.blackbird/agent.json`, including directory creation and schema serialization.
+- Added tests covering save/load round-trip and invalid agent selection handling.
+
+## 2026-02-01 — Agent selection config tests
+
+- Added invalid-config fallback coverage for agent selection loading (missing field, unsupported schema, trailing data).
+
+## 2026-02-01 — Home view agent display
+
+- Added home view test coverage to ensure the selected agent label is rendered in the status area.
+
+## 2026-02-01 — Documented agent selection
+
+- Documented the Home view agent picker key and noted that the selection persists to `.blackbird/agent.json` in `docs/TUI.md`.
+
+## 2026-02-01 — Plan flow agent selection
+
+- Added agent metadata helper to default request provider from the active runtime while preserving explicit overrides.
+- Wired CLI/TUI plan generate/refine/deps infer flows to apply the runtime provider to plan request metadata.
+- Added unit tests covering provider defaults vs explicit metadata overrides.
