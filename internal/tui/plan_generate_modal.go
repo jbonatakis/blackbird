@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -21,14 +22,24 @@ const (
 	FieldSubmit
 )
 
+const (
+	planGeneratePickerDescription FilePickerField = "plan_generate_description"
+	planGeneratePickerConstraints FilePickerField = "plan_generate_constraints"
+	planGeneratePickerGranularity FilePickerField = "plan_generate_granularity"
+)
+
 // PlanGenerateForm represents the state of the plan generation modal form
 type PlanGenerateForm struct {
-	description  textarea.Model
-	constraints  textarea.Model
-	granularity  textinput.Model
-	focusedField PlanGenerateFormField
-	width        int
-	height       int
+	description       textarea.Model
+	constraints       textarea.Model
+	granularity       textinput.Model
+	focusedField      PlanGenerateFormField
+	filePicker        FilePickerState
+	descriptionAnchor FilePickerAnchor
+	constraintsAnchor FilePickerAnchor
+	granularityAnchor FilePickerAnchor
+	width             int
+	height            int
 }
 
 // NewPlanGenerateForm creates a new plan generation form
@@ -61,6 +72,7 @@ func NewPlanGenerateForm() PlanGenerateForm {
 		constraints:  constraintsTA,
 		granularity:  granularityTI,
 		focusedField: FieldDescription,
+		filePicker:   NewFilePickerState(),
 		width:        70,
 		height:       25,
 	}
@@ -101,6 +113,41 @@ func (f *PlanGenerateForm) SetSize(width, height int) {
 	f.constraints.SetHeight(constHeight)
 }
 
+// OpenFilePicker opens the @ file picker for the provided field.
+func (f *PlanGenerateForm) OpenFilePicker(field PlanGenerateFormField, anchor FilePickerAnchor) bool {
+	pickerField, ok := planGeneratePickerField(field)
+	if !ok {
+		return false
+	}
+	f.setAnchorForField(field, anchor)
+	f.filePicker.OpenAt(pickerField, anchor)
+	return true
+}
+
+// CloseFilePicker closes the @ file picker.
+func (f *PlanGenerateForm) CloseFilePicker() {
+	f.filePicker.Close()
+}
+
+// ApplyFilePickerSelection replaces the @query span with the selected path.
+func (f *PlanGenerateForm) ApplyFilePickerSelection(selectedPath string) bool {
+	if selectedPath == "" {
+		return false
+	}
+	switch f.filePicker.ActiveField {
+	case planGeneratePickerDescription:
+		applyFilePickerToTextarea(&f.description, f.descriptionAnchor, f.filePicker.Query, selectedPath)
+	case planGeneratePickerConstraints:
+		applyFilePickerToTextarea(&f.constraints, f.constraintsAnchor, f.filePicker.Query, selectedPath)
+	case planGeneratePickerGranularity:
+		applyFilePickerToTextInput(&f.granularity, f.granularityAnchor, f.filePicker.Query, selectedPath)
+	default:
+		return false
+	}
+	f.filePicker.Close()
+	return true
+}
+
 // Update handles form updates
 func (f PlanGenerateForm) Update(msg tea.Msg) (PlanGenerateForm, tea.Cmd) {
 	var cmds []tea.Cmd
@@ -108,6 +155,9 @@ func (f PlanGenerateForm) Update(msg tea.Msg) (PlanGenerateForm, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if handled := f.handleFilePickerKey(msg); handled {
+			return f, nil
+		}
 		switch msg.String() {
 		case "tab":
 			return f.focusNext(), nil
@@ -136,6 +186,202 @@ func (f PlanGenerateForm) Update(msg tea.Msg) (PlanGenerateForm, tea.Cmd) {
 	}
 
 	return f, tea.Batch(cmds...)
+}
+
+func planGeneratePickerField(field PlanGenerateFormField) (FilePickerField, bool) {
+	switch field {
+	case FieldDescription:
+		return planGeneratePickerDescription, true
+	case FieldConstraints:
+		return planGeneratePickerConstraints, true
+	case FieldGranularity:
+		return planGeneratePickerGranularity, true
+	default:
+		return FilePickerFieldNone, false
+	}
+}
+
+func (f *PlanGenerateForm) setAnchorForField(field PlanGenerateFormField, anchor FilePickerAnchor) {
+	switch field {
+	case FieldDescription:
+		f.descriptionAnchor = anchor
+	case FieldConstraints:
+		f.constraintsAnchor = anchor
+	case FieldGranularity:
+		f.granularityAnchor = anchor
+	}
+}
+
+func applyFilePickerToTextarea(ta *textarea.Model, anchor FilePickerAnchor, query string, selectedPath string) {
+	updated, cursor := replaceFilePickerSpan(ta.Value(), anchor, query, selectedPath)
+	setTextareaValueWithCursor(ta, updated, cursor)
+}
+
+func applyFilePickerToTextInput(input *textinput.Model, anchor FilePickerAnchor, query string, selectedPath string) {
+	updated, cursor := replaceFilePickerSpan(input.Value(), anchor, query, selectedPath)
+	input.SetValue(updated)
+	input.SetCursor(cursor)
+}
+
+func (f *PlanGenerateForm) handleFilePickerKey(msg tea.KeyMsg) bool {
+	pickerField, ok := planGeneratePickerField(f.focusedField)
+	if !ok {
+		return false
+	}
+
+	anchor := planGenerateFieldAnchor(f)
+	prevOpen := f.filePicker.Open
+	prevQuery := f.filePicker.Query
+
+	result, err := HandleFilePickerKey(&f.filePicker, msg, FilePickerKeyOptions{
+		Field:  pickerField,
+		Anchor: anchor,
+	})
+	if err != nil {
+		f.filePicker.Close()
+		return true
+	}
+
+	if !prevOpen && f.filePicker.Open {
+		f.setAnchorForField(f.focusedField, anchor)
+	}
+
+	if result.Action == FilePickerActionInsert {
+		f.filePicker.Query = prevQuery
+		if result.Selected != "" {
+			f.ApplyFilePickerSelection(result.Selected)
+		} else {
+			f.filePicker.Close()
+		}
+		return true
+	}
+
+	if result.Action == FilePickerActionCancel {
+		f.filePicker.Close()
+		if prevOpen && (msg.String() == "tab" || msg.String() == "shift+tab") {
+			return false
+		}
+		if prevOpen {
+			return true
+		}
+	}
+
+	if result.Consumed {
+		return true
+	}
+
+	return false
+}
+
+func planGenerateFieldAnchor(f *PlanGenerateForm) FilePickerAnchor {
+	if f == nil {
+		return FilePickerAnchor{}
+	}
+	switch f.focusedField {
+	case FieldDescription:
+		return textareaCursorAnchor(f.description)
+	case FieldConstraints:
+		return textareaCursorAnchor(f.constraints)
+	case FieldGranularity:
+		return textInputCursorAnchor(f.granularity)
+	default:
+		return FilePickerAnchor{}
+	}
+}
+
+func textareaCursorAnchor(ta textarea.Model) FilePickerAnchor {
+	value := ta.Value()
+	lines := strings.Split(value, "\n")
+	row := ta.Line()
+	if row < 0 {
+		row = 0
+	}
+	if row >= len(lines) && len(lines) > 0 {
+		row = len(lines) - 1
+	}
+
+	lineInfo := ta.LineInfo()
+	col := lineInfo.StartColumn + lineInfo.ColumnOffset
+	if len(lines) == 0 {
+		row = 0
+		col = 0
+	} else {
+		lineLen := utf8.RuneCountInString(lines[row])
+		if col > lineLen {
+			col = lineLen
+		}
+		if col < 0 {
+			col = 0
+		}
+	}
+
+	start := 0
+	for i := 0; i < row && i < len(lines); i++ {
+		start += utf8.RuneCountInString(lines[i]) + 1
+	}
+	start += col
+
+	return FilePickerAnchor{
+		Start:  start,
+		Line:   row,
+		Column: col,
+	}
+}
+
+func textInputCursorAnchor(input textinput.Model) FilePickerAnchor {
+	pos := input.Position()
+	if pos < 0 {
+		pos = 0
+	}
+	return FilePickerAnchor{
+		Start:  pos,
+		Line:   0,
+		Column: pos,
+	}
+}
+
+func setTextareaValueWithCursor(ta *textarea.Model, value string, cursor int) {
+	ta.SetValue(value)
+	if cursor < 0 {
+		cursor = 0
+	}
+	lineCount := ta.LineCount()
+	if lineCount <= 0 {
+		return
+	}
+
+	row, col := cursorRowCol(value, cursor)
+	if row < 0 {
+		row = 0
+	}
+	if row > lineCount-1 {
+		row = lineCount - 1
+	}
+	if col < 0 {
+		col = 0
+	}
+
+	ta.CursorStart()
+	for i := 0; i < lineCount-1-row; i++ {
+		ta.CursorUp()
+	}
+	ta.SetCursor(col)
+}
+
+func cursorRowCol(value string, cursor int) (row int, col int) {
+	runes := []rune(value)
+	if cursor > len(runes) {
+		cursor = len(runes)
+	}
+	for i := 0; i < cursor; i++ {
+		if runes[i] == '\n' {
+			row++
+			col = 0
+			continue
+		}
+		col++
+	}
+	return row, col
 }
 
 // focusNext moves focus to the next field
@@ -229,6 +475,17 @@ func HandlePlanGenerateKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if msg.String() == "esc" {
+		if m.planGenerateForm.filePicker.Open {
+			updatedForm, cmd := m.planGenerateForm.Update(msg)
+			m.planGenerateForm = &updatedForm
+			return m, cmd
+		}
+		m.actionMode = ActionModeNone
+		m.planGenerateForm = nil
+		return m, nil
+	}
+
 	// Handle Enter on Submit field - attempt to submit the form
 	if msg.String() == "enter" && m.planGenerateForm.focusedField == FieldSubmit {
 		if err := m.planGenerateForm.Validate(); err != nil {
@@ -284,62 +541,6 @@ func RenderPlanGenerateModal(m Model, form PlanGenerateForm) string {
 	title := titleStyle.Render("Generate Plan")
 	helpText := labelStyle.Render("Tab: next field • Enter: new line (in text areas) • Shift+Tab: previous • ESC: cancel")
 
-	// Build form fields
-	var lines []string
-	lines = append(lines, title)
-	lines = append(lines, "")
-
-	// Description field
-	descLabel := "Project Description (required):"
-	if form.focusedField == FieldDescription {
-		descLabel = focusedLabelStyle.Render(descLabel)
-	} else {
-		descLabel = labelStyle.Render(descLabel)
-	}
-	lines = append(lines, descLabel)
-	lines = append(lines, form.description.View())
-	lines = append(lines, "")
-
-	// Constraints field
-	constraintsLabel := "Constraints (optional, comma-separated):"
-	if form.focusedField == FieldConstraints {
-		constraintsLabel = focusedLabelStyle.Render(constraintsLabel)
-	} else {
-		constraintsLabel = labelStyle.Render(constraintsLabel)
-	}
-	lines = append(lines, constraintsLabel)
-	lines = append(lines, form.constraints.View())
-	lines = append(lines, "")
-
-	// Granularity field
-	granularityLabel := "Granularity (optional):"
-	if form.focusedField == FieldGranularity {
-		granularityLabel = focusedLabelStyle.Render(granularityLabel)
-	} else {
-		granularityLabel = labelStyle.Render(granularityLabel)
-	}
-	lines = append(lines, granularityLabel)
-	lines = append(lines, form.granularity.View())
-	lines = append(lines, "")
-
-	// Submit button
-	submitButton := "[ Submit ]"
-	if form.focusedField == FieldSubmit {
-		submitButton = focusedButtonStyle.Render(submitButton)
-	} else {
-		submitButton = buttonStyle.Render(submitButton)
-	}
-	lines = append(lines, submitButton)
-	lines = append(lines, "")
-
-	// Validation error if any
-	if err := form.Validate(); err != nil && form.focusedField == FieldSubmit {
-		lines = append(lines, errorStyle.Render("⚠ "+err.Error()))
-		lines = append(lines, "")
-	}
-
-	lines = append(lines, helpText)
-
 	// Full-screen modal: use full window minus margin and space for bottom bar
 	modalWidth := m.windowWidth - 4
 	if modalWidth < 50 {
@@ -349,6 +550,98 @@ func RenderPlanGenerateModal(m Model, form PlanGenerateForm) string {
 	if modalHeight < 10 {
 		modalHeight = 10
 	}
+
+	contentWidth := modalWidth - 6
+	if contentWidth < 1 {
+		contentWidth = 1
+	}
+
+	// Build form fields
+	descLabel := "Project Description (required):"
+	if form.focusedField == FieldDescription {
+		descLabel = focusedLabelStyle.Render(descLabel)
+	} else {
+		descLabel = labelStyle.Render(descLabel)
+	}
+
+	constraintsLabel := "Constraints (optional, comma-separated):"
+	if form.focusedField == FieldConstraints {
+		constraintsLabel = focusedLabelStyle.Render(constraintsLabel)
+	} else {
+		constraintsLabel = labelStyle.Render(constraintsLabel)
+	}
+
+	granularityLabel := "Granularity (optional):"
+	if form.focusedField == FieldGranularity {
+		granularityLabel = focusedLabelStyle.Render(granularityLabel)
+	} else {
+		granularityLabel = labelStyle.Render(granularityLabel)
+	}
+
+	submitButton := "[ Submit ]"
+	if form.focusedField == FieldSubmit {
+		submitButton = focusedButtonStyle.Render(submitButton)
+	} else {
+		submitButton = buttonStyle.Render(submitButton)
+	}
+
+	renderLines := func(picker string) []string {
+		lines := []string{title, ""}
+		appendField := func(label, view string, field PlanGenerateFormField) {
+			lines = append(lines, label, view)
+			if picker != "" && form.focusedField == field {
+				lines = append(lines, picker)
+			} else {
+				lines = append(lines, "")
+			}
+		}
+
+		appendField(descLabel, form.description.View(), FieldDescription)
+		appendField(constraintsLabel, form.constraints.View(), FieldConstraints)
+		appendField(granularityLabel, form.granularity.View(), FieldGranularity)
+
+		lines = append(lines, submitButton, "")
+
+		if err := form.Validate(); err != nil && form.focusedField == FieldSubmit {
+			lines = append(lines, errorStyle.Render("⚠ "+err.Error()), "")
+		}
+
+		lines = append(lines, helpText)
+		return lines
+	}
+
+	baseLines := renderLines("")
+	baseHeight := lipgloss.Height(lipgloss.JoinVertical(lipgloss.Left, baseLines...))
+
+	picker := ""
+	if form.filePicker.Open {
+		pickerWidth := contentWidth
+		switch form.focusedField {
+		case FieldDescription:
+			pickerWidth = form.description.Width()
+		case FieldConstraints:
+			pickerWidth = form.constraints.Width()
+		case FieldGranularity:
+			pickerWidth = lipgloss.Width(form.granularity.View())
+		}
+		if pickerWidth < 1 {
+			pickerWidth = contentWidth
+		}
+		if pickerWidth > contentWidth {
+			pickerWidth = contentWidth
+		}
+
+		available := modalHeight - baseHeight + 1
+		if available < 1 {
+			available = 1
+		}
+		if available > 6 {
+			available = 6
+		}
+		picker = RenderFilePickerList(form.filePicker, pickerWidth, available)
+	}
+
+	lines := renderLines(picker)
 
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -148,6 +149,200 @@ func TestModel_ClosePlanGenerateModal(t *testing.T) {
 	}
 }
 
+func TestModel_EscClosesFilePickerInPlanGenerateModal(t *testing.T) {
+	m := NewModel(plan.NewEmptyWorkGraph())
+	form := NewPlanGenerateForm()
+	form.description.SetValue("See @src/")
+	anchor := FilePickerAnchor{Start: runeIndexInString(form.description.Value(), "@")}
+	if !form.OpenFilePicker(FieldDescription, anchor) {
+		t.Fatalf("expected OpenFilePicker to return true")
+	}
+	form.filePicker.Query = "src/"
+	form.filePicker.Matches = []string{"src/main.go"}
+	form.filePicker.Selected = 0
+
+	m.planGenerateForm = &form
+	m.actionMode = ActionModeGeneratePlan
+
+	msg := tea.KeyMsg{Type: tea.KeyEsc}
+	updated, _ := m.Update(msg)
+	m = updated.(Model)
+
+	if m.actionMode != ActionModeGeneratePlan {
+		t.Fatalf("expected ActionModeGeneratePlan, got %v", m.actionMode)
+	}
+	if m.planGenerateForm == nil {
+		t.Fatalf("expected planGenerateForm to remain open")
+	}
+	if m.planGenerateForm.filePicker.Open {
+		t.Fatalf("expected file picker to be closed after esc")
+	}
+}
+
+func TestModel_PlanGeneratePickerOpensOnAt(t *testing.T) {
+	m := NewModel(plan.NewEmptyWorkGraph())
+	form := NewPlanGenerateForm()
+
+	m.planGenerateForm = &form
+	m.actionMode = ActionModeGeneratePlan
+
+	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'@'}}
+	updated, _ := m.Update(msg)
+	m = updated.(Model)
+
+	if m.actionMode != ActionModeGeneratePlan {
+		t.Fatalf("expected ActionModeGeneratePlan, got %v", m.actionMode)
+	}
+	if m.planGenerateForm == nil {
+		t.Fatalf("expected planGenerateForm to remain open")
+	}
+	if !m.planGenerateForm.filePicker.Open {
+		t.Fatalf("expected file picker to be open after @")
+	}
+	if m.planGenerateForm.filePicker.ActiveField != planGeneratePickerDescription {
+		t.Fatalf("expected active field %q, got %q", planGeneratePickerDescription, m.planGenerateForm.filePicker.ActiveField)
+	}
+	if m.planGenerateForm.description.Value() != "@" {
+		t.Fatalf("expected description to contain @, got %q", m.planGenerateForm.description.Value())
+	}
+}
+
+func TestModel_PlanGeneratePickerEnterInsertsDescription(t *testing.T) {
+	m := NewModel(plan.NewEmptyWorkGraph())
+	form := NewPlanGenerateForm()
+	form.description.SetValue("See @src/")
+	anchor := FilePickerAnchor{Start: runeIndexInString(form.description.Value(), "@")}
+	if !form.OpenFilePicker(FieldDescription, anchor) {
+		t.Fatalf("expected OpenFilePicker to return true")
+	}
+	form.filePicker.Query = "src/"
+	form.filePicker.Matches = []string{"src/main.go"}
+	form.filePicker.Selected = 0
+
+	m.planGenerateForm = &form
+	m.actionMode = ActionModeGeneratePlan
+
+	msg := tea.KeyMsg{Type: tea.KeyEnter}
+	updated, _ := m.Update(msg)
+	m = updated.(Model)
+
+	if m.actionMode != ActionModeGeneratePlan {
+		t.Fatalf("expected ActionModeGeneratePlan, got %v", m.actionMode)
+	}
+	if m.planGenerateForm == nil {
+		t.Fatalf("expected planGenerateForm to remain open")
+	}
+	if m.planGenerateForm.filePicker.Open {
+		t.Fatalf("expected file picker to be closed after insert")
+	}
+	expected := "See @src/main.go"
+	if m.planGenerateForm.description.Value() != expected {
+		t.Fatalf("expected %q, got %q", expected, m.planGenerateForm.description.Value())
+	}
+}
+
+func TestModel_PlanGeneratePickerEnterInsertsConstraints(t *testing.T) {
+	m := NewModel(plan.NewEmptyWorkGraph())
+	form := NewPlanGenerateForm()
+	form = form.focusNext() // Constraints
+	form.constraints.SetValue("Use @src/")
+	anchor := FilePickerAnchor{Start: runeIndexInString(form.constraints.Value(), "@")}
+	if !form.OpenFilePicker(FieldConstraints, anchor) {
+		t.Fatalf("expected OpenFilePicker to return true")
+	}
+	form.filePicker.Query = "src/"
+	form.filePicker.Matches = []string{"src/config.yaml"}
+	form.filePicker.Selected = 0
+
+	m.planGenerateForm = &form
+	m.actionMode = ActionModeGeneratePlan
+
+	msg := tea.KeyMsg{Type: tea.KeyEnter}
+	updated, _ := m.Update(msg)
+	m = updated.(Model)
+
+	if m.actionMode != ActionModeGeneratePlan {
+		t.Fatalf("expected ActionModeGeneratePlan, got %v", m.actionMode)
+	}
+	if m.planGenerateForm == nil {
+		t.Fatalf("expected planGenerateForm to remain open")
+	}
+	if m.planGenerateForm.filePicker.Open {
+		t.Fatalf("expected file picker to be closed after insert")
+	}
+	expected := "Use @src/config.yaml"
+	if m.planGenerateForm.constraints.Value() != expected {
+		t.Fatalf("expected %q, got %q", expected, m.planGenerateForm.constraints.Value())
+	}
+}
+
+func TestModel_PlanGeneratePickerTabClosesAndMovesFocus(t *testing.T) {
+	m := NewModel(plan.NewEmptyWorkGraph())
+	form := NewPlanGenerateForm()
+	form.description.SetValue("See @src/")
+	anchor := FilePickerAnchor{Start: runeIndexInString(form.description.Value(), "@")}
+	if !form.OpenFilePicker(FieldDescription, anchor) {
+		t.Fatalf("expected OpenFilePicker to return true")
+	}
+	form.filePicker.Query = "src/"
+	form.filePicker.Matches = []string{"src/main.go"}
+	form.filePicker.Selected = 0
+
+	m.planGenerateForm = &form
+	m.actionMode = ActionModeGeneratePlan
+
+	msg := tea.KeyMsg{Type: tea.KeyTab}
+	updated, _ := m.Update(msg)
+	m = updated.(Model)
+
+	if m.planGenerateForm == nil {
+		t.Fatalf("expected planGenerateForm to remain open")
+	}
+	if m.planGenerateForm.filePicker.Open {
+		t.Fatalf("expected file picker to be closed after tab")
+	}
+	if m.planGenerateForm.focusedField != FieldConstraints {
+		t.Fatalf("expected focus to move to constraints, got %v", m.planGenerateForm.focusedField)
+	}
+	if !m.planGenerateForm.constraints.Focused() {
+		t.Fatalf("expected constraints to be focused")
+	}
+}
+
+func TestModel_PlanGeneratePickerShiftTabClosesAndMovesFocus(t *testing.T) {
+	m := NewModel(plan.NewEmptyWorkGraph())
+	form := NewPlanGenerateForm()
+	form = form.focusNext() // Constraints
+	form.constraints.SetValue("See @src/")
+	anchor := FilePickerAnchor{Start: runeIndexInString(form.constraints.Value(), "@")}
+	if !form.OpenFilePicker(FieldConstraints, anchor) {
+		t.Fatalf("expected OpenFilePicker to return true")
+	}
+	form.filePicker.Query = "src/"
+	form.filePicker.Matches = []string{"src/main.go"}
+	form.filePicker.Selected = 0
+
+	m.planGenerateForm = &form
+	m.actionMode = ActionModeGeneratePlan
+
+	msg := tea.KeyMsg{Type: tea.KeyShiftTab}
+	updated, _ := m.Update(msg)
+	m = updated.(Model)
+
+	if m.planGenerateForm == nil {
+		t.Fatalf("expected planGenerateForm to remain open")
+	}
+	if m.planGenerateForm.filePicker.Open {
+		t.Fatalf("expected file picker to be closed after shift+tab")
+	}
+	if m.planGenerateForm.focusedField != FieldDescription {
+		t.Fatalf("expected focus to move to description, got %v", m.planGenerateForm.focusedField)
+	}
+	if !m.planGenerateForm.description.Focused() {
+		t.Fatalf("expected description to be focused")
+	}
+}
+
 func TestModel_SpinnerDuringPlanGeneration(t *testing.T) {
 	m := NewModel(plan.NewEmptyWorkGraph())
 	m.windowWidth = 80
@@ -186,6 +381,38 @@ func TestModel_SpinnerDuringPlanGeneration(t *testing.T) {
 	// Verify that command was returned (for async execution)
 	if cmd == nil {
 		t.Error("Expected non-nil command to be returned for plan generation")
+	}
+}
+
+func TestRenderPlanGenerateModal_IncludesFilePickerWhenOpen(t *testing.T) {
+	m := NewModel(plan.NewEmptyWorkGraph())
+	m.windowWidth = 80
+	m.windowHeight = 24
+
+	form := NewPlanGenerateForm()
+	form.SetSize(80, 24)
+	form.description.SetValue("See @src/")
+	anchor := FilePickerAnchor{Start: runeIndexInString(form.description.Value(), "@")}
+	if !form.OpenFilePicker(FieldDescription, anchor) {
+		t.Fatalf("expected OpenFilePicker to return true")
+	}
+	form.filePicker.Query = "src/"
+	form.filePicker.Matches = []string{"src/main.go", "src/other.go"}
+	form.filePicker.Selected = 0
+
+	out := RenderPlanGenerateModal(m, form)
+	if !strings.Contains(out, "src/main.go") {
+		t.Fatalf("expected picker output to include match, got:\n%s", out)
+	}
+
+	descIndex := strings.Index(out, "Project Description (required):")
+	pickerIndex := strings.Index(out, "src/main.go")
+	constraintsIndex := strings.Index(out, "Constraints (optional, comma-separated):")
+	if descIndex == -1 || pickerIndex == -1 || constraintsIndex == -1 {
+		t.Fatalf("expected labels and picker output to be present")
+	}
+	if !(descIndex < pickerIndex && pickerIndex < constraintsIndex) {
+		t.Fatalf("expected picker output between description and constraints sections")
 	}
 }
 

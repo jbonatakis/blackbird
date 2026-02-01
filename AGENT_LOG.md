@@ -1,5 +1,51 @@
 # AGENT_LOG
 
+## 2026-02-01 — @path picker integration (plan modals)
+
+- Integrated @-triggered file picker across plan generate/refine modals (rendering, key routing, insertion, ESC handling).
+- Added integration/unit coverage for picker open/query/insert and modal rendering/ESC behavior.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui/...`.
+
+## 2026-02-01 — Plan modal ESC guard in model update
+
+- Added model-level ESC handling for plan generate/refine that closes the @ file picker first and only closes the modal when the picker is not open.
+
+## 2026-02-01 — Plan refine picker key routing
+
+- Routed plan-refine key handling to prioritize the @ file picker when open.
+- Added model-level tests for plan-refine picker open-on-@ and enter insertion behavior.
+
+## 2026-02-01 — Plan generate picker key routing
+
+- Routed plan-generate key handling through the @ file picker, with anchor tracking, query updates, and insert/cancel behavior tied to the focused field.
+- Ensured ESC closes the picker without dismissing the modal; tab/shift+tab close the picker without moving focus.
+- Added plan-generate picker routing tests (open/query/backspace, tab close, enter insert) plus modal ESC behavior coverage.
+- `go test ./internal/tui/...` failed due to Go build cache permission restrictions (`operation not permitted`).
+
+## 2026-02-01 — Plan generate picker state
+
+- Added file picker state + per-field anchors to `PlanGenerateForm` with helpers to open/close/apply selections.
+- Added helpers for applying picker selections to textareas/textinput with cursor positioning.
+- Added unit tests covering picker open tracking and selection insertion behavior.
+
+## 2026-02-01 — Hard/soft deps spec: soft deps under-the-hood only
+
+- Updated `specs/improvements/HARD_SOFT_DEPS_AND_UNBLOCKS_MOST.md`: soft deps are not rendered or editable in CLI/TUI; they are plan-only (visible in plan JSON or in code). Added "Display and editing: soft deps are under-the-hood only" section, clarified Dependents display shows only hard dependents, updated Non-goals and Done criteria.
+
+## 2026-02-01 — Hard/soft deps and unblocks-most spec
+
+- Added `specs/improvements/HARD_SOFT_DEPS_AND_UNBLOCKS_MOST.md`: spec for two dependency lists (hard `deps`, soft `softDeps`) with mutual exclusivity per dependent; readiness uses only hard deps; ready-task ordering by "unblocks most" (prefer task that the most other not-done tasks depend on, hard or soft), then task ID tie-break. Covers schema, validation, readiness, selector order, Dependents/depRationale/cycle detection, and backward compatibility.
+
+## 2026-02-01 — TUI file picker state
+
+- Added `internal/tui/file_picker_state.go` with `FilePickerState`, anchor metadata, and helpers (open/close/reset, selection clamping).
+- Added unit tests for picker state selection behavior and anchor span in `internal/tui/file_picker_state_test.go`.
+- `go test ./internal/tui/...` failed due to Go build cache permission restrictions (`operation not permitted`).
+
+## 2026-02-01 — File lookup (@path) spec
+
+- Added `specs/improvements/FILE_LOOKUP_AT_PATH.md`: spec for @-triggered file picker in plan generate and plan refine text boxes. Typing `@` opens a picker that filters files by path prefix; Enter inserts chosen path, Escape cancels. Covers scope (which fields), UX (filtering, keys), technical approach (file listing, picker state, key routing, insert), touchpoints, edge cases, and out-of-scope items (.gitignore, CLI, other modals).
+
 ## 2026-02-01 — TUI Change agent shortcut [c] and position
 
 - Changed agent shortcut from [a] to [c] (Change agent) to differentiate from [g] Generate plan.
@@ -836,3 +882,72 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 
 - Simplified TUI tree lines to compact readiness abbreviations and removed redundant status column.
 - Added truncation helpers for IDs/titles based on pane width to keep lines readable in narrow terminals.
+
+## 2026-02-01 — TUI file picker file listing
+
+- Added workspace file listing helper for the @ file picker that walks cwd, skips .git/.blackbird, enforces a max result cap, and returns forward-slashed relative paths.
+- Added unit tests covering prefix filtering, noise-dir skipping, forward-slash normalization, and max-result limit handling.
+- `go test ./internal/tui/...` failed due to Go build cache permission restrictions (operation not permitted).
+
+## 2026-02-01 — File picker filtering helper
+
+- Added deterministic file picker filtering helper that normalizes slashes, filters by prefix, and sorts/limits results.
+- Updated workspace file listing to return ordered matches and added unit tests for filtering behavior (ordering, empty query, slash normalization).
+
+## 2026-02-01 — File picker insertion helper
+
+- Added a helper to replace the @query span with the selected path and return the updated value plus cursor rune index.
+- Added unit tests covering single-line and multi-line replacements.
+- `go test ./internal/tui/...` failed due to Go build cache permission restrictions (`operation not permitted`).
+
+## 2026-02-01 — File picker key handling helper
+
+- Added file picker key routing helper with actions (none/insert/cancel), query/match updates, and selection movement, plus matching utilities.
+- Added unit tests covering open-on-@ behavior, selection moves, enter/esc/tab handling, and query edits.
+- `go test ./internal/tui/...` failed due to Go build cache permission restrictions (`operation not permitted`).
+
+## 2026-02-01 — TUI file picker rendering
+
+- Added a file picker list renderer using lipgloss with selection highlight, empty-state message, and fixed sizing for modal use.
+- Added tests covering closed-state rendering, empty-state message sizing, and selection window output.
+
+## 2026-02-01 — File picker table-driven tests
+
+- Added table-driven tests for file picker listing/filtering and key handling actions/bounds in `internal/tui/file_picker_test.go`.
+
+## 2026-02-01 — Granularity file picker support
+
+- Added file picker tests for granularity textinput, covering open/query updates, tab cancellation, and enter insertion.
+- Normalized backslash paths in file picker filtering/listing for cross-platform match behavior.
+- Ran `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui/...`.
+
+## 2026-02-01 — Plan generate picker rendering
+
+- Rendered the file picker list inside the plan generate modal, aligned to the active field and clamped to modal width/height.
+- Added a render test ensuring picker output appears between the description and constraints sections when open.
+
+## 2026-02-01 — Plan generate modal picker integration tests
+
+- Added plan generate modal integration tests covering @-open, enter insertion in description/constraints, and tab/shift+tab focus changes.
+- Updated file picker tab handling to close and allow focus movement, and adjusted form-level picker tests accordingly.
+- Ran `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui/...`.
+
+## 2026-02-01 — Plan refine picker state
+
+- Added file picker state + anchor tracking to `PlanRefineForm` with open/close/apply helpers and key routing.
+- Rendered the file picker list inside the plan refine modal and aligned ESC handling so it closes the picker before the modal.
+- Added tests for refine picker open/query/insertion, modal rendering, and ESC behavior; ran `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui/...`.
+
+## 2026-02-01 — Plan refine picker render verification
+
+- Verified `RenderPlanRefineModal` already renders the file picker list when open, with width clamped to the textarea/modal content for alignment.
+- No code changes needed for the picker render task.
+
+## 2026-02-01 — Documented @path lookup in TUI
+
+- Added TUI docs note describing @ file lookup behavior in plan generate/refine text areas and key controls.
+
+## 2026-02-01 — Plan refine picker modal tests
+
+- Added plan-refine modal integration tests for file picker ESC close and tab/shift+tab focus changes.
+- Ran `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui/...`.

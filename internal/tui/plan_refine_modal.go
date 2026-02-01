@@ -18,11 +18,17 @@ const (
 	RefineFieldSubmit
 )
 
+const (
+	planRefinePickerChangeRequest FilePickerField = "plan_refine_change_request"
+)
+
 // PlanRefineForm represents the state of the plan refine modal
 // for capturing a change request.
 type PlanRefineForm struct {
 	changeRequest textarea.Model
 	focusedField  PlanRefineFormField
+	filePicker    FilePickerState
+	requestAnchor FilePickerAnchor
 	width         int
 	height        int
 }
@@ -39,6 +45,7 @@ func NewPlanRefineForm() PlanRefineForm {
 	return PlanRefineForm{
 		changeRequest: ta,
 		focusedField:  RefineFieldChangeRequest,
+		filePicker:    NewFilePickerState(),
 		width:         70,
 		height:        20,
 	}
@@ -69,12 +76,43 @@ func (f *PlanRefineForm) SetSize(width, height int) {
 	f.changeRequest.SetHeight(taHeight)
 }
 
+// OpenFilePicker opens the @ file picker for the change-request field.
+func (f *PlanRefineForm) OpenFilePicker(anchor FilePickerAnchor) bool {
+	if f.focusedField != RefineFieldChangeRequest {
+		return false
+	}
+	f.requestAnchor = anchor
+	f.filePicker.OpenAt(planRefinePickerChangeRequest, anchor)
+	return true
+}
+
+// CloseFilePicker closes the @ file picker.
+func (f *PlanRefineForm) CloseFilePicker() {
+	f.filePicker.Close()
+}
+
+// ApplyFilePickerSelection replaces the @query span with the selected path.
+func (f *PlanRefineForm) ApplyFilePickerSelection(selectedPath string) bool {
+	if selectedPath == "" {
+		return false
+	}
+	if f.filePicker.ActiveField != planRefinePickerChangeRequest {
+		return false
+	}
+	applyFilePickerToTextarea(&f.changeRequest, f.requestAnchor, f.filePicker.Query, selectedPath)
+	f.filePicker.Close()
+	return true
+}
+
 // Update handles form updates.
 func (f PlanRefineForm) Update(msg tea.Msg) (PlanRefineForm, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if handled := f.handleFilePickerKey(msg); handled {
+			return f, nil
+		}
 		switch msg.String() {
 		case "tab":
 			return f.focusNext(), nil
@@ -96,6 +134,73 @@ func (f PlanRefineForm) Update(msg tea.Msg) (PlanRefineForm, tea.Cmd) {
 		return f, nil
 	}
 	return f, nil
+}
+
+func planRefinePickerField(field PlanRefineFormField) (FilePickerField, bool) {
+	if field == RefineFieldChangeRequest {
+		return planRefinePickerChangeRequest, true
+	}
+	return FilePickerFieldNone, false
+}
+
+func planRefineFieldAnchor(f *PlanRefineForm) FilePickerAnchor {
+	if f == nil {
+		return FilePickerAnchor{}
+	}
+	if f.focusedField == RefineFieldChangeRequest {
+		return textareaCursorAnchor(f.changeRequest)
+	}
+	return FilePickerAnchor{}
+}
+
+func (f *PlanRefineForm) handleFilePickerKey(msg tea.KeyMsg) bool {
+	pickerField, ok := planRefinePickerField(f.focusedField)
+	if !ok {
+		return false
+	}
+
+	anchor := planRefineFieldAnchor(f)
+	prevOpen := f.filePicker.Open
+	prevQuery := f.filePicker.Query
+
+	result, err := HandleFilePickerKey(&f.filePicker, msg, FilePickerKeyOptions{
+		Field:  pickerField,
+		Anchor: anchor,
+	})
+	if err != nil {
+		f.filePicker.Close()
+		return true
+	}
+
+	if !prevOpen && f.filePicker.Open {
+		f.requestAnchor = anchor
+	}
+
+	if result.Action == FilePickerActionInsert {
+		f.filePicker.Query = prevQuery
+		if result.Selected != "" {
+			f.ApplyFilePickerSelection(result.Selected)
+		} else {
+			f.filePicker.Close()
+		}
+		return true
+	}
+
+	if result.Action == FilePickerActionCancel {
+		f.filePicker.Close()
+		if prevOpen && (msg.String() == "tab" || msg.String() == "shift+tab") {
+			return false
+		}
+		if prevOpen {
+			return true
+		}
+	}
+
+	if result.Consumed {
+		return true
+	}
+
+	return false
 }
 
 func (f PlanRefineForm) focusNext() PlanRefineForm {
@@ -132,6 +237,12 @@ func HandlePlanRefineKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.planRefineForm.filePicker.Open {
+		updatedForm, cmd := m.planRefineForm.Update(msg)
+		m.planRefineForm = &updatedForm
+		return m, cmd
+	}
+
 	// Enter on Submit button: submit the form
 	if msg.String() == "enter" && m.planRefineForm.focusedField == RefineFieldSubmit {
 		changeRequest := m.planRefineForm.GetChangeRequest()
@@ -159,6 +270,11 @@ func HandlePlanRefineKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	}
 
 	if msg.String() == "esc" {
+		if m.planRefineForm.filePicker.Open {
+			updatedForm, cmd := m.planRefineForm.Update(msg)
+			m.planRefineForm = &updatedForm
+			return m, cmd
+		}
 		m.actionMode = ActionModeNone
 		m.planRefineForm = nil
 		return m, nil
@@ -173,6 +289,7 @@ func HandlePlanRefineKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 func RenderPlanRefineModal(m Model, form PlanRefineForm) string {
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69"))
 	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	focusedLabelStyle := labelStyle.Copy().Foreground(lipgloss.Color("69")).Bold(true)
 	helperStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	buttonStyle := lipgloss.NewStyle().
 		Padding(0, 2).
@@ -183,12 +300,14 @@ func RenderPlanRefineModal(m Model, form PlanRefineForm) string {
 		Bold(true)
 	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 
-	lines := []string{
-		titleStyle.Render("Refine Plan"),
-		"",
-		labelStyle.Render("Describe the changes you want:"),
-		form.changeRequest.View(),
-		"",
+	title := titleStyle.Render("Refine Plan")
+	helpText := helperStyle.Render("Tab: next • Enter: new line (in text) • Shift+Tab: previous • [esc]cancel")
+
+	label := "Describe the changes you want:"
+	if form.focusedField == RefineFieldChangeRequest {
+		label = focusedLabelStyle.Render(label)
+	} else {
+		label = labelStyle.Render(label)
 	}
 
 	submitButton := "[ Submit ]"
@@ -197,15 +316,6 @@ func RenderPlanRefineModal(m Model, form PlanRefineForm) string {
 	} else {
 		submitButton = buttonStyle.Render(submitButton)
 	}
-	lines = append(lines, submitButton)
-	lines = append(lines, "")
-
-	if strings.TrimSpace(form.changeRequest.Value()) == "" && form.focusedField == RefineFieldSubmit {
-		lines = append(lines, errorStyle.Render("Change request cannot be empty"), "")
-	}
-
-	lines = append(lines, helperStyle.Render("Tab: next • Enter: new line (in text) • Shift+Tab: previous • [esc]cancel"))
-
 	// Full-screen modal
 	modalWidth := m.windowWidth - 4
 	if modalWidth < 50 {
@@ -215,6 +325,54 @@ func RenderPlanRefineModal(m Model, form PlanRefineForm) string {
 	if modalHeight < 10 {
 		modalHeight = 10
 	}
+
+	contentWidth := modalWidth - 6
+	if contentWidth < 1 {
+		contentWidth = 1
+	}
+
+	renderLines := func(picker string) []string {
+		lines := []string{title, "", label, form.changeRequest.View()}
+		if picker != "" && form.focusedField == RefineFieldChangeRequest {
+			lines = append(lines, picker)
+		} else {
+			lines = append(lines, "")
+		}
+
+		lines = append(lines, submitButton, "")
+
+		if strings.TrimSpace(form.changeRequest.Value()) == "" && form.focusedField == RefineFieldSubmit {
+			lines = append(lines, errorStyle.Render("Change request cannot be empty"), "")
+		}
+
+		lines = append(lines, helpText)
+		return lines
+	}
+
+	baseLines := renderLines("")
+	baseHeight := lipgloss.Height(lipgloss.JoinVertical(lipgloss.Left, baseLines...))
+
+	picker := ""
+	if form.filePicker.Open {
+		pickerWidth := form.changeRequest.Width()
+		if pickerWidth < 1 {
+			pickerWidth = contentWidth
+		}
+		if pickerWidth > contentWidth {
+			pickerWidth = contentWidth
+		}
+
+		available := modalHeight - baseHeight + 1
+		if available < 1 {
+			available = 1
+		}
+		if available > 6 {
+			available = 6
+		}
+		picker = RenderFilePickerList(form.filePicker, pickerWidth, available)
+	}
+
+	lines := renderLines(picker)
 
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
