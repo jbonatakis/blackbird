@@ -10,10 +10,19 @@ import (
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
+// PlanRefineFormField represents the focused field in the refine form.
+type PlanRefineFormField int
+
+const (
+	RefineFieldChangeRequest PlanRefineFormField = iota
+	RefineFieldSubmit
+)
+
 // PlanRefineForm represents the state of the plan refine modal
 // for capturing a change request.
 type PlanRefineForm struct {
 	changeRequest textarea.Model
+	focusedField  PlanRefineFormField
 	width         int
 	height        int
 }
@@ -29,6 +38,7 @@ func NewPlanRefineForm() PlanRefineForm {
 
 	return PlanRefineForm{
 		changeRequest: ta,
+		focusedField:  RefineFieldChangeRequest,
 		width:         70,
 		height:        20,
 	}
@@ -40,21 +50,74 @@ func (f *PlanRefineForm) SetSize(width, height int) {
 	f.height = height
 
 	fieldWidth := width - 10
-	if fieldWidth > 80 {
-		fieldWidth = 80
+	if fieldWidth > 120 {
+		fieldWidth = 120
 	}
 	if fieldWidth < 40 {
 		fieldWidth = 40
 	}
 
 	f.changeRequest.SetWidth(fieldWidth)
+	// Use more lines for the textarea when we have full-screen height
+	taHeight := 4
+	if height > 20 {
+		taHeight = height / 4
+		if taHeight > 12 {
+			taHeight = 12
+		}
+	}
+	f.changeRequest.SetHeight(taHeight)
 }
 
 // Update handles form updates.
 func (f PlanRefineForm) Update(msg tea.Msg) (PlanRefineForm, tea.Cmd) {
 	var cmd tea.Cmd
-	f.changeRequest, cmd = f.changeRequest.Update(msg)
-	return f, cmd
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "tab":
+			return f.focusNext(), nil
+		case "shift+tab":
+			return f.focusPrev(), nil
+		case "enter":
+			if f.focusedField == RefineFieldSubmit {
+				return f, nil // let HandlePlanRefineKey submit
+			}
+			// in textarea: pass through for newline
+		}
+	}
+
+	switch f.focusedField {
+	case RefineFieldChangeRequest:
+		f.changeRequest, cmd = f.changeRequest.Update(msg)
+		return f, cmd
+	case RefineFieldSubmit:
+		return f, nil
+	}
+	return f, nil
+}
+
+func (f PlanRefineForm) focusNext() PlanRefineForm {
+	f.changeRequest.Blur()
+	if f.focusedField == RefineFieldChangeRequest {
+		f.focusedField = RefineFieldSubmit
+	} else {
+		f.focusedField = RefineFieldChangeRequest
+		f.changeRequest.Focus()
+	}
+	return f
+}
+
+func (f PlanRefineForm) focusPrev() PlanRefineForm {
+	f.changeRequest.Blur()
+	if f.focusedField == RefineFieldSubmit {
+		f.focusedField = RefineFieldChangeRequest
+		f.changeRequest.Focus()
+	} else {
+		f.focusedField = RefineFieldSubmit
+	}
+	return f
 }
 
 // GetChangeRequest returns the form value.
@@ -69,8 +132,8 @@ func HandlePlanRefineKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		return m, nil
 	}
 
-	switch msg.String() {
-	case "ctrl+s", "ctrl+enter":
+	// Enter on Submit button: submit the form
+	if msg.String() == "enter" && m.planRefineForm.focusedField == RefineFieldSubmit {
 		changeRequest := m.planRefineForm.GetChangeRequest()
 		if strings.TrimSpace(changeRequest) == "" {
 			return m, nil
@@ -93,15 +156,17 @@ func HandlePlanRefineKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			RefinePlanInMemory(context.Background(), changeRequest, basePlan),
 			spinnerTickCmd(),
 		)
-	case "esc":
+	}
+
+	if msg.String() == "esc" {
 		m.actionMode = ActionModeNone
 		m.planRefineForm = nil
 		return m, nil
-	default:
-		updatedForm, cmd := m.planRefineForm.Update(msg)
-		m.planRefineForm = &updatedForm
-		return m, cmd
 	}
+
+	updatedForm, cmd := m.planRefineForm.Update(msg)
+	m.planRefineForm = &updatedForm
+	return m, cmd
 }
 
 // RenderPlanRefineModal renders the plan refine modal.
@@ -109,6 +174,14 @@ func RenderPlanRefineModal(m Model, form PlanRefineForm) string {
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69"))
 	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	helperStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	buttonStyle := lipgloss.NewStyle().
+		Padding(0, 2).
+		Background(lipgloss.Color("240")).
+		Foreground(lipgloss.Color("15"))
+	focusedButtonStyle := buttonStyle.Copy().
+		Background(lipgloss.Color("69")).
+		Bold(true)
+	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
 
 	lines := []string{
 		titleStyle.Render("Refine Plan"),
@@ -118,39 +191,38 @@ func RenderPlanRefineModal(m Model, form PlanRefineForm) string {
 		"",
 	}
 
-	if strings.TrimSpace(form.changeRequest.Value()) == "" {
-		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	submitButton := "[ Submit ]"
+	if form.focusedField == RefineFieldSubmit {
+		submitButton = focusedButtonStyle.Render(submitButton)
+	} else {
+		submitButton = buttonStyle.Render(submitButton)
+	}
+	lines = append(lines, submitButton)
+	lines = append(lines, "")
+
+	if strings.TrimSpace(form.changeRequest.Value()) == "" && form.focusedField == RefineFieldSubmit {
 		lines = append(lines, errorStyle.Render("Change request cannot be empty"), "")
 	}
 
-	lines = append(lines, helperStyle.Render("[ctrl+s or ctrl+enter]submit [esc]cancel"))
+	lines = append(lines, helperStyle.Render("Tab: next • Enter: new line (in text) • Shift+Tab: previous • [esc]cancel"))
 
-	modalWidth := form.width
-	if modalWidth > 90 {
-		modalWidth = 90
+	// Full-screen modal
+	modalWidth := m.windowWidth - 4
+	if modalWidth < 50 {
+		modalWidth = 50
 	}
-	if modalWidth < 60 {
-		modalWidth = 60
-	}
-	if m.windowWidth > 0 && m.windowWidth < modalWidth+4 {
-		modalWidth = m.windowWidth - 4
+	modalHeight := m.windowHeight - 3
+	if modalHeight < 10 {
+		modalHeight = 10
 	}
 
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("69")).
 		Padding(1, 2).
-		Width(modalWidth)
+		Width(modalWidth).
+		Height(modalHeight)
 
 	modal := modalStyle.Render(lipgloss.JoinVertical(lipgloss.Left, lines...))
-
-	if m.windowHeight > 0 {
-		topPadding := (m.windowHeight - lipgloss.Height(modal)) / 2
-		if topPadding > 0 {
-			padding := lipgloss.NewStyle().PaddingTop(topPadding).Render(modal)
-			return padding
-		}
-	}
-
 	return modal
 }

@@ -304,23 +304,27 @@ func TestModel_MultipleModalsPreventedConcurrently(t *testing.T) {
 	}
 }
 
-// TestPlanGenerateForm_TabAndEnterBehavior tests tab vs enter on non-submit fields
+// TestPlanGenerateForm_TabAndEnterBehavior tests tab vs enter on form fields
 func TestPlanGenerateForm_TabAndEnterBehavior(t *testing.T) {
 	form := NewPlanGenerateForm()
 
-	// On description field, Enter should move to next (same as Tab)
-	initialField := form.focusedField
-	if initialField != FieldDescription {
+	// On description field (textarea), Enter inserts newline and stays; Tab moves to next
+	if form.focusedField != FieldDescription {
 		t.Fatalf("Expected initial focus on FieldDescription")
 	}
 
-	// Press Enter on description
+	// Enter on description inserts newline (stays on description)
 	updatedForm, _ := form.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	form = updatedForm
+	if form.focusedField != FieldDescription {
+		t.Errorf("Expected Enter on textarea to stay on FieldDescription (newline), got %v", form.focusedField)
+	}
 
-	// Should move to next field
+	// Tab moves to next field
+	updatedForm, _ = form.Update(tea.KeyMsg{Type: tea.KeyTab})
+	form = updatedForm
 	if form.focusedField != FieldConstraints {
-		t.Errorf("Expected Enter to move to FieldConstraints, got %v", form.focusedField)
+		t.Errorf("Expected Tab to move to FieldConstraints, got %v", form.focusedField)
 	}
 }
 

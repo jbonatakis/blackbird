@@ -17,6 +17,7 @@ func TestHandlePlanRefineKeySubmit(t *testing.T) {
 
 	form := NewPlanRefineForm()
 	form.changeRequest.SetValue("Update tasks")
+	form.focusedField = RefineFieldSubmit // focus Submit button
 
 	m := Model{
 		plan:           base,
@@ -25,7 +26,7 @@ func TestHandlePlanRefineKeySubmit(t *testing.T) {
 		planRefineForm: &form,
 	}
 
-	updated, _ := HandlePlanRefineKey(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+	updated, _ := HandlePlanRefineKey(m, tea.KeyMsg{Type: tea.KeyEnter})
 
 	if updated.actionMode != ActionModeNone {
 		t.Fatalf("expected action mode to reset after submit, got %v", updated.actionMode)
@@ -46,6 +47,7 @@ func TestHandlePlanRefineKeySubmit(t *testing.T) {
 
 func TestHandlePlanRefineKeyEmptyRequest(t *testing.T) {
 	form := NewPlanRefineForm()
+	form.focusedField = RefineFieldSubmit // focus Submit button, but text is empty
 
 	m := Model{
 		planExists:     true,
@@ -53,7 +55,7 @@ func TestHandlePlanRefineKeyEmptyRequest(t *testing.T) {
 		planRefineForm: &form,
 	}
 
-	updated, _ := HandlePlanRefineKey(m, tea.KeyMsg{Type: tea.KeyCtrlS})
+	updated, _ := HandlePlanRefineKey(m, tea.KeyMsg{Type: tea.KeyEnter})
 	if updated.actionMode != ActionModePlanRefine {
 		t.Fatalf("expected refine modal to remain open on empty submit")
 	}

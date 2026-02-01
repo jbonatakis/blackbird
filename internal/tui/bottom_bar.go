@@ -47,10 +47,10 @@ func actionHints(model Model, readyCount int) []string {
 		return []string{"[ctrl+c]quit"}
 	}
 	if model.actionMode == ActionModeGeneratePlan {
-		return []string{"[enter]submit", "[esc]cancel", "[tab]next", "[shift+tab]prev", "[ctrl+c]quit"}
+		return []string{"[esc]cancel", "[tab]next", "[shift+tab]prev", "[ctrl+c]quit"}
 	}
 	if model.actionMode == ActionModePlanRefine {
-		return []string{"[ctrl+s]submit", "[esc]cancel", "[ctrl+c]quit"}
+		return []string{"[esc]cancel", "[tab]next", "[shift+tab]prev", "[ctrl+c]quit"}
 	}
 	if model.actionMode == ActionModeAgentQuestion {
 		if model.agentQuestionForm != nil {
@@ -89,6 +89,7 @@ func actionHints(model Model, readyCount int) []string {
 		return actions
 	}
 	actions = []string{
+		"[h]ome",
 		"[g]enerate",
 		"[r]efine",
 		"[e]xecute",

@@ -71,10 +71,10 @@ func (f *PlanGenerateForm) SetSize(width, height int) {
 	f.width = width
 	f.height = height
 
-	// Adjust field widths based on modal width
+	// Adjust field widths based on modal width (full screen uses most of width)
 	fieldWidth := width - 10
-	if fieldWidth > 80 {
-		fieldWidth = 80
+	if fieldWidth > 120 {
+		fieldWidth = 120
 	}
 	if fieldWidth < 40 {
 		fieldWidth = 40
@@ -83,6 +83,22 @@ func (f *PlanGenerateForm) SetSize(width, height int) {
 	f.description.SetWidth(fieldWidth)
 	f.constraints.SetWidth(fieldWidth)
 	f.granularity.Width = fieldWidth
+
+	// Use more vertical space for textareas when we have full-screen height
+	descHeight := 5
+	constHeight := 3
+	if height > 20 {
+		descHeight = height / 4
+		if descHeight > 12 {
+			descHeight = 12
+		}
+		constHeight = height / 6
+		if constHeight > 8 {
+			constHeight = 8
+		}
+	}
+	f.description.SetHeight(descHeight)
+	f.constraints.SetHeight(constHeight)
 }
 
 // Update handles form updates
@@ -93,11 +109,15 @@ func (f PlanGenerateForm) Update(msg tea.Msg) (PlanGenerateForm, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "tab", "enter":
-			// Move to next field
+		case "tab":
+			return f.focusNext(), nil
+		case "enter":
+			// In textarea fields, Enter inserts newline; on other fields, move to next
+			if f.focusedField == FieldDescription || f.focusedField == FieldConstraints {
+				break // pass to textarea for newline
+			}
 			return f.focusNext(), nil
 		case "shift+tab":
-			// Move to previous field
 			return f.focusPrev(), nil
 		}
 	}
@@ -262,7 +282,7 @@ func RenderPlanGenerateModal(m Model, form PlanGenerateForm) string {
 		Bold(true)
 
 	title := titleStyle.Render("Generate Plan")
-	helpText := labelStyle.Render("Tab/Enter: next field • Shift+Tab: previous field • ESC: cancel")
+	helpText := labelStyle.Render("Tab: next field • Enter: new line (in text areas) • Shift+Tab: previous • ESC: cancel")
 
 	// Build form fields
 	var lines []string
@@ -320,35 +340,24 @@ func RenderPlanGenerateModal(m Model, form PlanGenerateForm) string {
 
 	lines = append(lines, helpText)
 
-	// Calculate modal width
-	modalWidth := form.width
-	if modalWidth > 90 {
-		modalWidth = 90
-	}
+	// Full-screen modal: use full window minus margin and space for bottom bar
+	modalWidth := m.windowWidth - 4
 	if modalWidth < 50 {
 		modalWidth = 50
 	}
-	if m.windowWidth > 0 && m.windowWidth < modalWidth+4 {
-		modalWidth = m.windowWidth - 4
+	modalHeight := m.windowHeight - 3
+	if modalHeight < 10 {
+		modalHeight = 10
 	}
 
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("69")).
 		Padding(1, 2).
-		Width(modalWidth)
+		Width(modalWidth).
+		Height(modalHeight)
 
 	modal := modalStyle.Render(lipgloss.JoinVertical(lipgloss.Left, lines...))
-
-	// Center the modal
-	if m.windowHeight > 0 {
-		topPadding := (m.windowHeight - lipgloss.Height(modal)) / 2
-		if topPadding > 0 {
-			padding := lipgloss.NewStyle().PaddingTop(topPadding).Render(modal)
-			return padding
-		}
-	}
-
 	return modal
 }
 

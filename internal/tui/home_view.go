@@ -121,6 +121,14 @@ func formatPlanStatusLines(total int, c planStatusCounts) []string {
 	return lines
 }
 
+// planOperationInProgress returns true when generating or refining a plan (home shows as no-plan, gray out actions).
+func planOperationInProgress(m Model) bool {
+	if !m.actionInProgress {
+		return false
+	}
+	return m.actionName == "Generating plan..." || m.actionName == "Refining plan..."
+}
+
 func RenderHomeView(m Model) string {
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69"))
 	taglineStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
@@ -133,10 +141,20 @@ func RenderHomeView(m Model) string {
 		BorderForeground(lipgloss.Color("196")).
 		Padding(0, 1)
 
-	statusLines := []string{mutedStyle.Render("⊘ No plan found")}
-	if m.planExists {
+	// When generating/refining, show progress message and spinner; otherwise show plan status or no plan
+	showPlanInfo := m.planExists && !planOperationInProgress(m)
+	var statusLines []string
+	if planOperationInProgress(m) {
+		progressStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
+		frame := spinnerFrames[m.spinnerIndex%len(spinnerFrames)]
+		statusLines = []string{
+			progressStyle.Render(frame + " " + m.actionName),
+		}
+	} else if showPlanInfo {
 		c := countPlanStatuses(m.plan)
 		statusLines = formatPlanStatusLines(len(m.plan.Items), c)
+	} else {
+		statusLines = []string{mutedStyle.Render("⊘ No plan found")}
 	}
 
 	lines := []string{
@@ -146,19 +164,21 @@ func RenderHomeView(m Model) string {
 	}
 	lines = append(lines, statusLines...)
 
-	if m.planValidationErr != "" {
+	if m.planValidationErr != "" && !planOperationInProgress(m) {
 		lines = append(lines,
 			"",
 			errorStyle.Render(fmt.Sprintf("⚠ Plan has errors: %s\nPress [g] to regenerate or [v] to view and fix", m.planValidationErr)),
 		)
 	}
 
+	// When generating/refining, gray out all options except quit
+	inProgress := planOperationInProgress(m)
 	lines = append(lines,
 		"",
-		renderActionLine("[g]", "Generate plan", true, shortcutStyle, actionStyle, mutedStyle),
-		renderActionLine("[v]", "View plan", m.planExists, shortcutStyle, actionStyle, mutedStyle),
-		renderActionLine("[r]", "Refine plan", m.planExists, shortcutStyle, actionStyle, mutedStyle),
-		renderActionLine("[e]", "Execute", m.canExecute(), shortcutStyle, actionStyle, mutedStyle),
+		renderActionLine("[g]", "Generate plan", !inProgress, shortcutStyle, actionStyle, mutedStyle),
+		renderActionLine("[v]", "View plan", showPlanInfo, shortcutStyle, actionStyle, mutedStyle),
+		renderActionLine("[r]", "Refine plan", showPlanInfo, shortcutStyle, actionStyle, mutedStyle),
+		renderActionLine("[e]", "Execute", m.canExecute() && !inProgress, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[ctrl+c]", "Quit", true, shortcutStyle, actionStyle, mutedStyle),
 	)
 

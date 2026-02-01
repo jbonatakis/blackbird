@@ -57,15 +57,24 @@ func (f *PlanReviewForm) SetSize(width, height int) {
 	f.width = width
 	f.height = height
 
-	// Adjust textarea width
+	// Adjust textarea width (full screen uses most of width)
 	fieldWidth := width - 10
-	if fieldWidth > 80 {
-		fieldWidth = 80
+	if fieldWidth > 120 {
+		fieldWidth = 120
 	}
 	if fieldWidth < 40 {
 		fieldWidth = 40
 	}
 	f.revisionTextarea.SetWidth(fieldWidth)
+	// Use more lines for revision textarea when full-screen
+	taHeight := 4
+	if height > 20 {
+		taHeight = height / 4
+		if taHeight > 12 {
+			taHeight = 12
+		}
+	}
+	f.revisionTextarea.SetHeight(taHeight)
 }
 
 // Update handles form updates
@@ -366,39 +375,28 @@ func RenderPlanReviewModal(m Model, form PlanReviewForm) string {
 			lines = append(lines, "")
 		}
 
-		helpText := helpStyle.Render("[ctrl+s or ctrl+enter]submit [esc]back")
+		helpText := helpStyle.Render("[ctrl+s or ctrl+enter]submit • Enter: new line • [esc]back")
 		lines = append(lines, helpText)
 	}
 
-	// Calculate modal width
-	modalWidth := form.width
-	if modalWidth > 90 {
-		modalWidth = 90
+	// Full-screen modal
+	modalWidth := m.windowWidth - 4
+	if modalWidth < 50 {
+		modalWidth = 50
 	}
-	if modalWidth < 60 {
-		modalWidth = 60
-	}
-	if m.windowWidth > 0 && m.windowWidth < modalWidth+4 {
-		modalWidth = m.windowWidth - 4
+	modalHeight := m.windowHeight - 3
+	if modalHeight < 10 {
+		modalHeight = 10
 	}
 
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("69")).
 		Padding(1, 2).
-		Width(modalWidth)
+		Width(modalWidth).
+		Height(modalHeight)
 
 	modal := modalStyle.Render(lipgloss.JoinVertical(lipgloss.Left, lines...))
-
-	// Center the modal
-	if m.windowHeight > 0 {
-		topPadding := (m.windowHeight - lipgloss.Height(modal)) / 2
-		if topPadding > 0 {
-			padding := lipgloss.NewStyle().PaddingTop(topPadding).Render(modal)
-			return padding
-		}
-	}
-
 	return modal
 }
 
