@@ -11,6 +11,7 @@ import (
 
 	"github.com/jbonatakis/blackbird/internal/agent"
 	"github.com/jbonatakis/blackbird/internal/execution"
+	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
 func runExecute(args []string) error {
@@ -24,7 +25,7 @@ func runExecute(args []string) error {
 		return UsageError{Message: "execute takes no positional arguments"}
 	}
 
-	path := planPath()
+	path := plan.PlanPath()
 	if _, err := loadValidatedPlan(path); err != nil {
 		return err
 	}

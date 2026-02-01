@@ -29,7 +29,7 @@ func TestRunPick_MarkDone(t *testing.T) {
 			"A": newWorkItem("A", now),
 		},
 	}
-	if err := plan.SaveAtomic(planPath(), g); err != nil {
+	if err := plan.SaveAtomic(plan.PlanPath(), g); err != nil {
 		t.Fatalf("save plan: %v", err)
 	}
 
@@ -48,7 +48,7 @@ func TestRunPick_MarkDone(t *testing.T) {
 		t.Fatalf("output missing status update: %q", output)
 	}
 
-	g, err = plan.Load(planPath())
+	g, err = plan.Load(plan.PlanPath())
 	if err != nil {
 		t.Fatalf("load plan: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestRunPick_NoReadyTasksMessage(t *testing.T) {
 			"A": done,
 		},
 	}
-	if err := plan.SaveAtomic(planPath(), g); err != nil {
+	if err := plan.SaveAtomic(plan.PlanPath(), g); err != nil {
 		t.Fatalf("save plan: %v", err)
 	}
 

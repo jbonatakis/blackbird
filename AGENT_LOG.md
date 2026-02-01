@@ -1,5 +1,9 @@
 # AGENT_LOG
 
+## 2026-02-01 — Plan agent consolidation log
+
+- Logged shared plan-agent consolidation (CLI/TUI parity, shared response/status helpers) per work item.
+
 ## 2026-02-01 — Parity changes (TUI + shared helpers)
 
 - Removed remaining TUI subprocess usage for plan actions and set-status, keeping everything in-process and aligned with CLI behavior.
@@ -728,3 +732,23 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 
 - Fixed agent response helper test to use plan_refine request type.
 - Added in-process plan refine TUI test using a stubbed agent response.
+
+## 2026-02-01 — Shared plan defaults
+
+- Added shared plan defaults in `internal/agent` for the plan system prompt, JSON schema, max question rounds, and max generate revisions.
+- Updated CLI/TUI plan flows (including plan review modal) to use the shared defaults and constants, removing duplicated helpers.
+
+## 2026-02-01 — Shared plan path helper
+
+- Added `plan.PlanPath()` helper to compute the plan path from the current working directory and default filename.
+- Updated CLI and TUI code to use the shared helper and added coverage for the helper.
+
+## 2026-02-01 — TUI plan path helper wiring
+
+- Updated TUI plan loader to use plan.PlanPath() instead of duplicating working-directory path logic.
+- Adjusted TUI tests to use the shared plan path helper for plan file setup (plan loader, action wrappers, set-status).
+
+## 2026-02-01 — Plan defaults test coverage
+
+- Added unit tests for shared plan defaults (constants, JSON schema, system prompt) in `internal/agent/plan_defaults_test.go`.
+- Fixed CLI execute/resume imports for shared plan helper and normalized plan path test to handle macOS tempdir symlinks.

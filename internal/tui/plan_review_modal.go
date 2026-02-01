@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/jbonatakis/blackbird/internal/agent"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
@@ -90,7 +91,7 @@ func (f PlanReviewForm) Update(msg tea.Msg) (PlanReviewForm, tea.Cmd) {
 				return f, nil
 			case "2":
 				// Only allow revise if not exceeded limit
-				if f.revisionCount < maxGenerateRevisions {
+				if f.revisionCount < agent.MaxPlanGenerateRevisions {
 					f.selectedAction = 1
 				}
 				return f, nil
@@ -134,10 +135,8 @@ func (f PlanReviewForm) GetRevisionRequest() string {
 
 // CanRevise returns true if another revision is allowed
 func (f PlanReviewForm) CanRevise() bool {
-	return f.revisionCount < maxGenerateRevisions
+	return f.revisionCount < agent.MaxPlanGenerateRevisions
 }
-
-const maxGenerateRevisions = 1
 
 // HandlePlanReviewKey handles key presses in plan-review mode
 func HandlePlanReviewKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
@@ -410,7 +409,7 @@ func SavePlanCmd(g plan.WorkGraph) tea.Cmd {
 
 func SavePlanCmdWithAction(g plan.WorkGraph, action string, message string) tea.Cmd {
 	return func() tea.Msg {
-		path := planPath()
+		path := plan.PlanPath()
 		if err := plan.SaveAtomic(path, g); err != nil {
 			return PlanActionComplete{
 				Action:  action,

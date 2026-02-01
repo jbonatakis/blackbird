@@ -10,6 +10,7 @@ import (
 
 	"github.com/jbonatakis/blackbird/internal/agent"
 	"github.com/jbonatakis/blackbird/internal/execution"
+	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
 func runResume(taskID string) error {
@@ -17,7 +18,7 @@ func runResume(taskID string) error {
 		return UsageError{Message: "resume requires exactly 1 argument: <taskID>"}
 	}
 
-	path := planPath()
+	path := plan.PlanPath()
 	g, err := loadValidatedPlan(path)
 	if err != nil {
 		return err

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -125,17 +124,8 @@ func Run(args []string) error {
 	}
 }
 
-func planPath() string {
-	wd, err := os.Getwd()
-	if err != nil {
-		// If this fails, other file ops will fail too; keep path deterministic.
-		return plan.DefaultPlanFilename
-	}
-	return filepath.Join(wd, plan.DefaultPlanFilename)
-}
-
 func runInit() error {
-	path := planPath()
+	path := plan.PlanPath()
 
 	_, err := os.Stat(path)
 	if err == nil {
@@ -156,7 +146,7 @@ func runInit() error {
 }
 
 func runValidate() error {
-	path := planPath()
+	path := plan.PlanPath()
 
 	g, err := plan.Load(path)
 	if err != nil {
@@ -205,7 +195,7 @@ func runList(args []string) error {
 		statusFilter = &s
 	}
 
-	path := planPath()
+	path := plan.PlanPath()
 	g, err := plan.Load(path)
 	if err != nil {
 		if errors.Is(err, plan.ErrPlanNotFound) {
@@ -295,7 +285,7 @@ func runList(args []string) error {
 }
 
 func runShow(id string) error {
-	path := planPath()
+	path := plan.PlanPath()
 	g, err := plan.Load(path)
 	if err != nil {
 		if errors.Is(err, plan.ErrPlanNotFound) {
@@ -401,7 +391,7 @@ func runSetStatus(id string, statusStr string) error {
 		return UsageError{Message: fmt.Sprintf("invalid status %q", statusStr)}
 	}
 
-	path := planPath()
+	path := plan.PlanPath()
 	g, err := plan.Load(path)
 	if err != nil {
 		if errors.Is(err, plan.ErrPlanNotFound) {

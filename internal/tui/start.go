@@ -3,8 +3,6 @@ package tui
 import (
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -23,14 +21,6 @@ func newStartupModel() Model {
 	model.planExists = false
 	model.viewMode = ViewModeHome
 	return model
-}
-
-func planPath() string {
-	wd, err := os.Getwd()
-	if err != nil {
-		return plan.DefaultPlanFilename
-	}
-	return filepath.Join(wd, plan.DefaultPlanFilename)
 }
 
 func formatPlanErrors(path string, errs []plan.ValidationError) error {

@@ -104,7 +104,7 @@ func TestRunInitCommand(t *testing.T) {
 	}
 
 	// Verify plan file was created
-	planFile := planPath()
+	planFile := plan.PlanPath()
 	if _, err := os.Stat(planFile); os.IsNotExist(err) {
 		t.Errorf("plan file was not created at: %s", planFile)
 	}
@@ -153,7 +153,7 @@ func TestRunValidateCommand(t *testing.T) {
 			},
 		},
 	}
-	if err := plan.SaveAtomic(planPath(), g); err != nil {
+	if err := plan.SaveAtomic(plan.PlanPath(), g); err != nil {
 		t.Fatalf("save plan: %v", err)
 	}
 

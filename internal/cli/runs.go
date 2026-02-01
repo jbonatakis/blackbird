@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jbonatakis/blackbird/internal/execution"
+	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
 func runRuns(args []string) error {
@@ -26,7 +27,7 @@ func runRuns(args []string) error {
 	}
 
 	taskID := fs.Arg(0)
-	path := planPath()
+	path := plan.PlanPath()
 	g, err := loadValidatedPlan(path)
 	if err != nil {
 		return err

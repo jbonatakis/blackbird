@@ -50,7 +50,7 @@ func runAdd(args []string) error {
 		return UsageError{Message: "add takes only flags (no positional args)"}
 	}
 
-	path := planPath()
+	path := plan.PlanPath()
 	g, err := loadValidatedPlan(path)
 	if err != nil {
 		return err
@@ -146,7 +146,7 @@ func runEdit(id string, args []string) error {
 		return UsageError{Message: "edit takes only flags (no positional args after <id>)"}
 	}
 
-	path := planPath()
+	path := plan.PlanPath()
 	g, err := loadValidatedPlan(path)
 	if err != nil {
 		return err
@@ -268,7 +268,7 @@ func runDelete(id string, args []string) error {
 		return UsageError{Message: "delete takes only flags (no positional args after <id>)"}
 	}
 
-	path := planPath()
+	path := plan.PlanPath()
 	g, err := loadValidatedPlan(path)
 	if err != nil {
 		return err
@@ -312,7 +312,7 @@ func runMove(id string, args []string) error {
 		return UsageError{Message: "move requires --parent <parentId|root>"}
 	}
 
-	path := planPath()
+	path := plan.PlanPath()
 	g, err := loadValidatedPlan(path)
 	if err != nil {
 		return err
@@ -376,7 +376,7 @@ func runDeps(args []string) error {
 }
 
 func runDepsAdd(id, depID string) error {
-	path := planPath()
+	path := plan.PlanPath()
 	g, err := loadValidatedPlan(path)
 	if err != nil {
 		return err
@@ -398,7 +398,7 @@ func runDepsAdd(id, depID string) error {
 }
 
 func runDepsRemove(id, depID string) error {
-	path := planPath()
+	path := plan.PlanPath()
 	g, err := loadValidatedPlan(path)
 	if err != nil {
 		return err
@@ -420,7 +420,7 @@ func runDepsRemove(id, depID string) error {
 }
 
 func runDepsSet(id string, deps []string) error {
-	path := planPath()
+	path := plan.PlanPath()
 	g, err := loadValidatedPlan(path)
 	if err != nil {
 		return err

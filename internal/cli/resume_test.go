@@ -43,7 +43,7 @@ func TestRunResume(t *testing.T) {
 			},
 		},
 	}
-	if err := plan.SaveAtomic(planPath(), g); err != nil {
+	if err := plan.SaveAtomic(plan.PlanPath(), g); err != nil {
 		t.Fatalf("save plan: %v", err)
 	}
 
@@ -69,7 +69,7 @@ func TestRunResume(t *testing.T) {
 		t.Fatalf("runResume: %v", err)
 	}
 
-	updated, err := plan.Load(planPath())
+	updated, err := plan.Load(plan.PlanPath())
 	if err != nil {
 		t.Fatalf("load plan: %v", err)
 	}

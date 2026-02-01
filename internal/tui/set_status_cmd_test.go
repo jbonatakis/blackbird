@@ -2,7 +2,6 @@ package tui
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -37,7 +36,7 @@ func TestSetStatusCmdUpdatesPlanInProcess(t *testing.T) {
 		},
 	}
 
-	planFile := filepath.Join(tmp, plan.DefaultPlanFilename)
+	planFile := plan.PlanPath()
 	if err := plan.SaveAtomic(planFile, graph); err != nil {
 		t.Fatalf("save plan: %v", err)
 	}

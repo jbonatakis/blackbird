@@ -39,7 +39,7 @@ func TestLoadPlanData(t *testing.T) {
 		},
 	}
 
-	if err := plan.SaveAtomic(plan.DefaultPlanFilename, g); err != nil {
+	if err := plan.SaveAtomic(plan.PlanPath(), g); err != nil {
 		t.Fatalf("SaveAtomic: %v", err)
 	}
 
@@ -112,7 +112,7 @@ func TestLoadPlanDataValidationError(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chdir(oldWD) })
 
 	invalidPlan := `{"schemaVersion":1,"items":{"task-1":{"id":"task-1","title":"","description":"","prompt":"","status":"todo","createdAt":"2026-01-29T12:00:00Z","updatedAt":"2026-01-29T12:00:00Z"}}}`
-	if err := os.WriteFile(plan.DefaultPlanFilename, []byte(invalidPlan), 0o600); err != nil {
+	if err := os.WriteFile(plan.PlanPath(), []byte(invalidPlan), 0o600); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
