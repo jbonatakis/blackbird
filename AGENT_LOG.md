@@ -1,5 +1,23 @@
 # AGENT_LOG
 
+## 2026-02-01 — Parity changes (TUI + shared helpers)
+
+- Removed remaining TUI subprocess usage for plan actions and set-status, keeping everything in-process and aligned with CLI behavior.
+- Consolidated shared plan status/response helpers so CLI and TUI use the same mutation and agent-response paths.
+
+## 2026-02-01 — TUI set-status in-process
+
+- Added shared plan helpers `ParseStatus` and `SetStatus` to reuse status mutation logic across CLI/TUI, preserving updatedAt updates and parent completion propagation.
+- Switched TUI set-status to in-process plan mutation + `SaveAtomic` (no subprocess), and updated CLI to use the shared helpers.
+- Added tests for plan status helpers and TUI set-status command behavior (parent propagation + timestamp updates).
+- Ran `go test ./...`; failure persists in `internal/agent` due to `RequestPlanPatch` undefined in `internal/agent/response_test.go` (pre-existing).
+
+## 2026-02-01 — Agent response helper
+
+- Added `agent.ResponseToPlan` shared helper to convert agent responses into plans with full-plan timestamp normalization and patch application.
+- Updated CLI/TUI plan flows to use the shared helper and removed duplicated response conversion logic; adjusted related tests.
+- Verified CLI/TUI response handling already routes through `agent.ResponseToPlan`; no additional changes required for the wiring task.
+
 ## 2026-01-31 — README and docs rework
 
 - Reworked README to be high-level only: what Blackbird is, install, quickstart, short TUI pointer, and a documentation table linking to `docs/`.
@@ -690,3 +708,23 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 
 - Consolidated execute/resume tab-toggle coverage into a table-driven test to assert `t` switches tabs during action-in-progress execute/resume states in `internal/tui/tab_mode_test.go`.
 - Tests: `go test ./internal/tui/...` failed due to Go build cache permission restrictions (`operation not permitted`).
+
+## 2026-02-01 — Shared agent response helper tests
+
+- Added focused unit coverage for `agent.ResponseToPlan` in `internal/agent/response_test.go`, covering full-plan timestamp normalization and patch-application path.
+
+## 2026-02-01 — TUI refine in-process
+
+- Replaced TUI refine action subprocess call with an in-process agent request, adding a change-request modal and refine continuation handling for agent questions.
+- Added a plan-refine modal, pending refine request tracking, and save helper to preserve view behavior while persisting refined plans.
+- Tests: `go test ./...` failed in `internal/agent` (undefined `RequestPlanPatch` in `internal/agent/response_test.go`).
+
+## 2026-02-01 — TUI subprocess cleanup
+
+- Removed unused TUI subprocess wrappers for plan generate/refine and the os/exec command runner in `internal/tui/action_wrappers.go`.
+- Updated CLI/TUI parity notes to reflect in-process plan refine and set-status behavior.
+
+## 2026-02-01 — Test updates for shared response helper and TUI refine
+
+- Fixed agent response helper test to use plan_refine request type.
+- Added in-process plan refine TUI test using a stubbed agent response.

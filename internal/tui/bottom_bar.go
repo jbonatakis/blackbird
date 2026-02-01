@@ -49,6 +49,9 @@ func actionHints(model Model, readyCount int) []string {
 	if model.actionMode == ActionModeGeneratePlan {
 		return []string{"[enter]submit", "[esc]cancel", "[tab]next", "[shift+tab]prev", "[ctrl+c]quit"}
 	}
+	if model.actionMode == ActionModePlanRefine {
+		return []string{"[ctrl+s]submit", "[esc]cancel", "[ctrl+c]quit"}
+	}
 	if model.actionMode == ActionModeAgentQuestion {
 		if model.agentQuestionForm != nil {
 			currentQ := model.agentQuestionForm.CurrentQuestion()

@@ -221,6 +221,7 @@ func HandlePlanGenerateKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 		// Store pending request for question handling
 		m.pendingPlanRequest = PendingPlanRequest{
+			kind:          PendingPlanGenerate,
 			description:   description,
 			constraints:   constraints,
 			granularity:   granularity,

@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/jbonatakis/blackbird/internal/agent"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
@@ -405,72 +403,29 @@ func RenderPlanReviewModal(m Model, form PlanReviewForm) string {
 	return modal
 }
 
-// RefinePlanInMemory refines an existing plan with a change request
-func RefinePlanInMemory(ctx context.Context, changeRequest string, currentPlan plan.WorkGraph) tea.Cmd {
-	return func() tea.Msg {
-		// Create agent runtime from environment
-		runtime, err := agent.NewRuntimeFromEnv()
-		if err != nil {
-			return PlanGenerateInMemoryResult{Success: false, Err: err}
-		}
-
-		// Prepare request metadata with JSON schema
-		requestMeta := agent.RequestMetadata{
-			JSONSchema: defaultPlanJSONSchema(),
-		}
-
-		// Build the agent request
-		req := agent.Request{
-			SchemaVersion: agent.SchemaVersion,
-			Type:          agent.RequestPlanRefine,
-			SystemPrompt:  defaultPlanSystemPrompt(),
-			ChangeRequest: strings.TrimSpace(changeRequest),
-			Plan:          &currentPlan,
-			Metadata:      requestMeta,
-		}
-
-		// Run the agent
-		resp, _, err := runtime.Run(ctx, req)
-		if err != nil {
-			return PlanGenerateInMemoryResult{Success: false, Err: err}
-		}
-
-		// Check if agent is asking questions
-		if len(resp.Questions) > 0 {
-			return PlanGenerateInMemoryResult{
-				Success:   false,
-				Questions: resp.Questions,
-			}
-		}
-
-		// Convert response to plan
-		resultPlan, err := responseToPlan(currentPlan, resp, time.Now().UTC())
-		if err != nil {
-			return PlanGenerateInMemoryResult{Success: false, Err: err}
-		}
-
-		return PlanGenerateInMemoryResult{
-			Success: true,
-			Plan:    &resultPlan,
-		}
-	}
-}
-
 // SavePlanCmd saves the plan to disk
 func SavePlanCmd(g plan.WorkGraph) tea.Cmd {
+	return SavePlanCmdWithAction(g, "save plan", "")
+}
+
+func SavePlanCmdWithAction(g plan.WorkGraph, action string, message string) tea.Cmd {
 	return func() tea.Msg {
 		path := planPath()
 		if err := plan.SaveAtomic(path, g); err != nil {
 			return PlanActionComplete{
-				Action:  "save plan",
+				Action:  action,
 				Success: false,
 				Err:     err,
 			}
 		}
+		output := fmt.Sprintf("Saved plan: %s", path)
+		if strings.TrimSpace(message) != "" {
+			output = fmt.Sprintf("%s: %s", message, path)
+		}
 		return PlanActionComplete{
-			Action:  "save plan",
+			Action:  action,
 			Success: true,
-			Output:  fmt.Sprintf("Saved plan: %s", path),
+			Output:  output,
 		}
 	}
 }

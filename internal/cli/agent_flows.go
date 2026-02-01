@@ -110,7 +110,7 @@ func runPlanGenerate(args []string) error {
 	if err != nil {
 		return formatAgentRunError(err, diag)
 	}
-	next, err := responseToPlan(plan.NewEmptyWorkGraph(), resp, time.Now().UTC())
+	next, err := agent.ResponseToPlan(plan.NewEmptyWorkGraph(), resp, time.Now().UTC())
 	if err != nil {
 		return err
 	}
@@ -161,7 +161,7 @@ func runPlanGenerate(args []string) error {
 			if err != nil {
 				return formatAgentRunError(err, diag)
 			}
-			next, err := responseToPlan(proposed, resp, time.Now().UTC())
+			next, err := agent.ResponseToPlan(proposed, resp, time.Now().UTC())
 			if err != nil {
 				return err
 			}
@@ -225,7 +225,7 @@ func runPlanRefine(args []string) error {
 		return formatAgentRunError(err, diag)
 	}
 
-	next, err := responseToPlan(g, resp, time.Now().UTC())
+	next, err := agent.ResponseToPlan(g, resp, time.Now().UTC())
 	if err != nil {
 		return err
 	}
@@ -284,7 +284,7 @@ func runDepsInfer(args []string) error {
 		return formatAgentRunError(err, diag)
 	}
 
-	next, err := responseToPlan(g, resp, time.Now().UTC())
+	next, err := agent.ResponseToPlan(g, resp, time.Now().UTC())
 	if err != nil {
 		return err
 	}

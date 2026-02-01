@@ -59,7 +59,7 @@ func TestHomeKeyPlanActionGating(t *testing.T) {
 	}
 
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
-	if updated.(Model).actionInProgress {
+	if updated.(Model).actionMode != ActionModeNone {
 		t.Fatalf("expected refine to be ignored when no plan exists")
 	}
 
@@ -93,8 +93,8 @@ func TestHomeKeyPlanActionsWithPlan(t *testing.T) {
 	model.viewMode = ViewModeHome
 	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("r")})
 	next := updated.(Model)
-	if !next.actionInProgress || next.actionName != "Refining plan..." {
-		t.Fatalf("expected refine action to start from home when plan exists")
+	if next.actionMode != ActionModePlanRefine || next.planRefineForm == nil {
+		t.Fatalf("expected refine modal to open from home when plan exists")
 	}
 
 	model.viewMode = ViewModeHome

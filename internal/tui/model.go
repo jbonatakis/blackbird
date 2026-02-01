@@ -24,6 +24,7 @@ const (
 	ActionModeConfirmOverwrite
 	ActionModeAgentQuestion
 	ActionModePlanReview
+	ActionModePlanRefine
 )
 
 type ActivePane int
@@ -47,11 +48,21 @@ const (
 	ViewModeMain
 )
 
+type PendingPlanRequestKind int
+
+const (
+	PendingPlanGenerate PendingPlanRequestKind = iota
+	PendingPlanRefine
+)
+
 // PendingPlanRequest tracks the original plan generation request for question rounds
 type PendingPlanRequest struct {
+	kind          PendingPlanRequestKind
 	description   string
 	constraints   []string
 	granularity   string
+	changeRequest string
+	basePlan      plan.WorkGraph
 	questionRound int
 }
 
@@ -81,6 +92,7 @@ type Model struct {
 	detailOffset       int
 	actionOutput       *ActionOutput
 	planGenerateForm   *PlanGenerateForm
+	planRefineForm     *PlanRefineForm
 	agentQuestionForm  *AgentQuestionForm
 	planReviewForm     *PlanReviewForm
 	pendingPlanRequest PendingPlanRequest
@@ -134,6 +146,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.planGenerateForm != nil {
 			m.planGenerateForm.SetSize(typed.Width, typed.Height)
 		}
+		if m.planRefineForm != nil {
+			m.planRefineForm.SetSize(typed.Width, typed.Height)
+		}
 		if m.agentQuestionForm != nil {
 			m.agentQuestionForm.SetSize(typed.Width, typed.Height)
 		}
@@ -152,8 +167,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.actionInProgress = false
 		m.actionName = ""
 		if typed.Err != nil {
+			message := "Plan generation failed"
+			if m.pendingPlanRequest.kind == PendingPlanRefine {
+				message = "Plan refine failed"
+			}
 			m.actionOutput = &ActionOutput{
-				Message: fmt.Sprintf("Plan generation failed: %v", typed.Err),
+				Message: fmt.Sprintf("%s: %v", message, typed.Err),
 				IsError: true,
 			}
 		} else if len(typed.Questions) > 0 {
@@ -164,6 +183,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.actionMode = ActionModeAgentQuestion
 			return m, nil
 		} else if typed.Plan != nil {
+			if m.pendingPlanRequest.kind == PendingPlanRefine {
+				m.plan = *typed.Plan
+				m.ensureSelectionVisible()
+				m.pendingPlanRequest = PendingPlanRequest{}
+				return m, SavePlanCmdWithAction(m.plan, "plan refine", "Refined plan saved")
+			}
 			// Success - show plan review modal
 			form := NewPlanReviewForm(*typed.Plan, m.pendingPlanRequest.questionRound)
 			form.SetSize(m.windowWidth, m.windowHeight)
@@ -314,6 +339,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return HandlePlanGenerateKey(m, typed)
 			}
 		}
+		if m.actionMode == ActionModePlanRefine {
+			switch typed.String() {
+			case "ctrl+c":
+				m = cancelRunningAction(m)
+				return m, tea.Quit
+			case "esc":
+				// Cancel modal
+				m.actionMode = ActionModeNone
+				m.planRefineForm = nil
+				return m, nil
+			default:
+				return HandlePlanRefineKey(m, typed)
+			}
+		}
 		if m.actionMode == ActionModeAgentQuestion {
 			switch typed.String() {
 			case "ctrl+c":
@@ -381,9 +420,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.actionMode != ActionModeNone || m.actionInProgress || !m.planExists {
 					return m, nil
 				}
-				m.actionInProgress = true
-				m.actionName = "Refining plan..."
-				return m, tea.Batch(PlanRefineCmd(), spinnerTickCmd())
+				return m.startPlanRefine()
 			case "e":
 				if m.actionMode != ActionModeNone || m.actionInProgress || !m.canExecute() {
 					return m, nil
@@ -507,9 +544,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.actionMode != ActionModeNone || m.actionInProgress {
 				return m, nil
 			}
-			m.actionInProgress = true
-			m.actionName = "Refining plan..."
-			return m, tea.Batch(PlanRefineCmd(), spinnerTickCmd())
+			return m.startPlanRefine()
 		case "e":
 			if m.actionMode != ActionModeNone || m.actionInProgress {
 				return m, nil
@@ -577,7 +612,7 @@ func (m Model) startPlanGenerate() (Model, tea.Cmd) {
 	}
 
 	// Reset pending request state for new generation
-	m.pendingPlanRequest = PendingPlanRequest{}
+	m.pendingPlanRequest = PendingPlanRequest{kind: PendingPlanGenerate}
 
 	// Check if plan already exists with items
 	if len(m.plan.Items) > 0 {
@@ -590,6 +625,18 @@ func (m Model) startPlanGenerate() (Model, tea.Cmd) {
 	form.SetSize(m.windowWidth, m.windowHeight)
 	m.planGenerateForm = &form
 	m.actionMode = ActionModeGeneratePlan
+	return m, nil
+}
+
+func (m Model) startPlanRefine() (Model, tea.Cmd) {
+	if m.actionMode != ActionModeNone || m.actionInProgress || !m.planExists {
+		return m, nil
+	}
+
+	form := NewPlanRefineForm()
+	form.SetSize(m.windowWidth, m.windowHeight)
+	m.planRefineForm = &form
+	m.actionMode = ActionModePlanRefine
 	return m, nil
 }
 
@@ -650,6 +697,14 @@ func (m Model) View() string {
 	// Overlay plan generate modal if active
 	if m.actionMode == ActionModeGeneratePlan && m.planGenerateForm != nil {
 		modal := RenderPlanGenerateModal(m, *m.planGenerateForm)
+		if modal != "" {
+			content = modal
+		}
+	}
+
+	// Overlay plan refine modal if active
+	if m.actionMode == ActionModePlanRefine && m.planRefineForm != nil {
+		modal := RenderPlanRefineModal(m, *m.planRefineForm)
 		if modal != "" {
 			content = modal
 		}
