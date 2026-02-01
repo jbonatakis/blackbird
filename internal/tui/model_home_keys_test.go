@@ -114,7 +114,7 @@ func TestHomeKeySelectAgentOpensModal(t *testing.T) {
 		planExists: false,
 	}
 
-	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")})
 	next := updated.(Model)
 	if next.actionMode != ActionModeSelectAgent {
 		t.Fatalf("expected agent selection modal to open from home view")

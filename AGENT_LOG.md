@@ -1,5 +1,11 @@
 # AGENT_LOG
 
+## 2026-02-01 — TUI Change agent shortcut [c] and position
+
+- Changed agent shortcut from [a] to [c] (Change agent) to differentiate from [g] Generate plan.
+- Moved "Change agent" to bottom of home actions, just above Quit, in home view and bottom bar.
+- Updated model key handler, home_view, bottom_bar, trim priorities, and tests; `go test ./internal/tui/...` passes.
+
 ## 2026-02-01 — Global config spec
 
 - Added `specs/improvements/GLOBAL_CONFIG.md`: spec for global configuration with `~/.blackbird/config.json` (global) and `<project>/.blackbird/config.json` (project overrides), precedence project > global > built-in, initial keys for TUI run/plan refresh intervals.

@@ -71,6 +71,7 @@ func trimBottomBarActions(actions []string, width int, agent string, readyCount 
 		"[e]xecute",
 		"[r]efine",
 		"[g]enerate",
+		"[c]hange",
 		"[h]ome",
 	}
 	compact := fmt.Sprintf("agent:%s r:%d b:%d", agent, readyCount, blockedCount)
@@ -130,15 +131,15 @@ func actionHints(model Model, readyCount int) []string {
 	}
 	if model.viewMode == ViewModeHome {
 		actions = []string{
-			"[a]gent",
 			"[g]enerate",
 			"[v]iew",
 			"[r]efine",
 			"[e]xecute",
+			"[c]hange",
 			"[ctrl+c]quit",
 		}
 		if agentIsFromEnv() {
-			actions = removeAction(actions, "[a]gent")
+			actions = removeAction(actions, "[c]hange")
 		}
 		if !model.planExists {
 			actions = removeAction(actions, "[v]iew")

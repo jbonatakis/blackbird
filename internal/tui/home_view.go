@@ -187,11 +187,11 @@ func RenderHomeView(m Model) string {
 	changeAgentEnabled := !inProgress && !agentIsFromEnv()
 	lines = append(lines,
 		"",
-		renderActionLine("[a]", "Change agent", changeAgentEnabled, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[g]", "Generate plan", !inProgress, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[v]", "View plan", showPlanInfo, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[r]", "Refine plan", showPlanInfo, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[e]", "Execute", m.canExecute() && !inProgress, shortcutStyle, actionStyle, mutedStyle),
+		renderActionLine("[c]", "Change agent", changeAgentEnabled, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[ctrl+c]", "Quit", true, shortcutStyle, actionStyle, mutedStyle),
 	)
 

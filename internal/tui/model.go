@@ -474,7 +474,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					listenLiveOutputCmd(streamCh),
 					spinnerTickCmd(),
 				)
-			case "a":
+			case "c":
 				if m.actionMode != ActionModeNone || m.actionInProgress {
 					return m, nil
 				}
