@@ -198,7 +198,7 @@ func runList(args []string) error {
 
 	var statusFilter *plan.Status
 	if *statusStr != "" {
-		s, ok := parseStatus(*statusStr)
+		s, ok := plan.ParseStatus(*statusStr)
 		if !ok {
 			return UsageError{Message: fmt.Sprintf("invalid status %q", *statusStr)}
 		}
@@ -396,7 +396,7 @@ func runShow(id string) error {
 }
 
 func runSetStatus(id string, statusStr string) error {
-	s, ok := parseStatus(statusStr)
+	s, ok := plan.ParseStatus(statusStr)
 	if !ok {
 		return UsageError{Message: fmt.Sprintf("invalid status %q", statusStr)}
 	}
@@ -413,17 +413,9 @@ func runSetStatus(id string, statusStr string) error {
 		return fmt.Errorf("plan is invalid (run `blackbird validate`): %s", path)
 	}
 
-	it, ok := g.Items[id]
-	if !ok {
-		return fmt.Errorf("unknown id %q", id)
-	}
-
-	it.Status = s
-	it.UpdatedAt = time.Now().UTC()
-	g.Items[id] = it
-
-	if s == plan.StatusDone {
-		plan.PropagateParentCompletion(&g, id, it.UpdatedAt)
+	now := time.Now().UTC()
+	if err := plan.SetStatus(&g, id, s, now); err != nil {
+		return err
 	}
 
 	if err := plan.SaveAtomic(path, g); err != nil {
@@ -432,15 +424,6 @@ func runSetStatus(id string, statusStr string) error {
 
 	fmt.Fprintf(os.Stdout, "updated %s status to %s\n", id, s)
 	return nil
-}
-
-func parseStatus(s string) (plan.Status, bool) {
-	switch plan.Status(s) {
-	case plan.StatusTodo, plan.StatusQueued, plan.StatusInProgress, plan.StatusWaitingUser, plan.StatusBlocked, plan.StatusDone, plan.StatusFailed, plan.StatusSkipped:
-		return plan.Status(s), true
-	default:
-		return "", false
-	}
 }
 
 func leafIDs(g plan.WorkGraph) []string {

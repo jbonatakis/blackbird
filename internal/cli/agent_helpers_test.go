@@ -26,7 +26,7 @@ func TestResponseToPlanNormalizesFullPlanTimestamps(t *testing.T) {
 		},
 	}
 
-	result, err := responseToPlan(plan.NewEmptyWorkGraph(), resp, now)
+	result, err := agent.ResponseToPlan(plan.NewEmptyWorkGraph(), resp, now)
 	if err != nil {
 		t.Fatalf("responseToPlan: %v", err)
 	}

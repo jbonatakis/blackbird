@@ -210,11 +210,27 @@ func HandleAgentQuestionKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		}
 
 		m.actionInProgress = true
-		m.actionName = "Generating plan..."
+		if m.pendingPlanRequest.kind == PendingPlanRefine {
+			m.actionName = "Refining plan..."
+		} else {
+			m.actionName = "Generating plan..."
+		}
 
 		// Update question round
 		nextRound := m.pendingPlanRequest.questionRound + 1
 		m.pendingPlanRequest.questionRound = nextRound
+
+		if m.pendingPlanRequest.kind == PendingPlanRefine {
+			return m, tea.Batch(
+				ContinuePlanRefineWithAnswers(
+					m.pendingPlanRequest.changeRequest,
+					m.pendingPlanRequest.basePlan,
+					answers,
+					nextRound,
+				),
+				spinnerTickCmd(),
+			)
+		}
 
 		// Continue generation with answers
 		return m, tea.Batch(

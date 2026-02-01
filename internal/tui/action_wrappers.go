@@ -1,11 +1,10 @@
 package tui
 
 import (
-	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
-	"os"
-	"os/exec"
 	"strings"
 	"time"
 
@@ -36,14 +35,6 @@ type PlanGenerateInMemoryResult struct {
 	Plan      *plan.WorkGraph
 	Questions []agent.Question
 	Err       error
-}
-
-func PlanGenerateCmd() tea.Cmd {
-	return runPlanAction("plan generate", []string{"plan", "generate"})
-}
-
-func PlanRefineCmd() tea.Cmd {
-	return runPlanAction("plan refine", []string{"plan", "refine"})
 }
 
 func ExecuteCmd() tea.Cmd {
@@ -127,39 +118,45 @@ func ResumeCmdWithContextAndStream(ctx context.Context, taskID string, answers [
 }
 
 func SetStatusCmd(id string, status string) tea.Cmd {
-	return runExecuteAction("set-status", []string{"set-status", id, status})
-}
-
-func runPlanAction(action string, args []string) tea.Cmd {
 	return func() tea.Msg {
-		output, err := runCommand(args)
-		return PlanActionComplete{Action: action, Success: err == nil, Output: output, Err: err}
+		s, ok := plan.ParseStatus(status)
+		if !ok {
+			return ExecuteActionComplete{
+				Action: "set-status",
+				Err:    fmt.Errorf("invalid status %q", status),
+			}
+		}
+		path := planPath()
+		g, err := plan.Load(path)
+		if err != nil {
+			if errors.Is(err, plan.ErrPlanNotFound) {
+				return ExecuteActionComplete{
+					Action: "set-status",
+					Err:    fmt.Errorf("plan file not found: %s (run `blackbird init`)", path),
+				}
+			}
+			return ExecuteActionComplete{Action: "set-status", Err: err}
+		}
+		if errs := plan.Validate(g); len(errs) != 0 {
+			return ExecuteActionComplete{
+				Action: "set-status",
+				Err:    fmt.Errorf("plan is invalid (run `blackbird validate`): %s", path),
+			}
+		}
+
+		now := time.Now().UTC()
+		if err := plan.SetStatus(&g, id, s, now); err != nil {
+			return ExecuteActionComplete{Action: "set-status", Err: err}
+		}
+		if err := plan.SaveAtomic(path, g); err != nil {
+			return ExecuteActionComplete{Action: "set-status", Err: fmt.Errorf("write plan file: %w", err)}
+		}
+		return ExecuteActionComplete{
+			Action:  "set-status",
+			Success: true,
+			Output:  fmt.Sprintf("updated %s status to %s\n", id, s),
+		}
 	}
-}
-
-func runExecuteAction(action string, args []string) tea.Cmd {
-	return func() tea.Msg {
-		output, err := runCommand(args)
-		return ExecuteActionComplete{Action: action, Success: err == nil, Output: output, Err: err}
-	}
-}
-
-func runCommand(args []string) (string, error) {
-	exe, err := os.Executable()
-	if err != nil {
-		exe = os.Args[0]
-	}
-
-	cmd := exec.Command(exe, args...)
-	cmd.Env = os.Environ()
-	cmd.Stdin = os.Stdin
-
-	var buf bytes.Buffer
-	cmd.Stdout = &buf
-	cmd.Stderr = &buf
-
-	runErr := cmd.Run()
-	return buf.String(), runErr
 }
 
 func summarizeExecuteResult(result execution.ExecuteResult) string {
@@ -245,7 +242,7 @@ func GeneratePlanInMemory(ctx context.Context, description string, constraints [
 		}
 
 		// Convert response to plan
-		resultPlan, err := responseToPlan(plan.NewEmptyWorkGraph(), resp, time.Now().UTC())
+		resultPlan, err := agent.ResponseToPlan(plan.NewEmptyWorkGraph(), resp, time.Now().UTC())
 		if err != nil {
 			return PlanGenerateInMemoryResult{Success: false, Err: err}
 		}
@@ -299,7 +296,7 @@ func GeneratePlanInMemoryWithAnswers(ctx context.Context, description string, co
 		}
 
 		// Convert response to plan
-		resultPlan, err := responseToPlan(plan.NewEmptyWorkGraph(), resp, time.Now().UTC())
+		resultPlan, err := agent.ResponseToPlan(plan.NewEmptyWorkGraph(), resp, time.Now().UTC())
 		if err != nil {
 			return PlanGenerateInMemoryResult{Success: false, Err: err}
 		}
@@ -311,19 +308,107 @@ func GeneratePlanInMemoryWithAnswers(ctx context.Context, description string, co
 	}
 }
 
-// responseToPlan converts an agent response to a plan
-func responseToPlan(base plan.WorkGraph, resp agent.Response, now time.Time) (plan.WorkGraph, error) {
-	if resp.Plan != nil {
-		return plan.NormalizeWorkGraphTimestamps(*resp.Plan, now), nil
+// RefinePlanInMemory refines an existing plan with a change request
+func RefinePlanInMemory(ctx context.Context, changeRequest string, currentPlan plan.WorkGraph) tea.Cmd {
+	return func() tea.Msg {
+		// Create agent runtime from environment
+		runtime, err := agent.NewRuntimeFromEnv()
+		if err != nil {
+			return PlanGenerateInMemoryResult{Success: false, Err: err}
+		}
+
+		// Prepare request metadata with JSON schema
+		requestMeta := agent.RequestMetadata{
+			JSONSchema: defaultPlanJSONSchema(),
+		}
+
+		// Build the agent request
+		req := agent.Request{
+			SchemaVersion: agent.SchemaVersion,
+			Type:          agent.RequestPlanRefine,
+			SystemPrompt:  defaultPlanSystemPrompt(),
+			ChangeRequest: strings.TrimSpace(changeRequest),
+			Plan:          &currentPlan,
+			Metadata:      requestMeta,
+		}
+
+		// Run the agent
+		resp, _, err := runtime.Run(ctx, req)
+		if err != nil {
+			return PlanGenerateInMemoryResult{Success: false, Err: err}
+		}
+
+		// Check if agent is asking questions
+		if len(resp.Questions) > 0 {
+			return PlanGenerateInMemoryResult{
+				Success:   false,
+				Questions: resp.Questions,
+			}
+		}
+
+		// Convert response to plan
+		resultPlan, err := agent.ResponseToPlan(currentPlan, resp, time.Now().UTC())
+		if err != nil {
+			return PlanGenerateInMemoryResult{Success: false, Err: err}
+		}
+
+		return PlanGenerateInMemoryResult{
+			Success: true,
+			Plan:    &resultPlan,
+		}
 	}
-	if len(resp.Patch) == 0 {
-		return plan.WorkGraph{}, agent.RuntimeError{Message: "agent response contained no plan or patch"}
+}
+
+// RefinePlanInMemoryWithAnswers continues plan refinement after answering questions.
+func RefinePlanInMemoryWithAnswers(ctx context.Context, changeRequest string, currentPlan plan.WorkGraph, answers []agent.Answer) tea.Cmd {
+	return func() tea.Msg {
+		// Create agent runtime from environment
+		runtime, err := agent.NewRuntimeFromEnv()
+		if err != nil {
+			return PlanGenerateInMemoryResult{Success: false, Err: err}
+		}
+
+		// Prepare request metadata with JSON schema
+		requestMeta := agent.RequestMetadata{
+			JSONSchema: defaultPlanJSONSchema(),
+		}
+
+		// Build the agent request with answers
+		req := agent.Request{
+			SchemaVersion: agent.SchemaVersion,
+			Type:          agent.RequestPlanRefine,
+			SystemPrompt:  defaultPlanSystemPrompt(),
+			ChangeRequest: strings.TrimSpace(changeRequest),
+			Plan:          &currentPlan,
+			Answers:       answers,
+			Metadata:      requestMeta,
+		}
+
+		// Run the agent
+		resp, _, err := runtime.Run(ctx, req)
+		if err != nil {
+			return PlanGenerateInMemoryResult{Success: false, Err: err}
+		}
+
+		// Check if agent is asking MORE questions
+		if len(resp.Questions) > 0 {
+			return PlanGenerateInMemoryResult{
+				Success:   false,
+				Questions: resp.Questions,
+			}
+		}
+
+		// Convert response to plan
+		resultPlan, err := agent.ResponseToPlan(currentPlan, resp, time.Now().UTC())
+		if err != nil {
+			return PlanGenerateInMemoryResult{Success: false, Err: err}
+		}
+
+		return PlanGenerateInMemoryResult{
+			Success: true,
+			Plan:    &resultPlan,
+		}
 	}
-	next := plan.Clone(base)
-	if err := agent.ApplyPatch(&next, resp.Patch, now); err != nil {
-		return plan.WorkGraph{}, err
-	}
-	return next, nil
 }
 
 // defaultPlanJSONSchema returns the JSON schema for plan generation
@@ -444,6 +529,21 @@ func ContinuePlanGenerationWithAnswers(description string, constraints []string,
 	}
 
 	return GeneratePlanInMemoryWithAnswers(context.Background(), description, constraints, granularity, answers)
+}
+
+// ContinuePlanRefineWithAnswers continues plan refinement after answering questions.
+func ContinuePlanRefineWithAnswers(changeRequest string, currentPlan plan.WorkGraph, answers []agent.Answer, questionRound int) tea.Cmd {
+	const maxAgentQuestionRounds = 2
+	if questionRound >= maxAgentQuestionRounds {
+		return func() tea.Msg {
+			return PlanGenerateInMemoryResult{
+				Success: false,
+				Err:     agent.RuntimeError{Message: "too many clarification rounds"},
+			}
+		}
+	}
+
+	return RefinePlanInMemoryWithAnswers(context.Background(), changeRequest, currentPlan, answers)
 }
 
 // trimNonEmpty removes empty strings from a slice after trimming whitespace

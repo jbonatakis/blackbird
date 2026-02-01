@@ -1,6 +1,6 @@
 # CLI / TUI parity and shared code (DRY)
 
-**status:** incomplete
+**status:** complete
 
 ## Purpose
 
@@ -22,6 +22,37 @@ Ensure **parity** between the CLI and TUI so that:
 
 - **Uniform experience** — Users who switch between `blackbird` CLI and TUI should see consistent outcomes: same plan file shape, same status transitions, same execution/resume behavior. Differences should be limited to presentation (text vs interactive UI), not semantics.
 
+## CLI → TUI action mapping
+
+For each CLI command, how the TUI implements (or does not implement) the same operation. “Implementation” = how the TUI runs the logic (subprocess vs in-process / shared code). “Parity notes” = gaps or differences.
+
+| CLI command                      | TUI trigger / equivalent            | Implementation | Parity notes                                                                                                                                                                                                              |
+| -------------------------------- | ----------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **init**                         | (none)                              | —              | TUI has no “init” action; plan is loaded on start. Creating a plan from scratch is done via [g] Generate.                                                                                                                 |
+| **validate**                     | (none)                              | —              | No standalone “validate” in TUI. Plan is validated on load; `planValidationErr` is shown when invalid.                                                                                                                    |
+| **list**                         | Main view (tree + filters)          | In-memory      | TUI shows tree/list with filter mode ([f]); conceptually same as `list` / `list --tree`.                                                                                                                                  |
+| **pick**                         | (none)                              | —              | No direct “pick” in TUI. User selects a task in the tree, then [s] set-status or [e] execute.                                                                                                                             |
+| **plan generate**                | [g] from home                       | **In-process** | TUI uses `GeneratePlanInMemory` (agent in-process); form collects description/constraints/granularity; then plan review modal (accept/revise/reject). Revise uses `RefinePlanInMemory`. Does **not** call CLI subprocess. |
+| **plan refine**                  | [r] from home or main               | **In-process** | TUI collects a change request via modal and runs `RefinePlanInMemory`, matching the CLI refine behavior without subprocesses.                                                                                             |
+| **show \<id\>**                  | Detail pane (selected item)         | In-memory      | Selecting an item in the tree shows the same kind of info as `show <id>`.                                                                                                                                                 |
+| **set-status \<id\> \<status\>** | [s] with selection → SetStatusModal | **In-process** | TUI uses shared plan mutation helpers (`plan.SetStatus` + `SaveAtomic`), matching CLI semantics without subprocesses.                                                                                                     |
+| **add**                          | (none)                              | —              | No TUI for adding items. CLI-only.                                                                                                                                                                                        |
+| **edit \<id\>**                  | (none)                              | —              | No TUI for editing items. CLI-only.                                                                                                                                                                                       |
+| **delete \<id\>**                | (none)                              | —              | No TUI for deleting items. CLI-only.                                                                                                                                                                                      |
+| **move \<id\>**                  | (none)                              | —              | No TUI for moving items. CLI-only.                                                                                                                                                                                        |
+| **deps add/remove/set**          | (none)                              | —              | No TUI for manual dep edits. CLI-only.                                                                                                                                                                                    |
+| **deps infer**                   | (none)                              | —              | No TUI for deps infer. CLI-only.                                                                                                                                                                                          |
+| **runs \<taskID\>**              | Execution tab / run data            | In-memory      | TUI loads run data via `RunDataRefreshCmd` and shows it in the execution pane.                                                                                                                                            |
+| **execute**                      | [e]                                 | **In-process** | TUI uses `ExecuteCmd` → `execution.RunExecute` (same as CLI). Single code path.                                                                                                                                           |
+| **resume \<taskID\>**            | [u] when `CanResume`                | **In-process** | TUI uses `ResumeCmd` → `execution.RunResume`; answers collected via AgentQuestionForm. Same code path as CLI.                                                                                                             |
+| **retry \<taskID\>**             | (none)                              | —              | No TUI for retry. CLI-only.                                                                                                                                                                                               |
+
+### Summary
+
+- **In-process (shared code):** plan generate (TUI form → `GeneratePlanInMemory` / `RefinePlanInMemory`), plan refine, set-status, execute, resume.
+- **CLI-only (no TUI):** init, validate, pick, add, edit, delete, move, deps add/remove/set, deps infer, retry.
+- **Parity gaps:** None for plan refine/set-status; remaining gaps are feature-availability only (CLI-only commands).
+
 ## Current state
 
 ### Already shared (good)
@@ -32,12 +63,9 @@ Ensure **parity** between the CLI and TUI so that:
 
 ### Still duplicated (to reduce)
 
-- **responseToPlan** — “Convert agent response (full plan or patch) to a WorkGraph” exists in two places:
-  - `internal/cli/agent_helpers.go` — used by CLI plan generate/refine/deps infer.
-  - `internal/tui/action_wrappers.go` — used by TUI plan generate and plan review modal.
-  - Both do the same thing: if full plan → `plan.NormalizeWorkGraphTimestamps`; if patch → `plan.Clone` + `agent.ApplyPatch`; else error. Error type differs (CLI uses `errors.New`, TUI uses `agent.RuntimeError`). Consolidating into a single function (e.g. in `internal/agent`) would remove duplication and keep behavior identical.
+- **responseToPlan** — consolidated into `agent.ResponseToPlan` and used by both CLI/TUI plan flows; keep new plan-related behavior wired through the shared helper to avoid drift.
 
-- **Other candidates** — As more features are added (e.g. set-status, plan refine, deps infer from TUI), prefer implementing or reusing shared helpers rather than reimplementing in TUI via subprocess or copy-paste. Each new flow should ask: “can both CLI and TUI call the same function?”
+- **Other candidates** — See the [CLI → TUI action mapping](#cli--tui-action-mapping) above. Plan refine from TUI currently uses a subprocess and never collects the change request; it should be wired like plan review “Revise” (modal for input, then shared in-process refine). set-status in TUI uses subprocess; it could call shared plan mutation + SaveAtomic instead. As more features are added (e.g. deps infer from TUI), prefer implementing or reusing shared helpers. Each new flow should ask: “can both CLI and TUI call the same function?”
 
 ## Target state
 
@@ -50,7 +78,7 @@ Ensure **parity** between the CLI and TUI so that:
 ## Scope and non-goals
 
 - **In scope:** Establishing the principle, documenting current duplication (e.g. responseToPlan), and guiding consolidation (e.g. move responseToPlan to internal/agent and have both call it). Optional: a short checklist for “new feature: did we add it in shared code and use it from both?”
-- **Out of scope:** Changing UX or feature set; rewriting all existing code in one PR; forcing every tiny helper into a shared package (only substantive, user-affecting behavior). TUI-specific UI logic (rendering, key bindings, modals) stays in `internal/tui`.
+- **Out of scope:** Implementing new features from the CLI in the TUI; Changing UX or feature set; rewriting all existing code in one PR; forcing every tiny helper into a shared package (only substantive, user-affecting behavior). TUI-specific UI logic (rendering, key bindings, modals) stays in `internal/tui`.
 
 ## Success criteria
 

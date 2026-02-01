@@ -1,247 +1,219 @@
 {
   "schemaVersion": 1,
   "items": {
-    "feat-execution-view-live": {
-      "id": "feat-execution-view-live",
-      "title": "Render Live Output in Execution View",
-      "description": "Render live stdout/stderr during in-progress execute/resume; fall back to run record output when not in progress.",
+    "agent-log-update": {
+      "id": "agent-log-update",
+      "title": "Update AGENT_LOG",
+      "description": "Record the parity changes in the project log.",
       "acceptanceCriteria": [
-        "Execution pane shows live output while execute/resume is running",
-        "After completion, view shows run record output as before",
-        "Layout matches current execution view sections"
+        "AGENT_LOG.md includes a dated entry summarizing TUI subprocess removal and shared helper consolidation"
       ],
-      "prompt": "Update execution view to prefer live buffers when actionInProgress for execute/resume. Keep existing rendering for completed runs.",
+      "prompt": "Add a concise AGENT_LOG.md entry for this change set once implementation is complete.",
+      "parentId": "tests-docs",
+      "childIds": [],
+      "deps": [
+        "resp-helper",
+        "tui-inprocess"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T03:38:14.846182Z",
+      "updatedAt": "2026-02-01T03:59:58.541231Z"
+    },
+    "resp-helper": {
+      "id": "resp-helper",
+      "title": "Consolidate Agent Response Handling",
+      "description": "Remove duplication of response-to-plan conversion logic so CLI and TUI use a single shared helper with identical validation/normalization behavior.",
+      "acceptanceCriteria": [
+        "A single shared helper converts agent responses (full plan or patch) into a WorkGraph",
+        "CLI and TUI both use the shared helper with no behavioral differences",
+        "Error handling remains consistent with prior behavior (or is intentionally aligned and documented)"
+      ],
+      "prompt": "Implement a shared response-to-plan helper in a shared package (prefer internal/agent). Update both CLI and TUI to use it. Ensure timestamp normalization and patch application behavior match current semantics.",
       "parentId": null,
       "childIds": [
-        "task-execution-view-render"
+        "resp-helper-impl",
+        "resp-helper-wire",
+        "resp-helper-tests"
       ],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-02-01T03:38:14.846182Z",
+      "updatedAt": "2026-02-01T03:44:53.169955Z"
+    },
+    "resp-helper-impl": {
+      "id": "resp-helper-impl",
+      "title": "Add Shared Helper in internal/agent",
+      "description": "Create a shared function that merges an agent response into a plan with normalization and patch application.",
+      "acceptanceCriteria": [
+        "Helper accepts base plan, agent response, and time value",
+        "Full-plan responses are normalized with a single timestamp",
+        "Patch responses clone the base plan and apply patch ops"
+      ],
+      "prompt": "Add a helper in internal/agent (or another shared package if more appropriate) to convert a response into a plan. Keep behavior identical to existing CLI/TUI implementations.",
+      "parentId": "resp-helper",
+      "childIds": [],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-02-01T03:38:14.846182Z",
+      "updatedAt": "2026-02-01T03:42:30.862785Z"
+    },
+    "resp-helper-tests": {
+      "id": "resp-helper-tests",
+      "title": "Cover Shared Helper Behavior",
+      "description": "Ensure the shared helper is covered by tests so CLI/TUI parity is preserved.",
+      "acceptanceCriteria": [
+        "Tests cover full-plan normalization and patch application paths",
+        "Existing CLI/TUI tests continue to pass with minimal changes"
+      ],
+      "prompt": "Add or update tests to validate the new shared helper. Prefer focused unit tests in internal/agent if possible, and adjust existing tests only where necessary.",
+      "parentId": "resp-helper",
+      "childIds": [],
       "deps": [
-        "feat-streaming-pipeline"
+        "resp-helper-impl"
       ],
       "status": "done",
-      "createdAt": "2026-01-31T21:53:52.094244Z",
-      "updatedAt": "2026-01-31T22:04:01.222596Z",
-      "notes": ""
+      "createdAt": "2026-02-01T03:38:14.846182Z",
+      "updatedAt": "2026-02-01T03:43:43.339029Z"
     },
-    "feat-streaming-pipeline": {
-      "id": "feat-streaming-pipeline",
-      "title": "Execution Output Streaming Pipeline",
-      "description": "Add optional streaming from execution layer to TUI, including runner configuration, model buffers, and Bubble Tea message flow.",
+    "resp-helper-wire": {
+      "id": "resp-helper-wire",
+      "title": "Wire CLI and TUI to Shared Helper",
+      "description": "Replace duplicated response handling in CLI and TUI with the shared helper.",
       "acceptanceCriteria": [
-        "Execution layer exposes optional output streaming hook",
-        "TUI receives output chunks during execute/resume",
-        "Live buffers append output until run completes or is cancelled"
+        "internal/cli/agent_helpers.go uses the shared helper",
+        "internal/tui/action_wrappers.go uses the shared helper",
+        "No remaining duplicate response-to-plan logic exists"
       ],
-      "prompt": "Implement end-to-end output streaming: execution config → runner/launcher → TUI channel/Cmd → model buffers.",
+      "prompt": "Update CLI and TUI response handling to call the shared helper and remove local duplication. Keep existing call sites and error paths intact.",
+      "parentId": "resp-helper",
+      "childIds": [],
+      "deps": [
+        "resp-helper-impl"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T03:38:14.846182Z",
+      "updatedAt": "2026-02-01T03:44:53.169955Z"
+    },
+    "tests-docs": {
+      "id": "tests-docs",
+      "title": "Tests and Project Log Updates",
+      "description": "Update tests and record changes in AGENT_LOG for traceability.",
+      "acceptanceCriteria": [
+        "Relevant unit tests updated or added for new in-process TUI paths",
+        "All tests pass (or failures noted with rationale)",
+        "AGENT_LOG.md updated with a concise entry describing the change"
+      ],
+      "prompt": "Update test coverage for the new shared helper and TUI in-process actions. Add an AGENT_LOG entry summarizing the work.",
       "parentId": null,
       "childIds": [
-        "task-exec-config-hook",
-        "task-exec-multiwriter",
-        "task-tui-stream-cmd",
-        "task-model-live-buffers"
+        "tests-update",
+        "agent-log-update"
       ],
-      "deps": [],
+      "deps": [
+        "resp-helper",
+        "tui-inprocess"
+      ],
       "status": "done",
-      "createdAt": "2026-01-31T21:53:52.094244Z",
-      "updatedAt": "2026-01-31T22:07:58.09869Z",
-      "notes": ""
+      "createdAt": "2026-02-01T03:38:14.846182Z",
+      "updatedAt": "2026-02-01T04:02:32.745316Z"
     },
-    "feat-tests": {
-      "id": "feat-tests",
-      "title": "Streaming and Toggle Tests",
-      "description": "Add tests for tab toggling during runs and for streaming buffer behavior or view rendering.",
+    "tests-update": {
+      "id": "tests-update",
+      "title": "Update/Extend Tests",
+      "description": "Align tests with the new shared helper and in-process TUI actions.",
       "acceptanceCriteria": [
-        "Test verifies `t` toggles tabs during execute/resume action",
-        "At least one test covers live buffer handling or execution view rendering",
-        "All tests pass"
+        "Tests cover shared response-to-plan helper behavior",
+        "TUI action tests cover in-process refine and set-status flows"
       ],
-      "prompt": "Add/extend tests for key toggling and streaming output/view behavior. Prefer unit tests with minimal dependencies.",
+      "prompt": "Add or adjust tests to cover new shared helper and in-process TUI actions, reusing existing test patterns where possible.",
+      "parentId": "tests-docs",
+      "childIds": [],
+      "deps": [
+        "resp-helper",
+        "tui-inprocess"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T03:38:14.846182Z",
+      "updatedAt": "2026-02-01T04:02:32.745316Z"
+    },
+    "tui-action-cleanup": {
+      "id": "tui-action-cleanup",
+      "title": "Remove Subprocess Wrappers",
+      "description": "Clean up any unused subprocess helpers or command wrappers in TUI after migration.",
+      "acceptanceCriteria": [
+        "No TUI code path relies on os/exec to call `blackbird` for plan refine or set-status",
+        "Action wrapper code is simplified accordingly",
+        "No dead code remains for removed subprocess paths"
+      ],
+      "prompt": "Remove or simplify subprocess wrappers in internal/tui/action_wrappers.go that are no longer needed after in-process actions are wired.",
+      "parentId": "tui-inprocess",
+      "childIds": [],
+      "deps": [
+        "tui-set-status",
+        "tui-plan-refine"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T03:38:14.846182Z",
+      "updatedAt": "2026-02-01T03:59:47.226076Z"
+    },
+    "tui-inprocess": {
+      "id": "tui-inprocess",
+      "title": "Remove TUI CLI Subprocesses",
+      "description": "Ensure the TUI does not invoke the blackbird CLI binary for actions; all logic should run in-process via shared packages.",
+      "acceptanceCriteria": [
+        "TUI plan refine and set-status no longer shell out to `blackbird`",
+        "TUI actions use shared plan/execution helpers in-process",
+        "Behavior remains consistent with CLI"
+      ],
+      "prompt": "Replace remaining subprocess-backed TUI actions with in-process shared logic. Do not add new user-facing functionality; only remove subprocess usage.",
       "parentId": null,
       "childIds": [
-        "task-test-t-toggle",
-        "task-test-streaming-or-view"
+        "tui-set-status",
+        "tui-plan-refine",
+        "tui-action-cleanup"
       ],
       "deps": [
-        "feat-tui-toggle-tab",
-        "feat-streaming-pipeline",
-        "feat-execution-view-live"
+        "resp-helper-wire"
       ],
       "status": "done",
-      "createdAt": "2026-01-31T21:53:52.094244Z",
-      "updatedAt": "2026-01-31T22:08:53.733299Z",
-      "notes": ""
+      "createdAt": "2026-02-01T03:38:14.846182Z",
+      "updatedAt": "2026-02-01T03:59:47.226076Z"
     },
-    "feat-tui-toggle-tab": {
-      "id": "feat-tui-toggle-tab",
-      "title": "Allow Execution Tab During Runs",
-      "description": "Relax the TUI key handling guard so `t` toggles Details/Execution even while execute/resume is in progress, aligning with the spec behavior.",
+    "tui-plan-refine": {
+      "id": "tui-plan-refine",
+      "title": "Plan Refine In-Process",
+      "description": "Replace the TUI refine subprocess with an in-process agent call while keeping existing UI flow intact.",
       "acceptanceCriteria": [
-        "Pressing `t` during an active execute or resume toggles to the Execution tab",
-        "Plan generate/refine behavior remains unchanged if still intended to block `t`",
-        "No regressions to tab toggling when no action is in progress"
+        "TUI refine action uses in-process agent request/response handling",
+        "TUI collects a change request using existing form/modal patterns",
+        "No subprocess invocation remains in the refine path"
       ],
-      "prompt": "Update TUI key handling to allow `t` toggling during execute/resume actions. Keep behavior for other action modes consistent with spec.",
-      "parentId": null,
-      "childIds": [
-        "task-tui-keyguard"
-      ],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-01-31T21:53:52.094244Z",
-      "updatedAt": "2026-01-31T22:04:55.456842Z",
-      "notes": ""
-    },
-    "task-exec-config-hook": {
-      "id": "task-exec-config-hook",
-      "title": "Add Streaming Hook to Execute/Resume Config",
-      "description": "Extend execution config structs with optional output streaming callback or writer(s).",
-      "acceptanceCriteria": [
-        "Execute/resume config includes optional output streaming hook (callback or writers)",
-        "Existing callers compile without changes (optional field)"
-      ],
-      "prompt": "Add optional streaming field(s) to execution config types used by execute/resume. Choose callback or writer approach matching codebase style.",
-      "parentId": "feat-streaming-pipeline",
-      "childIds": [],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-01-31T21:53:52.094244Z",
-      "updatedAt": "2026-01-31T21:56:51.925191Z",
-      "notes": ""
-    },
-    "task-exec-multiwriter": {
-      "id": "task-exec-multiwriter",
-      "title": "Pipe Agent Output Through Streaming Hook",
-      "description": "In runner/launcher, copy subprocess stdout/stderr to both existing buffers and the streaming sink.",
-      "acceptanceCriteria": [
-        "Agent stdout/stderr still captured for run records",
-        "Output streaming hook receives incremental chunks",
-        "No change to execute/resume completion behavior"
-      ],
-      "prompt": "Update execution runner/launcher to pipe stdout/stderr through an io.MultiWriter (or equivalent) that includes streaming sink and current capture.",
-      "parentId": "feat-streaming-pipeline",
+      "prompt": "Update TUI refine action to run in-process (similar to plan review Revise). Ensure the change request is captured without introducing new functionality beyond the existing refine behavior.",
+      "parentId": "tui-inprocess",
       "childIds": [],
       "deps": [
-        "task-exec-config-hook"
+        "resp-helper-wire"
       ],
       "status": "done",
-      "createdAt": "2026-01-31T21:53:52.094244Z",
-      "updatedAt": "2026-01-31T21:57:47.409813Z",
-      "notes": ""
+      "createdAt": "2026-02-01T03:38:14.846182Z",
+      "updatedAt": "2026-02-01T03:54:23.047594Z"
     },
-    "task-execution-view-render": {
-      "id": "task-execution-view-render",
-      "title": "Execution View Live Buffer Rendering",
-      "description": "Update `internal/tui/execution_view.go` to render live buffers when appropriate.",
+    "tui-set-status": {
+      "id": "tui-set-status",
+      "title": "Set-Status In-Process",
+      "description": "Swap TUI set-status to shared plan mutation logic rather than subprocess.",
       "acceptanceCriteria": [
-        "Live buffers are used when in-progress execute/resume",
-        "Run record output is used when not in progress",
-        "No change to task summary section"
+        "Set-status in TUI uses shared plan mutation + SaveAtomic",
+        "Parent completion propagation still occurs when marking done",
+        "No subprocess invocation remains in the set-status path"
       ],
-      "prompt": "Modify execution view rendering to switch log output source based on action state.",
-      "parentId": "feat-execution-view-live",
-      "childIds": [],
-      "deps": [
-        "task-model-live-buffers"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-31T21:53:52.094244Z",
-      "updatedAt": "2026-01-31T22:04:01.222596Z",
-      "notes": ""
-    },
-    "task-model-live-buffers": {
-      "id": "task-model-live-buffers",
-      "title": "Add Live Execution Buffers to Model",
-      "description": "Introduce live stdout/stderr fields in the TUI model and clear them on completion/cancel.",
-      "acceptanceCriteria": [
-        "Model stores live stdout/stderr during execute/resume",
-        "Buffers are cleared on completion or cancel",
-        "No impact on completed run display"
-      ],
-      "prompt": "Add live buffer fields to the TUI model, update relevant reset/cleanup logic for execute/resume completion and cancel paths.",
-      "parentId": "feat-streaming-pipeline",
+      "prompt": "Implement in-process set-status for TUI. Reuse existing plan mutation helpers and ensure updatedAt/parent completion behavior matches CLI.",
+      "parentId": "tui-inprocess",
       "childIds": [],
       "deps": [],
       "status": "done",
-      "createdAt": "2026-01-31T21:53:52.094244Z",
-      "updatedAt": "2026-01-31T22:02:42.020759Z",
-      "notes": ""
-    },
-    "task-test-streaming-or-view": {
-      "id": "task-test-streaming-or-view",
-      "title": "Test Live Buffer Handling or View Rendering",
-      "description": "Add a unit test to validate live buffer append logic or execution view uses live buffers when in progress.",
-      "acceptanceCriteria": [
-        "Test covers live buffer append/update path or view data source switch",
-        "Test passes with new streaming behavior"
-      ],
-      "prompt": "Write a focused test for streaming message handling or execution view selection of live buffers during in-progress runs.",
-      "parentId": "feat-tests",
-      "childIds": [],
-      "deps": [
-        "task-tui-stream-cmd",
-        "task-execution-view-render"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-31T21:53:52.094244Z",
-      "updatedAt": "2026-01-31T22:08:53.733299Z",
-      "notes": ""
-    },
-    "task-test-t-toggle": {
-      "id": "task-test-t-toggle",
-      "title": "Test `t` Toggle During Action",
-      "description": "Unit test for key handling that ensures `t` switches tabs even when action in progress (execute/resume).",
-      "acceptanceCriteria": [
-        "Test fails before code change and passes after",
-        "Test scoped to TUI model key handling"
-      ],
-      "prompt": "Add a unit test for `internal/tui/model.go` key handling that asserts `t` toggles tabs during execute/resume action states.",
-      "parentId": "feat-tests",
-      "childIds": [],
-      "deps": [
-        "task-tui-keyguard"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-31T21:53:52.094244Z",
-      "updatedAt": "2026-01-31T22:05:46.963176Z",
-      "notes": ""
-    },
-    "task-tui-keyguard": {
-      "id": "task-tui-keyguard",
-      "title": "Relax `t` Key Guard",
-      "description": "Modify `internal/tui/model.go` to allow switching to the Execution tab during execute/resume runs.",
-      "acceptanceCriteria": [
-        "`t` toggles between Details and Execution while `actionInProgress` is true for execute/resume",
-        "Guard remains for non-execute/resume if required by spec"
-      ],
-      "prompt": "In `internal/tui/model.go`, update the `case \"t\"` guard to allow toggling during execute/resume. Keep other cases unchanged.",
-      "parentId": "feat-tui-toggle-tab",
-      "childIds": [],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-01-31T21:53:52.094244Z",
-      "updatedAt": "2026-01-31T22:04:55.456842Z",
-      "notes": ""
-    },
-    "task-tui-stream-cmd": {
-      "id": "task-tui-stream-cmd",
-      "title": "Bubble Tea Streaming Cmd and Messages",
-      "description": "Implement the channel-driven Cmd that forwards output chunks into the TUI Update loop.",
-      "acceptanceCriteria": [
-        "Output chunk message type exists and is handled in Update",
-        "Streaming Cmd reads until channel close and then exits cleanly",
-        "Live buffers append with each chunk"
-      ],
-      "prompt": "Create a message type for output chunks and a Cmd that reads a channel and sends messages. Update model to append chunks and re-issue Cmd as needed.",
-      "parentId": "feat-streaming-pipeline",
-      "childIds": [],
-      "deps": [
-        "task-model-live-buffers",
-        "task-exec-config-hook"
-      ],
-      "status": "done",
-      "createdAt": "2026-01-31T21:53:52.094244Z",
-      "updatedAt": "2026-01-31T22:07:58.09869Z",
-      "notes": ""
+      "createdAt": "2026-02-01T03:38:14.846182Z",
+      "updatedAt": "2026-02-01T03:58:14.873857Z"
     }
   }
 }

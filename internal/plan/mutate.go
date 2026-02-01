@@ -228,6 +228,25 @@ func RemoveDep(g *WorkGraph, id string, depID string, now time.Time) error {
 	return nil
 }
 
+// SetStatus updates a work item status and timestamps in place.
+// Callers are responsible for validating plan invariants and persisting the plan.
+func SetStatus(g *WorkGraph, id string, status Status, now time.Time) error {
+	if g == nil {
+		return fmt.Errorf("plan is nil")
+	}
+	it, ok := g.Items[id]
+	if !ok {
+		return fmt.Errorf("unknown id %q", id)
+	}
+	it.Status = status
+	it.UpdatedAt = now
+	g.Items[id] = it
+	if status == StatusDone {
+		PropagateParentCompletion(g, id, now)
+	}
+	return nil
+}
+
 func SetDeps(g *WorkGraph, id string, deps []string, now time.Time) error {
 	it, ok := g.Items[id]
 	if !ok {
