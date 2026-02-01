@@ -35,7 +35,7 @@ func TestRunDelete_ForceReportsDetachedIDs(t *testing.T) {
 			}(),
 		},
 	}
-	if err := plan.SaveAtomic(planPath(), g); err != nil {
+	if err := plan.SaveAtomic(plan.PlanPath(), g); err != nil {
 		t.Fatalf("save plan: %v", err)
 	}
 

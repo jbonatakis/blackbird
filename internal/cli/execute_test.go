@@ -41,7 +41,7 @@ func TestRunExecuteSingleTask(t *testing.T) {
 			},
 		},
 	}
-	if err := plan.SaveAtomic(planPath(), g); err != nil {
+	if err := plan.SaveAtomic(plan.PlanPath(), g); err != nil {
 		t.Fatalf("save plan: %v", err)
 	}
 
@@ -49,7 +49,7 @@ func TestRunExecuteSingleTask(t *testing.T) {
 		t.Fatalf("runExecute: %v", err)
 	}
 
-	updated, err := plan.Load(planPath())
+	updated, err := plan.Load(plan.PlanPath())
 	if err != nil {
 		t.Fatalf("load plan: %v", err)
 	}
@@ -112,7 +112,7 @@ func TestRunExecuteFailureContinues(t *testing.T) {
 			},
 		},
 	}
-	if err := plan.SaveAtomic(planPath(), g); err != nil {
+	if err := plan.SaveAtomic(plan.PlanPath(), g); err != nil {
 		t.Fatalf("save plan: %v", err)
 	}
 
@@ -120,7 +120,7 @@ func TestRunExecuteFailureContinues(t *testing.T) {
 		t.Fatalf("runExecute: %v", err)
 	}
 
-	updated, err := plan.Load(planPath())
+	updated, err := plan.Load(plan.PlanPath())
 	if err != nil {
 		t.Fatalf("load plan: %v", err)
 	}

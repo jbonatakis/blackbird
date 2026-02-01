@@ -5,6 +5,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jbonatakis/blackbird/internal/agent"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
@@ -105,7 +106,7 @@ func TestPlanReviewQuickSelect(t *testing.T) {
 func TestPlanReviewRevisionLimitBlocking(t *testing.T) {
 	testPlan := createTestPlan()
 	// Create form with revision count at the limit
-	form := NewPlanReviewForm(testPlan, maxGenerateRevisions)
+	form := NewPlanReviewForm(testPlan, agent.MaxPlanGenerateRevisions)
 
 	if form.CanRevise() {
 		t.Error("Expected CanRevise to return false when at revision limit")

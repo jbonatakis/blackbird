@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -24,12 +23,7 @@ type planDataRefreshMsg struct{}
 
 func (m Model) LoadPlanData() tea.Cmd {
 	return func() tea.Msg {
-		baseDir, err := os.Getwd()
-		if err != nil {
-			return PlanDataLoaded{Plan: plan.NewEmptyWorkGraph(), PlanExists: false, Err: err}
-		}
-
-		path := filepath.Join(baseDir, plan.DefaultPlanFilename)
+		path := plan.PlanPath()
 		g, err := plan.Load(path)
 		if err != nil {
 			if errors.Is(err, plan.ErrPlanNotFound) || os.IsNotExist(err) {

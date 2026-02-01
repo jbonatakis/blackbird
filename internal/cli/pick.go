@@ -44,7 +44,7 @@ func runPick(args []string) error {
 		return UsageError{Message: "pick takes only flags (no positional args)"}
 	}
 
-	path := planPath()
+	path := plan.PlanPath()
 
 	for {
 		g, err := loadValidatedPlan(path)

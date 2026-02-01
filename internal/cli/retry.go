@@ -14,7 +14,7 @@ func runRetry(taskID string) error {
 		return UsageError{Message: "retry requires exactly 1 argument: <taskID>"}
 	}
 
-	path := planPath()
+	path := plan.PlanPath()
 	g, err := loadValidatedPlan(path)
 	if err != nil {
 		return err

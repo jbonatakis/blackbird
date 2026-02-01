@@ -3,7 +3,6 @@ package tui
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -25,7 +24,7 @@ func TestExecuteCmdWithContextRunsInProcess(t *testing.T) {
 
 	t.Setenv("BLACKBIRD_AGENT_CMD", "cat")
 
-	planPath := filepath.Join(tempDir, plan.DefaultPlanFilename)
+	planPath := plan.PlanPath()
 	g := plan.WorkGraph{
 		SchemaVersion: plan.SchemaVersion,
 		Items: map[string]plan.WorkItem{
@@ -71,7 +70,7 @@ func TestResumeCmdWithContextRunsInProcess(t *testing.T) {
 
 	t.Setenv("BLACKBIRD_AGENT_CMD", "cat")
 
-	planPath := filepath.Join(tempDir, plan.DefaultPlanFilename)
+	planPath := plan.PlanPath()
 	g := plan.WorkGraph{
 		SchemaVersion: plan.SchemaVersion,
 		Items: map[string]plan.WorkItem{

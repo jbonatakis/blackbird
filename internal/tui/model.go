@@ -579,7 +579,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !CanResume(m) {
 				return m, nil
 			}
-			questions, err := execution.ParseQuestionsFromLatestWaitingRun(planPath(), m.plan, m.selectedID)
+			questions, err := execution.ParseQuestionsFromLatestWaitingRun(plan.PlanPath(), m.plan, m.selectedID)
 			if err != nil {
 				m.actionOutput = &ActionOutput{
 					Message: fmt.Sprintf("Resume failed: %v", err),

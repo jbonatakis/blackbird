@@ -1,219 +1,94 @@
 {
   "schemaVersion": 1,
   "items": {
-    "agent-log-update": {
-      "id": "agent-log-update",
+    "wi_docs_log": {
+      "id": "wi_docs_log",
       "title": "Update AGENT_LOG",
-      "description": "Record the parity changes in the project log.",
+      "description": "Record the consolidation work in AGENT_LOG.md per project instructions.",
       "acceptanceCriteria": [
-        "AGENT_LOG.md includes a dated entry summarizing TUI subprocess removal and shared helper consolidation"
+        "AGENT_LOG.md contains a concise entry about the consolidation"
       ],
-      "prompt": "Add a concise AGENT_LOG.md entry for this change set once implementation is complete.",
-      "parentId": "tests-docs",
+      "prompt": "Add a brief entry to AGENT_LOG.md summarizing the shared plan-agent consolidation work.",
+      "parentId": null,
       "childIds": [],
       "deps": [
-        "resp-helper",
-        "tui-inprocess"
+        "wi_wire_cli_tui"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T03:38:14.846182Z",
-      "updatedAt": "2026-02-01T03:59:58.541231Z"
+      "createdAt": "2026-02-01T04:22:01.067838Z",
+      "updatedAt": "2026-02-01T04:31:34.798109Z"
     },
-    "resp-helper": {
-      "id": "resp-helper",
-      "title": "Consolidate Agent Response Handling",
-      "description": "Remove duplication of response-to-plan conversion logic so CLI and TUI use a single shared helper with identical validation/normalization behavior.",
+    "wi_shared_defs": {
+      "id": "wi_shared_defs",
+      "title": "Create shared plan-agent definitions",
+      "description": "Add shared functions/constants for plan agent prompt, JSON schema, question rounds, and revision limits in a common internal package.",
       "acceptanceCriteria": [
-        "A single shared helper converts agent responses (full plan or patch) into a WorkGraph",
-        "CLI and TUI both use the shared helper with no behavioral differences",
-        "Error handling remains consistent with prior behavior (or is intentionally aligned and documented)"
+        "A shared package exposes the default plan system prompt and default plan JSON schema",
+        "Shared constants exist for max agent question rounds and max generate revisions",
+        "No behavior change beyond consolidation"
       ],
-      "prompt": "Implement a shared response-to-plan helper in a shared package (prefer internal/agent). Update both CLI and TUI to use it. Ensure timestamp normalization and patch application behavior match current semantics.",
+      "prompt": "Implement a shared Go package (e.g., internal/agent or internal/plan) that owns the default plan system prompt, plan JSON schema string, and related constants for question rounds and revisions.",
       "parentId": null,
-      "childIds": [
-        "resp-helper-impl",
-        "resp-helper-wire",
-        "resp-helper-tests"
-      ],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-02-01T03:38:14.846182Z",
-      "updatedAt": "2026-02-01T03:44:53.169955Z"
-    },
-    "resp-helper-impl": {
-      "id": "resp-helper-impl",
-      "title": "Add Shared Helper in internal/agent",
-      "description": "Create a shared function that merges an agent response into a plan with normalization and patch application.",
-      "acceptanceCriteria": [
-        "Helper accepts base plan, agent response, and time value",
-        "Full-plan responses are normalized with a single timestamp",
-        "Patch responses clone the base plan and apply patch ops"
-      ],
-      "prompt": "Add a helper in internal/agent (or another shared package if more appropriate) to convert a response into a plan. Keep behavior identical to existing CLI/TUI implementations.",
-      "parentId": "resp-helper",
       "childIds": [],
       "deps": [],
       "status": "done",
-      "createdAt": "2026-02-01T03:38:14.846182Z",
-      "updatedAt": "2026-02-01T03:42:30.862785Z"
+      "createdAt": "2026-02-01T04:22:01.067838Z",
+      "updatedAt": "2026-02-01T04:27:10.296869Z"
     },
-    "resp-helper-tests": {
-      "id": "resp-helper-tests",
-      "title": "Cover Shared Helper Behavior",
-      "description": "Ensure the shared helper is covered by tests so CLI/TUI parity is preserved.",
+    "wi_shared_plan_path": {
+      "id": "wi_shared_plan_path",
+      "title": "Centralize plan file path helper",
+      "description": "Provide a single helper for determining the plan file path in the current working directory for both CLI and TUI.",
       "acceptanceCriteria": [
-        "Tests cover full-plan normalization and patch application paths",
-        "Existing CLI/TUI tests continue to pass with minimal changes"
+        "One shared helper computes plan path using cwd + plan.DefaultPlanFilename",
+        "CLI and TUI use the shared helper"
       ],
-      "prompt": "Add or update tests to validate the new shared helper. Prefer focused unit tests in internal/agent if possible, and adjust existing tests only where necessary.",
-      "parentId": "resp-helper",
-      "childIds": [],
-      "deps": [
-        "resp-helper-impl"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T03:38:14.846182Z",
-      "updatedAt": "2026-02-01T03:43:43.339029Z"
-    },
-    "resp-helper-wire": {
-      "id": "resp-helper-wire",
-      "title": "Wire CLI and TUI to Shared Helper",
-      "description": "Replace duplicated response handling in CLI and TUI with the shared helper.",
-      "acceptanceCriteria": [
-        "internal/cli/agent_helpers.go uses the shared helper",
-        "internal/tui/action_wrappers.go uses the shared helper",
-        "No remaining duplicate response-to-plan logic exists"
-      ],
-      "prompt": "Update CLI and TUI response handling to call the shared helper and remove local duplication. Keep existing call sites and error paths intact.",
-      "parentId": "resp-helper",
-      "childIds": [],
-      "deps": [
-        "resp-helper-impl"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T03:38:14.846182Z",
-      "updatedAt": "2026-02-01T03:44:53.169955Z"
-    },
-    "tests-docs": {
-      "id": "tests-docs",
-      "title": "Tests and Project Log Updates",
-      "description": "Update tests and record changes in AGENT_LOG for traceability.",
-      "acceptanceCriteria": [
-        "Relevant unit tests updated or added for new in-process TUI paths",
-        "All tests pass (or failures noted with rationale)",
-        "AGENT_LOG.md updated with a concise entry describing the change"
-      ],
-      "prompt": "Update test coverage for the new shared helper and TUI in-process actions. Add an AGENT_LOG entry summarizing the work.",
+      "prompt": "Add a shared helper function (likely in internal/plan) to compute the plan file path in the current working directory.",
       "parentId": null,
-      "childIds": [
-        "tests-update",
-        "agent-log-update"
-      ],
-      "deps": [
-        "resp-helper",
-        "tui-inprocess"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T03:38:14.846182Z",
-      "updatedAt": "2026-02-01T04:02:32.745316Z"
-    },
-    "tests-update": {
-      "id": "tests-update",
-      "title": "Update/Extend Tests",
-      "description": "Align tests with the new shared helper and in-process TUI actions.",
-      "acceptanceCriteria": [
-        "Tests cover shared response-to-plan helper behavior",
-        "TUI action tests cover in-process refine and set-status flows"
-      ],
-      "prompt": "Add or adjust tests to cover new shared helper and in-process TUI actions, reusing existing test patterns where possible.",
-      "parentId": "tests-docs",
-      "childIds": [],
-      "deps": [
-        "resp-helper",
-        "tui-inprocess"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T03:38:14.846182Z",
-      "updatedAt": "2026-02-01T04:02:32.745316Z"
-    },
-    "tui-action-cleanup": {
-      "id": "tui-action-cleanup",
-      "title": "Remove Subprocess Wrappers",
-      "description": "Clean up any unused subprocess helpers or command wrappers in TUI after migration.",
-      "acceptanceCriteria": [
-        "No TUI code path relies on os/exec to call `blackbird` for plan refine or set-status",
-        "Action wrapper code is simplified accordingly",
-        "No dead code remains for removed subprocess paths"
-      ],
-      "prompt": "Remove or simplify subprocess wrappers in internal/tui/action_wrappers.go that are no longer needed after in-process actions are wired.",
-      "parentId": "tui-inprocess",
-      "childIds": [],
-      "deps": [
-        "tui-set-status",
-        "tui-plan-refine"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T03:38:14.846182Z",
-      "updatedAt": "2026-02-01T03:59:47.226076Z"
-    },
-    "tui-inprocess": {
-      "id": "tui-inprocess",
-      "title": "Remove TUI CLI Subprocesses",
-      "description": "Ensure the TUI does not invoke the blackbird CLI binary for actions; all logic should run in-process via shared packages.",
-      "acceptanceCriteria": [
-        "TUI plan refine and set-status no longer shell out to `blackbird`",
-        "TUI actions use shared plan/execution helpers in-process",
-        "Behavior remains consistent with CLI"
-      ],
-      "prompt": "Replace remaining subprocess-backed TUI actions with in-process shared logic. Do not add new user-facing functionality; only remove subprocess usage.",
-      "parentId": null,
-      "childIds": [
-        "tui-set-status",
-        "tui-plan-refine",
-        "tui-action-cleanup"
-      ],
-      "deps": [
-        "resp-helper-wire"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T03:38:14.846182Z",
-      "updatedAt": "2026-02-01T03:59:47.226076Z"
-    },
-    "tui-plan-refine": {
-      "id": "tui-plan-refine",
-      "title": "Plan Refine In-Process",
-      "description": "Replace the TUI refine subprocess with an in-process agent call while keeping existing UI flow intact.",
-      "acceptanceCriteria": [
-        "TUI refine action uses in-process agent request/response handling",
-        "TUI collects a change request using existing form/modal patterns",
-        "No subprocess invocation remains in the refine path"
-      ],
-      "prompt": "Update TUI refine action to run in-process (similar to plan review Revise). Ensure the change request is captured without introducing new functionality beyond the existing refine behavior.",
-      "parentId": "tui-inprocess",
-      "childIds": [],
-      "deps": [
-        "resp-helper-wire"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T03:38:14.846182Z",
-      "updatedAt": "2026-02-01T03:54:23.047594Z"
-    },
-    "tui-set-status": {
-      "id": "tui-set-status",
-      "title": "Set-Status In-Process",
-      "description": "Swap TUI set-status to shared plan mutation logic rather than subprocess.",
-      "acceptanceCriteria": [
-        "Set-status in TUI uses shared plan mutation + SaveAtomic",
-        "Parent completion propagation still occurs when marking done",
-        "No subprocess invocation remains in the set-status path"
-      ],
-      "prompt": "Implement in-process set-status for TUI. Reuse existing plan mutation helpers and ensure updatedAt/parent completion behavior matches CLI.",
-      "parentId": "tui-inprocess",
       "childIds": [],
       "deps": [],
       "status": "done",
-      "createdAt": "2026-02-01T03:38:14.846182Z",
-      "updatedAt": "2026-02-01T03:58:14.873857Z"
+      "createdAt": "2026-02-01T04:22:01.067838Z",
+      "updatedAt": "2026-02-01T04:29:30.451306Z"
+    },
+    "wi_tests": {
+      "id": "wi_tests",
+      "title": "Update or add tests",
+      "description": "Adjust tests to cover the shared helper(s) and ensure existing behavior remains intact.",
+      "acceptanceCriteria": [
+        "Relevant tests compile and pass",
+        "New helpers have unit coverage when appropriate"
+      ],
+      "prompt": "Add or update tests for the new shared helpers and constants; run existing test suite as appropriate.",
+      "parentId": null,
+      "childIds": [],
+      "deps": [
+        "wi_wire_cli_tui"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T04:22:01.067838Z",
+      "updatedAt": "2026-02-01T04:33:08.348078Z"
+    },
+    "wi_wire_cli_tui": {
+      "id": "wi_wire_cli_tui",
+      "title": "Wire CLI and TUI to shared definitions",
+      "description": "Replace duplicated prompt/schema/path/constants in CLI and TUI with the shared package usages.",
+      "acceptanceCriteria": [
+        "CLI uses shared plan system prompt and JSON schema",
+        "TUI uses shared plan system prompt and JSON schema",
+        "CLI and TUI use shared constants for question rounds and revisions",
+        "CLI and TUI use shared plan path helper"
+      ],
+      "prompt": "Update internal/cli and internal/tui to import and use the shared helper(s) and constants instead of local duplicates.",
+      "parentId": null,
+      "childIds": [],
+      "deps": [
+        "wi_shared_defs",
+        "wi_shared_plan_path"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T04:22:01.067838Z",
+      "updatedAt": "2026-02-01T04:31:22.630511Z"
     }
   }
 }

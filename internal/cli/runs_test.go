@@ -28,7 +28,7 @@ func TestRunRunsDisplaysTable(t *testing.T) {
 			"task-1": newWorkItem("task-1", now),
 		},
 	}
-	if err := plan.SaveAtomic(planPath(), g); err != nil {
+	if err := plan.SaveAtomic(plan.PlanPath(), g); err != nil {
 		t.Fatalf("save plan: %v", err)
 	}
 
@@ -75,7 +75,7 @@ func TestRunRunsVerboseOutput(t *testing.T) {
 			"task-1": newWorkItem("task-1", now),
 		},
 	}
-	if err := plan.SaveAtomic(planPath(), g); err != nil {
+	if err := plan.SaveAtomic(plan.PlanPath(), g); err != nil {
 		t.Fatalf("save plan: %v", err)
 	}
 
@@ -127,7 +127,7 @@ func TestRunRunsNoRuns(t *testing.T) {
 			"task-1": newWorkItem("task-1", now),
 		},
 	}
-	if err := plan.SaveAtomic(planPath(), g); err != nil {
+	if err := plan.SaveAtomic(plan.PlanPath(), g); err != nil {
 		t.Fatalf("save plan: %v", err)
 	}
 

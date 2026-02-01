@@ -14,11 +14,6 @@ import (
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
-const (
-	maxAgentQuestionRounds = 2
-	maxGenerateRevisions   = 1
-)
-
 func runPlan(args []string) error {
 	if len(args) == 0 {
 		return UsageError{Message: "plan requires a subcommand: generate|refine"}
@@ -76,7 +71,7 @@ func runPlanGenerate(args []string) error {
 		return err
 	}
 
-	path := planPath()
+	path := plan.PlanPath()
 	exists, existing, err := loadPlanIfExists(path)
 	if err != nil {
 		return err
@@ -93,11 +88,11 @@ func runPlanGenerate(args []string) error {
 	}
 
 	requestMeta := buildAgentMetadata(meta)
-	requestMeta.JSONSchema = defaultPlanJSONSchema()
+	requestMeta.JSONSchema = agent.DefaultPlanJSONSchema()
 	req := agent.Request{
 		SchemaVersion:      agent.SchemaVersion,
 		Type:               agent.RequestPlanGenerate,
-		SystemPrompt:       defaultPlanSystemPrompt(),
+		SystemPrompt:       agent.DefaultPlanSystemPrompt(),
 		ProjectDescription: strings.TrimSpace(*description),
 		Constraints:        trimNonEmpty(constraints),
 		Granularity:        strings.TrimSpace(*granularity),
@@ -106,7 +101,7 @@ func runPlanGenerate(args []string) error {
 
 	var proposed plan.WorkGraph
 	diag := agent.Diagnostics{}
-	resp, diag, err := runAgentWithQuestions(context.Background(), runtime, req, maxAgentQuestionRounds)
+	resp, diag, err := runAgentWithQuestions(context.Background(), runtime, req, agent.MaxPlanQuestionRounds)
 	if err != nil {
 		return formatAgentRunError(err, diag)
 	}
@@ -136,7 +131,7 @@ func runPlanGenerate(args []string) error {
 			fmt.Fprintf(os.Stdout, "saved plan: %s\n", path)
 			return nil
 		case "revise":
-			if revisions >= maxGenerateRevisions {
+			if revisions >= agent.MaxPlanGenerateRevisions {
 				return errors.New("revision limit reached")
 			}
 			revisions++
@@ -148,16 +143,16 @@ func runPlanGenerate(args []string) error {
 				return UsageError{Message: "revision request cannot be empty"}
 			}
 			revisionMeta := buildAgentMetadata(meta)
-			revisionMeta.JSONSchema = defaultPlanJSONSchema()
+			revisionMeta.JSONSchema = agent.DefaultPlanJSONSchema()
 			refineReq := agent.Request{
 				SchemaVersion: agent.SchemaVersion,
 				Type:          agent.RequestPlanRefine,
-				SystemPrompt:  defaultPlanSystemPrompt(),
+				SystemPrompt:  agent.DefaultPlanSystemPrompt(),
 				ChangeRequest: strings.TrimSpace(change),
 				Plan:          &proposed,
 				Metadata:      revisionMeta,
 			}
-			resp, diag, err = runAgentWithQuestions(context.Background(), runtime, refineReq, maxAgentQuestionRounds)
+			resp, diag, err = runAgentWithQuestions(context.Background(), runtime, refineReq, agent.MaxPlanQuestionRounds)
 			if err != nil {
 				return formatAgentRunError(err, diag)
 			}
@@ -198,7 +193,7 @@ func runPlanRefine(args []string) error {
 		return UsageError{Message: "change request is required (use --change or enter it interactively)"}
 	}
 
-	path := planPath()
+	path := plan.PlanPath()
 	g, err := loadValidatedPlan(path)
 	if err != nil {
 		return err
@@ -210,17 +205,17 @@ func runPlanRefine(args []string) error {
 	}
 
 	requestMeta := buildAgentMetadata(meta)
-	requestMeta.JSONSchema = defaultPlanJSONSchema()
+	requestMeta.JSONSchema = agent.DefaultPlanJSONSchema()
 	req := agent.Request{
 		SchemaVersion: agent.SchemaVersion,
 		Type:          agent.RequestPlanRefine,
-		SystemPrompt:  defaultPlanSystemPrompt(),
+		SystemPrompt:  agent.DefaultPlanSystemPrompt(),
 		ChangeRequest: strings.TrimSpace(*change),
 		Plan:          &g,
 		Metadata:      requestMeta,
 	}
 
-	resp, diag, err := runAgentWithQuestions(context.Background(), runtime, req, maxAgentQuestionRounds)
+	resp, diag, err := runAgentWithQuestions(context.Background(), runtime, req, agent.MaxPlanQuestionRounds)
 	if err != nil {
 		return formatAgentRunError(err, diag)
 	}
@@ -257,7 +252,7 @@ func runDepsInfer(args []string) error {
 		return UsageError{Message: "deps infer takes only flags (no positional args)"}
 	}
 
-	path := planPath()
+	path := plan.PlanPath()
 	g, err := loadValidatedPlan(path)
 	if err != nil {
 		return err
@@ -269,17 +264,17 @@ func runDepsInfer(args []string) error {
 	}
 
 	requestMeta := buildAgentMetadata(meta)
-	requestMeta.JSONSchema = defaultPlanJSONSchema()
+	requestMeta.JSONSchema = agent.DefaultPlanJSONSchema()
 	req := agent.Request{
 		SchemaVersion: agent.SchemaVersion,
 		Type:          agent.RequestDepsInfer,
-		SystemPrompt:  defaultPlanSystemPrompt(),
+		SystemPrompt:  agent.DefaultPlanSystemPrompt(),
 		Plan:          &g,
 		Constraints:   trimNonEmpty(hints),
 		Metadata:      requestMeta,
 	}
 
-	resp, diag, err := runAgentWithQuestions(context.Background(), runtime, req, maxAgentQuestionRounds)
+	resp, diag, err := runAgentWithQuestions(context.Background(), runtime, req, agent.MaxPlanQuestionRounds)
 	if err != nil {
 		return formatAgentRunError(err, diag)
 	}
