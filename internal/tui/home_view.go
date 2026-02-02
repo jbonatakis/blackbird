@@ -181,11 +181,11 @@ func RenderHomeView(m Model) string {
 	inProgress := planOperationInProgress(m)
 	lines = append(lines,
 		"",
-		renderActionLine("[a]", "Change agent", !inProgress, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[g]", "Generate plan", !inProgress, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[v]", "View plan", showPlanInfo, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[r]", "Refine plan", showPlanInfo, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[e]", "Execute", m.canExecute() && !inProgress, shortcutStyle, actionStyle, mutedStyle),
+		renderActionLine("[c]", "Change agent", !inProgress, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[ctrl+c]", "Quit", true, shortcutStyle, actionStyle, mutedStyle),
 	)
 

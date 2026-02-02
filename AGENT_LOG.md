@@ -1042,3 +1042,7 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 ## 2026-02-01 — TUI interval tests
 
 - Added TUI refresh interval tests to assert plan/run tick commands honor configured intervals and default config is used when unset.
+
+## 2026-02-02 — TUI home page: Change agent shortcut back to [c]
+
+- Restored home view label from [a] to [c] for "Change agent" to match bottom bar and key binding (model already used "c"). Moved [c] just above Quit on home page.

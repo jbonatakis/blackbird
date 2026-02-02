@@ -74,9 +74,9 @@
       "deps": [
         "config-types"
       ],
-      "status": "done",
+      "status": "todo",
       "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:27:34.643775Z"
+      "updatedAt": "2026-02-02T16:29:11.698656Z"
     },
     "config-loader-api": {
       "id": "config-loader-api",
@@ -219,9 +219,9 @@
       "parentId": "global-config-core",
       "childIds": [],
       "deps": [],
-      "status": "done",
+      "status": "todo",
       "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:24:13.091936Z"
+      "updatedAt": "2026-02-02T16:29:07.999457Z"
     },
     "docs-configuration": {
       "id": "docs-configuration",
@@ -279,9 +279,9 @@
         "config-loader-api"
       ],
       "deps": [],
-      "status": "done",
+      "status": "todo",
       "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:31:11.785923Z"
+      "updatedAt": "2026-02-02T16:29:04.305828Z"
     },
     "global-config-tests-docs": {
       "id": "global-config-tests-docs",
@@ -348,9 +348,9 @@
       "deps": [
         "config-loader-api"
       ],
-      "status": "done",
+      "status": "todo",
       "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:39:57.557348Z"
+      "updatedAt": "2026-02-02T16:28:56.349393Z"
     },
     "tui-tests-intervals": {
       "id": "tui-tests-intervals",
