@@ -8,8 +8,6 @@ import (
 	"github.com/jbonatakis/blackbird/internal/execution"
 )
 
-const runDataRefreshInterval = 5 * time.Second
-
 type RunDataLoaded struct {
 	Data map[string]execution.RunRecord
 	Err  error
@@ -19,9 +17,13 @@ type runDataRefreshMsg struct{}
 
 func (m Model) LoadRunData() tea.Cmd {
 	return func() tea.Msg {
-		baseDir, err := os.Getwd()
-		if err != nil {
-			return RunDataLoaded{Data: map[string]execution.RunRecord{}, Err: err}
+		baseDir := m.projectRoot
+		if baseDir == "" {
+			var err error
+			baseDir, err = os.Getwd()
+			if err != nil {
+				return RunDataLoaded{Data: map[string]execution.RunRecord{}, Err: err}
+			}
 		}
 
 		data := make(map[string]execution.RunRecord)
@@ -39,8 +41,9 @@ func (m Model) LoadRunData() tea.Cmd {
 	}
 }
 
-func RunDataRefreshCmd() tea.Cmd {
-	return tea.Tick(runDataRefreshInterval, func(time.Time) tea.Msg {
+func (m Model) RunDataRefreshCmd() tea.Cmd {
+	interval := time.Duration(m.config.TUI.RunDataRefreshIntervalSeconds) * time.Second
+	return tea.Tick(interval, func(time.Time) tea.Msg {
 		return runDataRefreshMsg{}
 	})
 }

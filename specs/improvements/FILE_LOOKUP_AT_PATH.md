@@ -1,4 +1,4 @@
-status: pending
+status: complete
 ---
 name: file-lookup-at-path
 overview: Add "@path" file lookup in the plan generate and plan refine text boxes so that typing "@" opens a picker that filters existing files by path prefix, similar to Cursor's @ file mention.

@@ -4,485 +4,407 @@
     "agent-log-update": {
       "id": "agent-log-update",
       "title": "Update AGENT_LOG",
-      "description": "Append a brief entry documenting the @path picker work and tests.",
+      "description": "Append a dated entry describing the global config work and test status.",
       "acceptanceCriteria": [
-        "AGENT_LOG.md includes a dated entry summarizing key changes and any test status notes."
+        "AGENT_LOG.md contains a new dated entry summarizing global config changes and test results."
       ],
-      "prompt": "Append a concise entry to AGENT_LOG.md for the @path picker implementation and testing notes.",
-      "parentId": "file-lookup-tests-docs",
+      "prompt": "Append a concise entry to AGENT_LOG.md summarizing the global config implementation and tests.",
+      "parentId": "global-config-tests-docs",
       "childIds": [],
       "deps": [
-        "plan-generate-at-lookup",
-        "plan-refine-at-lookup",
-        "modal-esc-routing"
+        "docs-configuration",
+        "docs-files-storage",
+        "config-tests-precedence",
+        "config-tests-invalid",
+        "config-tests-bounds",
+        "config-tests-home-missing",
+        "tui-tests-intervals"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T21:20:24.461662Z"
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:45:28.580049Z"
     },
-    "docs-update": {
-      "id": "docs-update",
-      "title": "Update docs for @path picker",
-      "description": "Document @ file lookup behavior in TUI docs.",
+    "config-defaults": {
+      "id": "config-defaults",
+      "title": "Define Built-in Defaults",
+      "description": "Introduce constants/defaults for TUI refresh intervals.",
       "acceptanceCriteria": [
-        "docs/TUI.md mentions @path lookup in plan generate/refine text areas with key behavior summary."
+        "Default values for run/plan refresh intervals are defined in one place.",
+        "Defaults match the spec (5 seconds each)."
       ],
-      "prompt": "Update docs/TUI.md to describe @path file lookup in plan generate/refine modals and basic key behavior.",
-      "parentId": "file-lookup-tests-docs",
+      "prompt": "Add built-in defaults for tui refresh intervals in the config package.",
+      "parentId": "global-config-core",
       "childIds": [],
       "deps": [
-        "plan-generate-at-lookup",
-        "plan-refine-at-lookup"
+        "config-types"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T21:14:58.971734Z"
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:24:57.608284Z"
     },
-    "file-lookup-core": {
-      "id": "file-lookup-core",
-      "title": "File picker core for @path",
-      "description": "Create shared file picker state, file listing, filtering, key handling, and rendering helpers used by plan generate/refine modals.",
+    "config-load-global": {
+      "id": "config-load-global",
+      "title": "Load Global Config File",
+      "description": "Read ~/.blackbird/config.json using os.UserHomeDir; skip if missing or home is unavailable.",
       "acceptanceCriteria": [
-        "Shared file picker helper exists under internal/tui with state, listing, filtering, key handling, and rendering helpers.",
-        "File listing returns relative paths from the workspace root with a reasonable cap and stable ordering.",
-        "Key handling supports open/close, query updates, selection movement, and insertion decisions without leaking to the textarea.",
-        "Rendering helper outputs a compact list with selection highlight and empty-state messaging."
+        "Global config is read from ~/.blackbird/config.json when home dir is available.",
+        "Missing file or missing home directory does not error and falls back to next layer."
       ],
-      "prompt": "Implement a small file picker helper in internal/tui (e.g., file_picker.go) that owns picker state, file listing, filtering, key handling, and rendering. Keep dependencies minimal and use stdlib + existing TUI styles.",
+      "prompt": "Implement reading of the global config file using os.UserHomeDir; skip if missing.",
+      "parentId": "global-config-core",
+      "childIds": [],
+      "deps": [
+        "config-types"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:26:43.267082Z"
+    },
+    "config-load-project": {
+      "id": "config-load-project",
+      "title": "Load Project Config File",
+      "description": "Read project .blackbird/config.json from the provided project root.",
+      "acceptanceCriteria": [
+        "Project config is read from \u003cproject\u003e/.blackbird/config.json when present.",
+        "Missing project file does not error and falls back to next layer."
+      ],
+      "prompt": "Implement reading of project config from \u003cprojectRoot\u003e/.blackbird/config.json.",
+      "parentId": "global-config-core",
+      "childIds": [],
+      "deps": [
+        "config-types"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:27:34.643775Z"
+    },
+    "config-loader-api": {
+      "id": "config-loader-api",
+      "title": "Expose LoadConfig API",
+      "description": "Create LoadConfig(projectRoot) that reads both layers and returns resolved config.",
+      "acceptanceCriteria": [
+        "LoadConfig reads global and project config, merges them, and returns resolved config.",
+        "LoadConfig accepts a project root path and uses it for project config lookup."
+      ],
+      "prompt": "Create LoadConfig(projectRoot string) in internal/config to load and merge global/project config.",
+      "parentId": "global-config-core",
+      "childIds": [],
+      "deps": [
+        "config-load-global",
+        "config-load-project",
+        "config-merge-resolve"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:31:11.785923Z"
+    },
+    "config-merge-resolve": {
+      "id": "config-merge-resolve",
+      "title": "Merge with Precedence and Clamp",
+      "description": "Resolve final config values using project \u003e global \u003e defaults and clamp invalid intervals.",
+      "acceptanceCriteria": [
+        "Resolution follows project \u003e global \u003e built-in precedence per key.",
+        "Invalid interval values are clamped or replaced with next layer/default.",
+        "Minimum and maximum bounds are enforced (min 1, max 300)."
+      ],
+      "prompt": "Implement merge logic with precedence and value clamping for interval fields.",
+      "parentId": "global-config-core",
+      "childIds": [],
+      "deps": [
+        "config-defaults",
+        "config-parse-validate"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:29:55.063805Z"
+    },
+    "config-parse-validate": {
+      "id": "config-parse-validate",
+      "title": "Parse and Validate Config",
+      "description": "Parse JSON, validate schemaVersion, and ignore unknown keys.",
+      "acceptanceCriteria": [
+        "Invalid JSON is treated as missing config for that layer.",
+        "Unsupported schemaVersion is treated as missing for that layer.",
+        "Unknown keys are ignored."
+      ],
+      "prompt": "Add JSON parsing and schemaVersion validation for config files; ignore unknown keys.",
+      "parentId": "global-config-core",
+      "childIds": [],
+      "deps": [
+        "config-types"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:28:42.502425Z"
+    },
+    "config-tests-bounds": {
+      "id": "config-tests-bounds",
+      "title": "Test Interval Bounds",
+      "description": "Unit tests to verify clamping or fallback for invalid interval values.",
+      "acceptanceCriteria": [
+        "Values below minimum or above maximum are clamped or replaced by next layer/default."
+      ],
+      "prompt": "Add tests to validate interval bounds behavior for config resolution.",
+      "parentId": "global-config-tests-docs",
+      "childIds": [],
+      "deps": [
+        "config-merge-resolve"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:31:56.953352Z"
+    },
+    "config-tests-home-missing": {
+      "id": "config-tests-home-missing",
+      "title": "Test Missing Home Directory",
+      "description": "Unit tests for when os.UserHomeDir fails or returns empty.",
+      "acceptanceCriteria": [
+        "Loader skips global config when home dir is unavailable without failing."
+      ],
+      "prompt": "Add tests to ensure LoadConfig behaves when os.UserHomeDir is unavailable.",
+      "parentId": "global-config-tests-docs",
+      "childIds": [],
+      "deps": [
+        "config-load-global"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:32:47.063274Z"
+    },
+    "config-tests-invalid": {
+      "id": "config-tests-invalid",
+      "title": "Test Invalid JSON and Schema",
+      "description": "Unit tests for invalid JSON and unsupported schemaVersion handling.",
+      "acceptanceCriteria": [
+        "Invalid JSON in a layer is skipped without failing the load.",
+        "Unsupported schemaVersion is skipped."
+      ],
+      "prompt": "Add tests for invalid JSON and schemaVersion handling in config loading.",
+      "parentId": "global-config-tests-docs",
+      "childIds": [],
+      "deps": [
+        "config-parse-validate"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:33:57.556527Z"
+    },
+    "config-tests-precedence": {
+      "id": "config-tests-precedence",
+      "title": "Test Precedence Resolution",
+      "description": "Unit tests for project \u003e global \u003e default precedence resolution.",
+      "acceptanceCriteria": [
+        "Tests cover project override of global.",
+        "Tests cover global fallback when project is missing."
+      ],
+      "prompt": "Add unit tests validating precedence resolution for config merging.",
+      "parentId": "global-config-tests-docs",
+      "childIds": [],
+      "deps": [
+        "config-loader-api"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:34:53.425366Z"
+    },
+    "config-types": {
+      "id": "config-types",
+      "title": "Define Config Types",
+      "description": "Add Go structs for raw config and resolved config, including schemaVersion and tui interval fields.",
+      "acceptanceCriteria": [
+        "Config structs capture schemaVersion and tui.run/plan refresh interval fields.",
+        "Types live under a new internal/config package (or equivalent) without extra dependencies."
+      ],
+      "prompt": "Add Go types for raw and resolved config structs under internal/config.",
+      "parentId": "global-config-core",
+      "childIds": [],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:24:13.091936Z"
+    },
+    "docs-configuration": {
+      "id": "docs-configuration",
+      "title": "Update Configuration Docs",
+      "description": "Document config schema and precedence in docs/CONFIGURATION.md.",
+      "acceptanceCriteria": [
+        "Docs describe global and project config locations and precedence.",
+        "Docs list schemaVersion and TUI interval keys with defaults."
+      ],
+      "prompt": "Update docs/CONFIGURATION.md for global/project config and schema.",
+      "parentId": "global-config-tests-docs",
+      "childIds": [],
+      "deps": [
+        "config-loader-api"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:35:46.431201Z"
+    },
+    "docs-files-storage": {
+      "id": "docs-files-storage",
+      "title": "Update Files and Storage Docs",
+      "description": "List config paths in docs/FILES_AND_STORAGE.md.",
+      "acceptanceCriteria": [
+        "Docs list ~/.blackbird/config.json and \u003cproject\u003e/.blackbird/config.json."
+      ],
+      "prompt": "Update docs/FILES_AND_STORAGE.md to include global and project config files.",
+      "parentId": "global-config-tests-docs",
+      "childIds": [],
+      "deps": [
+        "config-loader-api"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:36:05.809298Z"
+    },
+    "global-config-core": {
+      "id": "global-config-core",
+      "title": "Global Config Loader Core",
+      "description": "Implement config schema types and loader that merges global and project config with validation and defaults.",
+      "acceptanceCriteria": [
+        "Config types and defaults are defined in a new internal config package.",
+        "Global and project config files are read when present.",
+        "Resolved config applies project \u003e global \u003e built-in precedence with validation/clamping."
+      ],
+      "prompt": "Create internal config types and a loader that merges global and project configs with validation and default values.",
       "parentId": null,
       "childIds": [
-        "file-picker-state",
-        "file-picker-filelist",
-        "file-picker-filter",
-        "file-picker-insert",
-        "file-picker-keyhandling",
-        "file-picker-render"
+        "config-types",
+        "config-defaults",
+        "config-parse-validate",
+        "config-load-global",
+        "config-load-project",
+        "config-merge-resolve",
+        "config-loader-api"
       ],
       "deps": [],
       "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T20:16:03.801771Z"
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:31:11.785923Z"
     },
-    "file-lookup-tests-docs": {
-      "id": "file-lookup-tests-docs",
-      "title": "Tests and docs for @path picker",
-      "description": "Add unit tests and update docs to cover the new @ file lookup behavior.",
+    "global-config-tests-docs": {
+      "id": "global-config-tests-docs",
+      "title": "Tests and Documentation",
+      "description": "Add config loader tests, TUI interval coverage where appropriate, and update documentation and AGENT_LOG.",
       "acceptanceCriteria": [
-        "Unit tests cover file listing/filtering and picker key handling edge cases.",
-        "Plan generate/refine modal tests cover @ open, enter insert, esc cancel, and tab focus behavior.",
-        "Docs mention @path lookup in the relevant TUI documentation.",
-        "AGENT_LOG.md updated with a concise summary of changes and date."
+        "Config loader tests cover precedence, invalid JSON, schemaVersion, and bounds.",
+        "Docs updated for config locations and precedence.",
+        "AGENT_LOG updated with a dated summary."
       ],
-      "prompt": "Add tests under internal/tui for file picker helpers and modal integration. Update docs/TUI.md to mention @path lookup, and append an entry to AGENT_LOG.md.",
+      "prompt": "Add tests and docs for the global/project config system and update AGENT_LOG.",
       "parentId": null,
       "childIds": [
-        "file-picker-tests",
-        "plan-generate-picker-tests",
-        "plan-refine-picker-tests",
-        "docs-update",
+        "config-tests-precedence",
+        "config-tests-invalid",
+        "config-tests-bounds",
+        "config-tests-home-missing",
+        "tui-tests-intervals",
+        "docs-configuration",
+        "docs-files-storage",
         "agent-log-update"
       ],
       "deps": [
-        "plan-generate-at-lookup",
-        "plan-refine-at-lookup",
-        "modal-esc-routing"
+        "config-loader-api",
+        "global-config-tui"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T21:22:37.898368Z"
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:45:28.580049Z"
     },
-    "file-picker-filelist": {
-      "id": "file-picker-filelist",
-      "title": "Implement workspace file listing",
-      "description": "Walk the workspace root and return relative file paths for matching; cap results for large repos.",
+    "global-config-tui": {
+      "id": "global-config-tui",
+      "title": "Wire TUI Refresh Intervals",
+      "description": "Load config at TUI startup and apply refresh intervals to run/plan loaders.",
       "acceptanceCriteria": [
-        "File listing uses cwd as root and returns relative paths with forward slashes on all platforms.",
-        "Listing enforces a max count (e.g., 500) and optionally skips obvious noise directories (e.g., .git, .blackbird) without adding new dependencies.",
-        "Errors from cwd/listing are surfaced to the caller for graceful handling."
+        "TUI loads config once at startup with project root.",
+        "Run and plan refresh intervals use resolved config values instead of constants."
       ],
-      "prompt": "Implement a file listing helper in internal/tui that walks cwd, returns relative paths, caps total results, and skips obvious noise directories.",
-      "parentId": "file-lookup-core",
-      "childIds": [],
-      "deps": [
-        "file-picker-state"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T19:55:12.311954Z"
-    },
-    "file-picker-filter": {
-      "id": "file-picker-filter",
-      "title": "Filter + order matches by prefix",
-      "description": "Filter the file list using the query after @ and return deterministic match ordering.",
-      "acceptanceCriteria": [
-        "Filtering matches paths with a prefix of the query (case-sensitive unless documented otherwise).",
-        "Match ordering is deterministic and stable across runs.",
-        "Empty query yields a reasonable default list (bounded by the cap)."
-      ],
-      "prompt": "Add a filtering helper that takes the query and file list and returns a deterministic, prefix-matched list for display and selection.",
-      "parentId": "file-lookup-core",
-      "childIds": [],
-      "deps": [
-        "file-picker-filelist"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T19:58:29.639519Z"
-    },
-    "file-picker-insert": {
-      "id": "file-picker-insert",
-      "title": "Compute replacement span + insert",
-      "description": "Add helper to replace the @query span with the selected path and update cursor position.",
-      "acceptanceCriteria": [
-        "Replacement helper correctly replaces the span from @ anchor through current query with the selected path (including @).",
-        "Cursor position ends after the inserted path.",
-        "Helper works for both textarea and single-line input values."
-      ],
-      "prompt": "Implement helper(s) to replace the @query span in a string value with @\u003cselectedPath\u003e and return updated value + cursor index.",
-      "parentId": "file-lookup-core",
-      "childIds": [],
-      "deps": [
-        "file-picker-state"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T20:02:34.917502Z"
-    },
-    "file-picker-keyhandling": {
-      "id": "file-picker-keyhandling",
-      "title": "Handle picker key routing",
-      "description": "Route keys when picker is open: query edits, selection movement, enter/escape behavior, and tab handling.",
-      "acceptanceCriteria": [
-        "Open picker on '@' and seed matches for empty query.",
-        "While open: up/down move selection, enter selects, esc cancels, backspace edits query, printable characters extend query.",
-        "Tab/shift+tab close picker and allow normal focus navigation.",
-        "Key handler returns an explicit action (none/insert/cancel) for callers to apply."
-      ],
-      "prompt": "Implement key handling helpers for the file picker that update query/matches/selection and return actions (insert/cancel/none).",
-      "parentId": "file-lookup-core",
-      "childIds": [],
-      "deps": [
-        "file-picker-filter",
-        "file-picker-insert"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T20:10:39.383326Z"
-    },
-    "file-picker-render": {
-      "id": "file-picker-render",
-      "title": "Render picker list UI",
-      "description": "Render a compact list of matches with selection highlight and an empty-state message.",
-      "acceptanceCriteria": [
-        "Rendering function returns a list view string sized for use in plan modals.",
-        "Selected row is clearly highlighted; empty list shows a helpful message.",
-        "Rendering can be turned off when picker is closed."
-      ],
-      "prompt": "Add a rendering helper for the file picker (list + empty state) using existing lipgloss styles.",
-      "parentId": "file-lookup-core",
-      "childIds": [],
-      "deps": [
-        "file-picker-filter"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T20:16:03.801771Z"
-    },
-    "file-picker-state": {
-      "id": "file-picker-state",
-      "title": "Define picker state + selection model",
-      "description": "Add a reusable picker state struct with open/closed state, query, matches, selected index, and anchor info for replacement.",
-      "acceptanceCriteria": [
-        "Picker state struct includes open flag, query text, matches list, selected index, and anchor position metadata.",
-        "State includes a way to reset/open/close and track which field is active (if needed).",
-        "State supports stable selection clamping for empty/short lists."
-      ],
-      "prompt": "Add a state struct (and small helpers) in internal/tui to represent the @ file picker state, including query, matches, selected index, open flag, and anchor position used for replacement.",
-      "parentId": "file-lookup-core",
-      "childIds": [],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T19:52:13.964442Z"
-    },
-    "file-picker-tests": {
-      "id": "file-picker-tests",
-      "title": "Unit tests for picker core",
-      "description": "Test file listing, filtering, selection clamping, and key handling logic.",
-      "acceptanceCriteria": [
-        "Tests validate prefix matching and deterministic ordering.",
-        "Tests cover key handling actions (open, cancel, insert) and selection movement bounds.",
-        "Tests cover empty matches behavior."
-      ],
-      "prompt": "Create internal/tui/file_picker_test.go with table-driven tests for listing/filtering and key handling behaviors.",
-      "parentId": "file-lookup-tests-docs",
-      "childIds": [],
-      "deps": [
-        "file-lookup-core"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T20:20:14.09871Z"
-    },
-    "modal-esc-guard": {
-      "id": "modal-esc-guard",
-      "title": "Guard ESC close when picker open",
-      "description": "Implement the ESC guard logic in the model/update path for plan generate/refine modes.",
-      "acceptanceCriteria": [
-        "Model ESC handler consults the active form picker state and only closes the modal if picker is not open.",
-        "Generate and refine flows both use the same guard behavior."
-      ],
-      "prompt": "Modify the ActionModeGeneratePlan / ActionModePlanRefine ESC handling so picker cancellation happens before modal close.",
-      "parentId": "modal-esc-routing",
-      "childIds": [],
-      "deps": [
-        "plan-generate-at-lookup",
-        "plan-refine-at-lookup"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T21:20:03.716315Z"
-    },
-    "modal-esc-routing": {
-      "id": "modal-esc-routing",
-      "title": "Adjust modal esc handling for picker",
-      "description": "Prevent ESC from closing the modal when the file picker is open; close picker first instead.",
-      "acceptanceCriteria": [
-        "When picker is open, ESC closes the picker and keeps the modal open in both generate and refine modes.",
-        "When picker is closed, ESC behavior is unchanged (closes the modal)."
-      ],
-      "prompt": "Update internal/tui/model.go (or modal handlers) to check picker state before closing plan generate/refine modals on ESC.",
+      "prompt": "Wire TUI to load config and apply refresh interval settings.",
       "parentId": null,
       "childIds": [
-        "modal-esc-guard"
+        "tui-load-config",
+        "tui-wire-run-interval",
+        "tui-wire-plan-interval"
       ],
       "deps": [
-        "plan-generate-at-lookup",
-        "plan-refine-at-lookup"
+        "config-loader-api"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T21:20:03.716315Z"
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:43:18.850865Z"
     },
-    "pg-granularity-support": {
-      "id": "pg-granularity-support",
-      "title": "Enable @path in granularity input (optional)",
-      "description": "If straightforward, support @path lookup in the single-line granularity input.",
+    "tui-load-config": {
+      "id": "tui-load-config",
+      "title": "Load Config at TUI Startup",
+      "description": "Call LoadConfig using the project root during TUI initialization.",
       "acceptanceCriteria": [
-        "Granularity input can open the picker on '@' and insert a selected path.",
-        "Behavior matches textarea integration for enter/escape/tab handling.",
-        "If not feasible, document why and leave the feature off."
+        "TUI initialization resolves config once and stores it for use by loaders.",
+        "Project root is derived from working directory (unless already passed)."
       ],
-      "prompt": "Extend the picker integration to the granularity textinput if it is straightforward with existing helpers.",
-      "parentId": "plan-generate-at-lookup",
+      "prompt": "Update TUI startup/init to load config via LoadConfig and store resolved values.",
+      "parentId": "global-config-tui",
       "childIds": [],
       "deps": [
-        "pg-key-routing"
+        "config-loader-api"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T20:45:41.556151Z"
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:39:57.557348Z"
     },
-    "pg-key-routing": {
-      "id": "pg-key-routing",
-      "title": "Route keys for @path in plan generate",
-      "description": "Intercept '@' and picker navigation keys in the plan generate form update/handler logic.",
+    "tui-tests-intervals": {
+      "id": "tui-tests-intervals",
+      "title": "Test TUI Interval Wiring",
+      "description": "Add tests to ensure TUI loaders respect resolved config intervals.",
       "acceptanceCriteria": [
-        "'@' opens picker and inserts @ into the focused field value.",
-        "While picker open, printable keys/backspace update the query and reflected text; up/down updates selection; enter inserts; esc cancels; tab/shift+tab close picker.",
-        "Normal textarea behavior remains when picker is closed."
+        "Tests verify run/plan loaders use configured intervals where testable.",
+        "Defaults are preserved when no config is set."
       ],
-      "prompt": "Update PlanGenerateForm.Update and/or HandlePlanGenerateKey to route keys through the file picker when open and apply text insertion/cancel behavior to the focused field.",
-      "parentId": "plan-generate-at-lookup",
+      "prompt": "Add or update TUI tests to cover interval wiring from resolved config.",
+      "parentId": "global-config-tests-docs",
       "childIds": [],
       "deps": [
-        "pg-picker-state",
-        "file-picker-keyhandling"
+        "global-config-tui"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T20:39:52.664121Z"
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:45:12.244714Z"
     },
-    "pg-picker-state": {
-      "id": "pg-picker-state",
-      "title": "Add picker state to PlanGenerateForm",
-      "description": "Store picker state and per-field anchors within PlanGenerateForm.",
+    "tui-wire-plan-interval": {
+      "id": "tui-wire-plan-interval",
+      "title": "Apply Plan Refresh Interval",
+      "description": "Replace the plan data refresh interval constant with resolved config value.",
       "acceptanceCriteria": [
-        "PlanGenerateForm includes picker state and any per-field metadata needed to replace @query spans.",
-        "State correctly tracks which field is active for insertion."
+        "Plan data refresh interval uses resolved config value.",
+        "Default behavior remains 5 seconds when no config is set."
       ],
-      "prompt": "Extend PlanGenerateForm with file picker state and any helper methods needed to open/close/apply picker changes.",
-      "parentId": "plan-generate-at-lookup",
+      "prompt": "Replace plan data refresh interval constant with resolved config value in the TUI plan loader.",
+      "parentId": "global-config-tui",
       "childIds": [],
       "deps": [
-        "file-lookup-core"
+        "tui-load-config"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T20:28:32.327587Z"
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:41:41.500167Z"
     },
-    "pg-render-picker": {
-      "id": "pg-render-picker",
-      "title": "Render picker in plan generate modal",
-      "description": "Show the picker list UI within the plan generate modal near the active textarea.",
+    "tui-wire-run-interval": {
+      "id": "tui-wire-run-interval",
+      "title": "Apply Run Refresh Interval",
+      "description": "Replace the run data refresh interval constant with resolved config value.",
       "acceptanceCriteria": [
-        "RenderPlanGenerateModal includes picker output when open, without breaking existing layout.",
-        "Picker list is visually aligned with the active field and respects modal width."
+        "Run data refresh interval uses resolved config value.",
+        "Default behavior remains 5 seconds when no config is set."
       ],
-      "prompt": "Update RenderPlanGenerateModal to include file picker output when the picker is open.",
-      "parentId": "plan-generate-at-lookup",
+      "prompt": "Replace run data refresh interval constant with resolved config value in the TUI run loader.",
+      "parentId": "global-config-tui",
       "childIds": [],
       "deps": [
-        "pg-key-routing",
-        "file-picker-render"
+        "tui-load-config"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T20:52:53.760737Z"
-    },
-    "plan-generate-at-lookup": {
-      "id": "plan-generate-at-lookup",
-      "title": "Integrate @path picker in plan generate modal",
-      "description": "Wire the file picker into plan generate text areas (description, constraints, optional granularity).",
-      "acceptanceCriteria": [
-        "Typing '@' in description or constraints opens the picker and filters based on the query.",
-        "Enter inserts the selected path into the textarea, replacing the @query span.",
-        "Escape cancels the picker without closing the modal; tab/shift+tab moves focus and closes picker.",
-        "Rendering shows the picker list near the active field when open."
-      ],
-      "prompt": "Update internal/tui/plan_generate_modal.go to integrate the file picker with description/constraints (and granularity if straightforward). Add state to PlanGenerateForm, route keys, and render the picker list.",
-      "parentId": null,
-      "childIds": [
-        "pg-picker-state",
-        "pg-key-routing",
-        "pg-render-picker",
-        "pg-granularity-support"
-      ],
-      "deps": [
-        "file-lookup-core"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T20:52:53.760737Z"
-    },
-    "plan-generate-picker-tests": {
-      "id": "plan-generate-picker-tests",
-      "title": "Plan generate modal @path tests",
-      "description": "Add integration tests for the plan generate modal with the picker open/close and insertion behavior.",
-      "acceptanceCriteria": [
-        "Tests confirm '@' opens picker and enter inserts selected path in description/constraints.",
-        "Tests confirm esc closes picker without closing modal.",
-        "Tests confirm tab/shift+tab close picker and move focus."
-      ],
-      "prompt": "Extend internal/tui/plan_generate_modal_test.go or edgecases tests to cover @path picker behavior and focus handling.",
-      "parentId": "file-lookup-tests-docs",
-      "childIds": [],
-      "deps": [
-        "plan-generate-at-lookup"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T20:59:04.885154Z"
-    },
-    "plan-refine-at-lookup": {
-      "id": "plan-refine-at-lookup",
-      "title": "Integrate @path picker in plan refine modal",
-      "description": "Wire the file picker into the plan refine change-request textarea.",
-      "acceptanceCriteria": [
-        "Typing '@' in the change request opens the picker and filters by the query.",
-        "Enter inserts the selected path, replacing the @query span.",
-        "Escape cancels the picker without closing the modal; tab/shift+tab moves focus and closes picker.",
-        "Picker list is rendered when open."
-      ],
-      "prompt": "Update internal/tui/plan_refine_modal.go to integrate the file picker with the change request textarea (state, key routing, rendering).",
-      "parentId": null,
-      "childIds": [
-        "pr-picker-state",
-        "pr-key-routing",
-        "pr-render-picker"
-      ],
-      "deps": [
-        "file-lookup-core"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T21:14:21.122964Z"
-    },
-    "plan-refine-picker-tests": {
-      "id": "plan-refine-picker-tests",
-      "title": "Plan refine modal @path tests",
-      "description": "Add integration tests for the plan refine modal with picker open/close and insertion behavior.",
-      "acceptanceCriteria": [
-        "Tests confirm '@' opens picker and enter inserts selected path in change request.",
-        "Tests confirm esc closes picker without closing modal.",
-        "Tests confirm tab/shift+tab close picker and move focus."
-      ],
-      "prompt": "Extend internal/tui/plan_refine_modal_test.go to cover @path picker behavior and focus handling.",
-      "parentId": "file-lookup-tests-docs",
-      "childIds": [],
-      "deps": [
-        "plan-refine-at-lookup"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T21:22:37.898368Z"
-    },
-    "pr-key-routing": {
-      "id": "pr-key-routing",
-      "title": "Route keys for @path in plan refine",
-      "description": "Intercept '@' and picker navigation keys in the plan refine form update/handler logic.",
-      "acceptanceCriteria": [
-        "'@' opens picker and inserts @ into the change request textarea.",
-        "While picker open, keys update query/selection and insert on enter; esc cancels; tab/shift+tab close picker.",
-        "Normal textarea behavior remains when picker is closed."
-      ],
-      "prompt": "Update PlanRefineForm.Update and/or HandlePlanRefineKey to route keys through the file picker when open and apply text insertion/cancel behavior.",
-      "parentId": "plan-refine-at-lookup",
-      "childIds": [],
-      "deps": [
-        "pr-picker-state",
-        "file-picker-keyhandling"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T21:12:16.858842Z"
-    },
-    "pr-picker-state": {
-      "id": "pr-picker-state",
-      "title": "Add picker state to PlanRefineForm",
-      "description": "Store picker state and anchor metadata within PlanRefineForm.",
-      "acceptanceCriteria": [
-        "PlanRefineForm includes picker state and anchor info for replacement.",
-        "State tracks whether the picker is open for the change-request field."
-      ],
-      "prompt": "Extend PlanRefineForm to carry file picker state and expose helpers to open/close and apply insertions.",
-      "parentId": "plan-refine-at-lookup",
-      "childIds": [],
-      "deps": [
-        "file-lookup-core"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T21:04:26.516346Z"
-    },
-    "pr-render-picker": {
-      "id": "pr-render-picker",
-      "title": "Render picker in plan refine modal",
-      "description": "Show the picker list UI within the refine modal near the textarea.",
-      "acceptanceCriteria": [
-        "RenderPlanRefineModal includes picker output when open without breaking existing layout.",
-        "Picker list respects modal width and aligns with the textarea."
-      ],
-      "prompt": "Update RenderPlanRefineModal to include file picker output when the picker is open.",
-      "parentId": "plan-refine-at-lookup",
-      "childIds": [],
-      "deps": [
-        "pr-key-routing",
-        "file-picker-render"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T19:47:11.109649Z",
-      "updatedAt": "2026-02-01T21:14:21.122964Z"
+      "createdAt": "2026-02-01T22:23:01.547661Z",
+      "updatedAt": "2026-02-01T22:43:18.850865Z"
     }
   }
 }

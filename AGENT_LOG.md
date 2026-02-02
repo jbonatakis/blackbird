@@ -1,5 +1,15 @@
 # AGENT_LOG
 
+## 2026-02-01 — Global config implementation summary (log update)
+
+- Implemented global/project config loading with schema validation, precedence resolution, and interval clamping; wired TUI refresh intervals to resolved config and documented config locations/keys.
+- Tests: no new tests run for this log update (see earlier 2026-02-01 entries for config and TUI test runs).
+
+## 2026-02-01 — TUI plan refresh interval config verification
+
+- Verified `PlanDataRefreshCmd` already uses the resolved config interval (`m.config.TUI.PlanDataRefreshIntervalSeconds`) and defaults still come from `config.DefaultResolvedConfig()` (5s) when config is unset.
+- No code changes required for the plan loader refresh interval task.
+
 ## 2026-02-01 — @path picker integration (plan modals)
 
 - Integrated @-triggered file picker across plan generate/refine modals (rendering, key routing, insertion, ESC handling).
@@ -951,3 +961,78 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 
 - Added plan-refine modal integration tests for file picker ESC close and tab/shift+tab focus changes.
 - Ran `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui/...`.
+
+## 2026-02-01 — Config type definitions
+
+- Added `internal/config` package with raw/resolved config structs and defaults for schema version and TUI refresh intervals.
+
+## 2026-02-01 — TUI refresh defaults wired to config
+
+- Replaced TUI hardcoded run/plan refresh intervals with config package defaults so built-in values live in one place.
+
+## 2026-02-01 — Global config loader (home)
+
+- Added global config loader reading `~/.blackbird/config.json` via `os.UserHomeDir`, skipping when home or file is missing.
+- Added config loader tests for present, missing file, and missing home cases.
+- Ran `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config`.
+
+## 2026-02-01 — Project config loader
+
+- Added project-level config loader for <projectRoot>/.blackbird/config.json with empty-root skip.
+- Added tests covering project config present/missing/empty root cases.
+
+## 2026-02-01 — Config parse and schema validation
+
+- Treated invalid JSON or trailing data as missing config per layer and skipped unsupported schema versions.
+- Added loader tests for invalid JSON and unsupported schema versions at global and project levels.
+- Ran `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config`.
+
+## 2026-02-01 — Config merge resolution + clamping
+
+- Added interval bounds constants and ResolveConfig helper to merge project/global/default config with per-key precedence and clamping.
+- Added unit tests covering precedence, default fallback, and bounds clamping behavior.
+
+## 2026-02-01 — LoadConfig API
+
+- Added `LoadConfig(projectRoot)` to read global + project config layers and return a resolved config.
+- Added unit tests covering global+project merge, default fallback, and empty-root global usage.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config`.
+
+## 2026-02-01 — Config interval bounds tests
+
+- Added resolve config test coverage to clamp out-of-range global interval values when project config is missing.
+
+## 2026-02-01 — LoadConfig missing home tests
+
+- Added LoadConfig tests to ensure global config is skipped when os.UserHomeDir errors or returns empty.
+- Ran `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config`.
+
+## 2026-02-01 — Config load invalid/unsupported tests
+
+- Added LoadConfig tests to ensure invalid JSON and unsupported schema versions are skipped per layer without failing, preserving other layer values.
+
+## 2026-02-01 — Config precedence tests
+
+- Added LoadConfig tests to cover explicit project-over-global overrides and global fallback when the project config file is missing.
+
+## 2026-02-01 — Configuration docs updates
+
+- Expanded docs/CONFIGURATION.md with global/project config locations, precedence, schema keys, and defaults for TUI refresh intervals.
+
+## 2026-02-01 — Files and storage docs
+
+- Documented global (~/.blackbird/config.json) and project (<project>/.blackbird/config.json) config paths in files/storage docs.
+
+## 2026-02-01 — TUI config load at startup
+
+- Loaded resolved config once during TUI startup using project root (cwd fallback) and stored it on the model for loaders.
+- Updated plan/run refresh commands to use model config intervals and project-root paths for loaders.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui/...`.
+
+## 2026-02-01 — TUI run refresh interval
+
+- Verified `internal/tui/run_loader.go` already uses `m.config.TUI.RunDataRefreshIntervalSeconds` for the run refresh tick interval, so it is wired to resolved config defaults (5s) when unset.
+
+## 2026-02-01 — TUI interval tests
+
+- Added TUI refresh interval tests to assert plan/run tick commands honor configured intervals and default config is used when unset.
