@@ -10,6 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jbonatakis/blackbird/internal/agent"
+	"github.com/jbonatakis/blackbird/internal/config"
 	"github.com/jbonatakis/blackbird/internal/execution"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
@@ -100,6 +101,8 @@ type Model struct {
 	agentSelection          agent.AgentSelection
 	agentSelectionErr       string
 	agentSelectionHighlight int // index into agent.AgentRegistry when modal is open
+	projectRoot             string
+	config                  config.ResolvedConfig
 }
 
 func NewModel(g plan.WorkGraph) Model {
@@ -117,6 +120,7 @@ func NewModel(g plan.WorkGraph) Model {
 			Agent:         agent.DefaultAgent(),
 			ConfigPresent: false,
 		},
+		config: config.DefaultResolvedConfig(),
 	}
 	for id := range g.Items {
 		m.selectedID = id
@@ -134,7 +138,7 @@ func (m Model) canExecute() bool {
 }
 
 func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{m.LoadRunData(), RunDataRefreshCmd(), m.LoadPlanData(), PlanDataRefreshCmd(), m.LoadAgentSelection()}
+	cmds := []tea.Cmd{m.LoadRunData(), m.RunDataRefreshCmd(), m.LoadPlanData(), m.PlanDataRefreshCmd(), m.LoadAgentSelection()}
 	if hasActiveRuns(m.runData) {
 		cmds = append(cmds, StartTimerCmd())
 	}
@@ -320,9 +324,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.liveOutputChan = nil
 		return m, nil
 	case runDataRefreshMsg:
-		return m, tea.Batch(m.LoadRunData(), RunDataRefreshCmd())
+		return m, tea.Batch(m.LoadRunData(), m.RunDataRefreshCmd())
 	case planDataRefreshMsg:
-		return m, tea.Batch(m.LoadPlanData(), PlanDataRefreshCmd())
+		return m, tea.Batch(m.LoadPlanData(), m.PlanDataRefreshCmd())
 	case timerStartMsg:
 		if hasActiveRuns(m.runData) && !m.timerActive {
 			m.timerActive = true

@@ -3,24 +3,44 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jbonatakis/blackbird/internal/config"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
 func Start() error {
-	model := newStartupModel()
+	model := newStartupModel("")
 	program := tea.NewProgram(model, tea.WithAltScreen())
 	_, err := program.Run()
 	return err
 }
 
-func newStartupModel() Model {
+func newStartupModel(projectRoot string) Model {
+	root := resolveProjectRoot(projectRoot)
+	cfg, err := config.LoadConfig(root)
+	if err != nil {
+		cfg = config.DefaultResolvedConfig()
+	}
 	model := NewModel(plan.NewEmptyWorkGraph())
 	model.planExists = false
 	model.viewMode = ViewModeHome
+	model.projectRoot = root
+	model.config = cfg
 	return model
+}
+
+func resolveProjectRoot(projectRoot string) string {
+	if projectRoot != "" {
+		return projectRoot
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	return wd
 }
 
 func formatPlanErrors(path string, errs []plan.ValidationError) error {

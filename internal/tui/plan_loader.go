@@ -4,13 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
-
-const planDataRefreshInterval = 5 * time.Second
 
 type PlanDataLoaded struct {
 	Plan          plan.WorkGraph
@@ -24,6 +23,9 @@ type planDataRefreshMsg struct{}
 func (m Model) LoadPlanData() tea.Cmd {
 	return func() tea.Msg {
 		path := plan.PlanPath()
+		if m.projectRoot != "" {
+			path = filepath.Join(m.projectRoot, plan.DefaultPlanFilename)
+		}
 		g, err := plan.Load(path)
 		if err != nil {
 			if errors.Is(err, plan.ErrPlanNotFound) || os.IsNotExist(err) {
@@ -44,8 +46,9 @@ func (m Model) LoadPlanData() tea.Cmd {
 	}
 }
 
-func PlanDataRefreshCmd() tea.Cmd {
-	return tea.Tick(planDataRefreshInterval, func(time.Time) tea.Msg {
+func (m Model) PlanDataRefreshCmd() tea.Cmd {
+	interval := time.Duration(m.config.TUI.PlanDataRefreshIntervalSeconds) * time.Second
+	return tea.Tick(interval, func(time.Time) tea.Msg {
 		return planDataRefreshMsg{}
 	})
 }

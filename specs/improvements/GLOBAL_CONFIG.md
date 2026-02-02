@@ -1,4 +1,4 @@
-status: pending
+status: complete
 ---
 name: global-config
 overview: Add a global configuration system with a config file in the user's home directory (~/.blackbird/config.json), overridable by project-level config (.blackbird/config.json), for TUI refresh intervals and other shared settings.
@@ -28,11 +28,11 @@ todos:
 
 ## Config locations and precedence
 
-| Layer        | Location                    | Purpose                          |
-|-------------|-----------------------------|----------------------------------|
-| Built-in    | (code defaults)             | Defaults when no file exists     |
-| Global      | `~/.blackbird/config.json`  | User-wide defaults               |
-| Project     | `<project>/.blackbird/config.json` | Per-project overrides (optional) |
+| Layer    | Location                           | Purpose                          |
+| -------- | ---------------------------------- | -------------------------------- |
+| Built-in | (code defaults)                    | Defaults when no file exists     |
+| Global   | `~/.blackbird/config.json`         | User-wide defaults               |
+| Project  | `<project>/.blackbird/config.json` | Per-project overrides (optional) |
 
 **Precedence**: For each key, use the first defined value in: project → global → built-in. Missing files or missing keys are skipped; invalid values should fall back to the next layer or built-in and optionally log a warning.
 
@@ -64,10 +64,10 @@ All keys optional. Omitted keys mean "use next layer or built-in default."
 
 ## Built-in defaults
 
-| Key                                  | Default | Notes                    |
-|--------------------------------------|---------|--------------------------|
-| `tui.runDataRefreshIntervalSeconds`  | 5       | Current hardcoded value  |
-| `tui.planDataRefreshIntervalSeconds` | 5       | Current hardcoded value  |
+| Key                                  | Default | Notes                   |
+| ------------------------------------ | ------- | ----------------------- |
+| `tui.runDataRefreshIntervalSeconds`  | 5       | Current hardcoded value |
+| `tui.planDataRefreshIntervalSeconds` | 5       | Current hardcoded value |
 
 ## Key code touchpoints
 

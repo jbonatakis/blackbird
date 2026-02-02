@@ -22,7 +22,7 @@ func TestRenderHomeViewNoPlan(t *testing.T) {
 	assertContains(t, out, "Durable, dependency-aware planning and execution")
 	assertContains(t, out, "No plan found")
 	assertContains(t, out, "Agent: Claude")
-	assertContains(t, out, "[c]")
+	assertContains(t, out, "[a]")
 	assertContains(t, out, "Change agent")
 	assertContains(t, out, "[g]")
 	assertContains(t, out, "Generate plan")

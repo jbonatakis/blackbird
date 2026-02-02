@@ -165,11 +165,7 @@ func RenderHomeView(m Model) string {
 	}
 	lines = append(lines, statusLines...)
 
-	agentLine := fmt.Sprintf("Agent: %s", agentLabel(m))
-	if agentIsFromEnv() {
-		agentLine += " (from environment)"
-	}
-	lines = append(lines, "", mutedStyle.Render(agentLine))
+	lines = append(lines, "", mutedStyle.Render(fmt.Sprintf("Agent: %s", agentLabel(m))))
 	if m.agentSelectionErr != "" {
 		lines = append(lines, warnStyle.Render(fmt.Sprintf("Agent config warning: %s", m.agentSelectionErr)))
 	}
@@ -181,17 +177,15 @@ func RenderHomeView(m Model) string {
 		)
 	}
 
-	// When generating/refining, gray out all options except quit. Change agent
-	// is disabled when env (BLACKBIRD_AGENT_PROVIDER) overrides.
+	// When generating/refining, gray out all options except quit
 	inProgress := planOperationInProgress(m)
-	changeAgentEnabled := !inProgress && !agentIsFromEnv()
 	lines = append(lines,
 		"",
+		renderActionLine("[a]", "Change agent", !inProgress, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[g]", "Generate plan", !inProgress, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[v]", "View plan", showPlanInfo, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[r]", "Refine plan", showPlanInfo, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[e]", "Execute", m.canExecute() && !inProgress, shortcutStyle, actionStyle, mutedStyle),
-		renderActionLine("[c]", "Change agent", changeAgentEnabled, shortcutStyle, actionStyle, mutedStyle),
 		renderActionLine("[ctrl+c]", "Quit", true, shortcutStyle, actionStyle, mutedStyle),
 	)
 
