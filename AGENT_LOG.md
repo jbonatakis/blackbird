@@ -1,5 +1,11 @@
 # AGENT_LOG
 
+## 2026-02-01 — Release workflow (Go Release Binaries)
+
+- Added `.github/workflows/release.yml` using [Go Release Binaries](https://github.com/marketplace/actions/go-release-binaries) (wangyoucao577/go-release-action@v1).
+- Triggers on `release: types: [created]`; builds `blackbird` from `./cmd/blackbird` for linux/windows/darwin × amd64/arm64 (excludes windows/arm64).
+- Uses Go 1.22, publishes `.zip` (Windows) and `.tar.gz` (Unix) with SHA256 checksums.
+
 ## 2026-02-01 — Global config implementation summary (log update)
 
 - Implemented global/project config loading with schema validation, precedence resolution, and interval clamping; wired TUI refresh intervals to resolved config and documented config locations/keys.

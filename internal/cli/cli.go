@@ -45,6 +45,7 @@ Usage:
   blackbird execute
   blackbird resume <taskID>
   blackbird retry <taskID>
+  blackbird --version
 
 Statuses:
   todo | queued | in_progress | waiting_user | blocked | done | failed | skipped
