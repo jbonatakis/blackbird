@@ -33,6 +33,18 @@ func TestResolveConfigDefaults(t *testing.T) {
 	if resolved.TUI.PlanDataRefreshIntervalSeconds != DefaultPlanDataRefreshIntervalSeconds {
 		t.Fatalf("plan interval = %d, want %d", resolved.TUI.PlanDataRefreshIntervalSeconds, DefaultPlanDataRefreshIntervalSeconds)
 	}
+	if resolved.Memory.Mode != DefaultMemoryMode {
+		t.Fatalf("memory mode = %s, want %s", resolved.Memory.Mode, DefaultMemoryMode)
+	}
+	if resolved.Memory.Proxy.UpstreamURL != DefaultMemoryProxyUpstreamURLCodex {
+		t.Fatalf("memory proxy upstream = %s, want %s", resolved.Memory.Proxy.UpstreamURL, DefaultMemoryProxyUpstreamURLCodex)
+	}
+	if resolved.Memory.Retention.TraceRetentionDays != DefaultMemoryTraceRetentionDays {
+		t.Fatalf("memory retention days = %d, want %d", resolved.Memory.Retention.TraceRetentionDays, DefaultMemoryTraceRetentionDays)
+	}
+	if resolved.Memory.Budgets.TotalTokens != DefaultMemoryBudgetTotalTokens {
+		t.Fatalf("memory budget total = %d, want %d", resolved.Memory.Budgets.TotalTokens, DefaultMemoryBudgetTotalTokens)
+	}
 }
 
 func TestResolveConfigClampBounds(t *testing.T) {
@@ -76,6 +88,102 @@ func TestResolveConfigClampGlobalWhenProjectMissing(t *testing.T) {
 	}
 }
 
+func TestResolveConfigMemoryPrecedence(t *testing.T) {
+	project := RawConfig{
+		Memory: &RawMemory{
+			Mode: stringPtr("local"),
+			Proxy: &RawMemoryProxy{
+				UpstreamURL: stringPtr("https://project.example"),
+			},
+			Retention: &RawMemoryRetention{
+				TraceRetentionDays: intPtr(30),
+			},
+			Budgets: &RawMemoryBudgets{
+				TotalTokens: intPtr(900),
+			},
+		},
+	}
+	global := RawConfig{
+		Memory: &RawMemory{
+			Mode: stringPtr("provider"),
+			Proxy: &RawMemoryProxy{
+				UpstreamURL: stringPtr("https://global.example"),
+			},
+			Retention: &RawMemoryRetention{
+				TraceRetentionDays: intPtr(7),
+			},
+			Budgets: &RawMemoryBudgets{
+				TotalTokens: intPtr(1400),
+			},
+		},
+	}
+
+	resolved := ResolveConfig(project, global)
+	if resolved.Memory.Mode != "local" {
+		t.Fatalf("memory mode = %s, want local", resolved.Memory.Mode)
+	}
+	if resolved.Memory.Proxy.UpstreamURL != "https://project.example" {
+		t.Fatalf("memory proxy upstream = %s, want project value", resolved.Memory.Proxy.UpstreamURL)
+	}
+	if resolved.Memory.Retention.TraceRetentionDays != 30 {
+		t.Fatalf("memory retention days = %d, want 30", resolved.Memory.Retention.TraceRetentionDays)
+	}
+	if resolved.Memory.Budgets.TotalTokens != 900 {
+		t.Fatalf("memory budget total = %d, want 900", resolved.Memory.Budgets.TotalTokens)
+	}
+}
+
+func TestResolveConfigMemoryValidation(t *testing.T) {
+	project := RawConfig{
+		Memory: &RawMemory{
+			Mode: stringPtr("unsupported"),
+			Proxy: &RawMemoryProxy{
+				UpstreamURL: stringPtr("   "),
+				Lossless:    boolPtr(false),
+			},
+			Retention: &RawMemoryRetention{
+				TraceRetentionDays: intPtr(-3),
+				TraceMaxSizeMB:     intPtr(999999),
+			},
+			Budgets: &RawMemoryBudgets{
+				TotalTokens:            intPtr(-5),
+				ArtifactPointersTokens: intPtr(999999),
+			},
+		},
+	}
+
+	resolved := ResolveConfig(project, RawConfig{})
+	if resolved.Memory.Mode != DefaultMemoryMode {
+		t.Fatalf("memory mode = %s, want %s", resolved.Memory.Mode, DefaultMemoryMode)
+	}
+	if resolved.Memory.Proxy.UpstreamURL != DefaultMemoryProxyUpstreamURLCodex {
+		t.Fatalf("memory proxy upstream = %s, want %s", resolved.Memory.Proxy.UpstreamURL, DefaultMemoryProxyUpstreamURLCodex)
+	}
+	if resolved.Memory.Proxy.Lossless != false {
+		t.Fatalf("memory proxy lossless = %v, want false", resolved.Memory.Proxy.Lossless)
+	}
+	if resolved.Memory.Retention.TraceRetentionDays != MinMemoryTraceRetentionDays {
+		t.Fatalf("memory retention days = %d, want %d", resolved.Memory.Retention.TraceRetentionDays, MinMemoryTraceRetentionDays)
+	}
+	if resolved.Memory.Retention.TraceMaxSizeMB != MaxMemoryTraceMaxSizeMB {
+		t.Fatalf("memory trace max size = %d, want %d", resolved.Memory.Retention.TraceMaxSizeMB, MaxMemoryTraceMaxSizeMB)
+	}
+	if resolved.Memory.Budgets.TotalTokens != MinMemoryBudgetTokens {
+		t.Fatalf("memory budget total = %d, want %d", resolved.Memory.Budgets.TotalTokens, MinMemoryBudgetTokens)
+	}
+	if resolved.Memory.Budgets.ArtifactPointersTokens != MaxMemoryBudgetTokens {
+		t.Fatalf("memory budget artifact pointers = %d, want %d", resolved.Memory.Budgets.ArtifactPointersTokens, MaxMemoryBudgetTokens)
+	}
+}
+
 func intPtr(value int) *int {
+	return &value
+}
+
+func stringPtr(value string) *string {
+	return &value
+}
+
+func boolPtr(value bool) *bool {
 	return &value
 }

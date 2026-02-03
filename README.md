@@ -31,6 +31,18 @@ go build -o blackbird ./cmd/blackbird
 
 The plan file lives at repo root as `blackbird.plan.json`.
 
+## Memory (Codex only)
+
+Blackbird can capture Codex traffic via a local proxy to build durable memory artifacts and context packs. Memory features are only active for the Codex provider; Claude ignores memory settings. Disable memory by setting `memory.mode` to `off` in config.
+
+Common CLI usage:
+
+- `blackbird mem search "decision"`
+- `blackbird mem get <artifact_id>`
+- `blackbird mem context --task <id>`
+
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) and [docs/COMMANDS.md](docs/COMMANDS.md) for full details.
+
 ## TUI
 
 Running `blackbird` with no arguments opens the TUI: plan tree on the left, details/execution on the right, action shortcuts in the bottom bar.

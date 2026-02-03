@@ -1,410 +1,251 @@
 {
   "schemaVersion": 1,
   "items": {
-    "agent-log-update": {
-      "id": "agent-log-update",
-      "title": "Update AGENT_LOG",
-      "description": "Append a dated entry describing the global config work and test status.",
+    "mem-artifact-builder": {
+      "id": "mem-artifact-builder",
+      "title": "Deterministic artifact extraction",
+      "description": "Generate decisions, constraints, outcomes, open threads, and transcript segments from canonical logs.",
       "acceptanceCriteria": [
-        "AGENT_LOG.md contains a new dated entry summarizing global config changes and test results."
+        "Artifact schema includes ids, session/task/run refs, type, content, provenance, builder_version.",
+        "Deterministic extractors produce outcome, decision, constraint, open_thread, and transcript artifacts.",
+        "Dedup/supersedes rules consolidate repeated decisions/constraints.",
+        "Unit tests validate extraction and dedup behavior."
       ],
-      "prompt": "Append a concise entry to AGENT_LOG.md summarizing the global config implementation and tests.",
-      "parentId": "global-config-tests-docs",
+      "prompt": "Implement deterministic artifact extraction from canonical logs (decisions, constraints, outcomes, open threads, transcript segments). Store artifacts with provenance and builder_version in a durable store. Add unit tests for extraction and dedup/supersedes behavior.",
+      "parentId": null,
       "childIds": [],
       "deps": [
-        "docs-configuration",
-        "docs-files-storage",
-        "config-tests-precedence",
-        "config-tests-invalid",
-        "config-tests-bounds",
-        "config-tests-home-missing",
-        "tui-tests-intervals"
+        "mem-canonicalizer"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:45:28.580049Z"
+      "createdAt": "2026-02-03T05:30:54.934013Z",
+      "updatedAt": "2026-02-03T06:33:22.63897Z"
     },
-    "config-defaults": {
-      "id": "config-defaults",
-      "title": "Define Built-in Defaults",
-      "description": "Introduce constants/defaults for TUI refresh intervals.",
+    "mem-canonicalizer": {
+      "id": "mem-canonicalizer",
+      "title": "Canonicalize trace into message timeline",
+      "description": "Convert raw trace events into canonical messages/tool calls with provenance.",
       "acceptanceCriteria": [
-        "Default values for run/plan refresh intervals are defined in one place.",
-        "Defaults match the spec (5 seconds each)."
+        "Canonicalizer reconstructs assistant text from streaming deltas and normalizes provider payloads.",
+        "Outputs include messages, tool calls/results, metadata, and provenance mapping to trace offsets.",
+        "Canonical logs are stored per run in memory storage for replay.",
+        "Unit tests cover SSE delta assembly and provenance mapping."
       ],
-      "prompt": "Add built-in defaults for tui refresh intervals in the config package.",
-      "parentId": "global-config-core",
+      "prompt": "Build a canonicalizer in internal/memory that replays WAL events into a canonical timeline of messages/tool calls (including provenance back to trace offsets). Persist canonical logs per run and write unit tests for SSE delta reassembly and provenance mapping.",
+      "parentId": null,
       "childIds": [],
       "deps": [
-        "config-types"
+        "mem-trace-store"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:24:57.608284Z"
+      "createdAt": "2026-02-03T05:30:54.934013Z",
+      "updatedAt": "2026-02-03T06:18:48.993113Z"
     },
-    "config-load-global": {
-      "id": "config-load-global",
-      "title": "Load Global Config File",
-      "description": "Read ~/.blackbird/config.json using os.UserHomeDir; skip if missing or home is unavailable.",
+    "mem-cli-commands": {
+      "id": "mem-cli-commands",
+      "title": "Memory CLI commands",
+      "description": "Expose memory search/get/context commands in the CLI.",
       "acceptanceCriteria": [
-        "Global config is read from ~/.blackbird/config.json when home dir is available.",
-        "Missing file or missing home directory does not error and falls back to next layer."
+        "`blackbird mem search` supports query + session/task filters and prints bounded results.",
+        "`blackbird mem get` outputs full artifact details.",
+        "`blackbird mem context` builds and prints the session context pack for a task.",
+        "CLI tests cover flag parsing and output formatting."
       ],
-      "prompt": "Implement reading of the global config file using os.UserHomeDir; skip if missing.",
-      "parentId": "global-config-core",
+      "prompt": "Add `blackbird mem` subcommands (search/get/context) that use the retrieval API and context pack builder. Support session/task filters and bounded outputs. Add CLI tests for parsing and formatting.",
+      "parentId": null,
       "childIds": [],
       "deps": [
-        "config-types"
+        "mem-index-retrieval",
+        "mem-context-pack"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:26:43.267082Z"
+      "createdAt": "2026-02-03T05:30:54.934013Z",
+      "updatedAt": "2026-02-03T07:09:30.09818Z"
     },
-    "config-load-project": {
-      "id": "config-load-project",
-      "title": "Load Project Config File",
-      "description": "Read project .blackbird/config.json from the provided project root.",
+    "mem-config-session": {
+      "id": "mem-config-session",
+      "title": "Memory config and session identity",
+      "description": "Introduce memory configuration, session metadata, and path helpers for durable memory storage.",
       "acceptanceCriteria": [
-        "Project config is read from \u003cproject\u003e/.blackbird/config.json when present.",
-        "Missing project file does not error and falls back to next layer."
+        "Config schema includes a memory section (mode, proxy, retention, budgets) with defaults and validation applied in load/resolve.",
+        "Session metadata persists under `.blackbird/memory/session.json` with a stable session_id and optional goal.",
+        "Helpers resolve memory root, trace WAL paths, and artifact/index DB paths.",
+        "Unit tests cover config parsing/merging and session create/load."
       ],
-      "prompt": "Implement reading of project config from \u003cprojectRoot\u003e/.blackbird/config.json.",
-      "parentId": "global-config-core",
-      "childIds": [],
-      "deps": [
-        "config-types"
-      ],
-      "status": "todo",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-02T16:29:11.698656Z"
-    },
-    "config-loader-api": {
-      "id": "config-loader-api",
-      "title": "Expose LoadConfig API",
-      "description": "Create LoadConfig(projectRoot) that reads both layers and returns resolved config.",
-      "acceptanceCriteria": [
-        "LoadConfig reads global and project config, merges them, and returns resolved config.",
-        "LoadConfig accepts a project root path and uses it for project config lookup."
-      ],
-      "prompt": "Create LoadConfig(projectRoot string) in internal/config to load and merge global/project config.",
-      "parentId": "global-config-core",
-      "childIds": [],
-      "deps": [
-        "config-load-global",
-        "config-load-project",
-        "config-merge-resolve"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:31:11.785923Z"
-    },
-    "config-merge-resolve": {
-      "id": "config-merge-resolve",
-      "title": "Merge with Precedence and Clamp",
-      "description": "Resolve final config values using project \u003e global \u003e defaults and clamp invalid intervals.",
-      "acceptanceCriteria": [
-        "Resolution follows project \u003e global \u003e built-in precedence per key.",
-        "Invalid interval values are clamped or replaced with next layer/default.",
-        "Minimum and maximum bounds are enforced (min 1, max 300)."
-      ],
-      "prompt": "Implement merge logic with precedence and value clamping for interval fields.",
-      "parentId": "global-config-core",
-      "childIds": [],
-      "deps": [
-        "config-defaults",
-        "config-parse-validate"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:29:55.063805Z"
-    },
-    "config-parse-validate": {
-      "id": "config-parse-validate",
-      "title": "Parse and Validate Config",
-      "description": "Parse JSON, validate schemaVersion, and ignore unknown keys.",
-      "acceptanceCriteria": [
-        "Invalid JSON is treated as missing config for that layer.",
-        "Unsupported schemaVersion is treated as missing for that layer.",
-        "Unknown keys are ignored."
-      ],
-      "prompt": "Add JSON parsing and schemaVersion validation for config files; ignore unknown keys.",
-      "parentId": "global-config-core",
-      "childIds": [],
-      "deps": [
-        "config-types"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:28:42.502425Z"
-    },
-    "config-tests-bounds": {
-      "id": "config-tests-bounds",
-      "title": "Test Interval Bounds",
-      "description": "Unit tests to verify clamping or fallback for invalid interval values.",
-      "acceptanceCriteria": [
-        "Values below minimum or above maximum are clamped or replaced by next layer/default."
-      ],
-      "prompt": "Add tests to validate interval bounds behavior for config resolution.",
-      "parentId": "global-config-tests-docs",
-      "childIds": [],
-      "deps": [
-        "config-merge-resolve"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:31:56.953352Z"
-    },
-    "config-tests-home-missing": {
-      "id": "config-tests-home-missing",
-      "title": "Test Missing Home Directory",
-      "description": "Unit tests for when os.UserHomeDir fails or returns empty.",
-      "acceptanceCriteria": [
-        "Loader skips global config when home dir is unavailable without failing."
-      ],
-      "prompt": "Add tests to ensure LoadConfig behaves when os.UserHomeDir is unavailable.",
-      "parentId": "global-config-tests-docs",
-      "childIds": [],
-      "deps": [
-        "config-load-global"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:32:47.063274Z"
-    },
-    "config-tests-invalid": {
-      "id": "config-tests-invalid",
-      "title": "Test Invalid JSON and Schema",
-      "description": "Unit tests for invalid JSON and unsupported schemaVersion handling.",
-      "acceptanceCriteria": [
-        "Invalid JSON in a layer is skipped without failing the load.",
-        "Unsupported schemaVersion is skipped."
-      ],
-      "prompt": "Add tests for invalid JSON and schemaVersion handling in config loading.",
-      "parentId": "global-config-tests-docs",
-      "childIds": [],
-      "deps": [
-        "config-parse-validate"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:33:57.556527Z"
-    },
-    "config-tests-precedence": {
-      "id": "config-tests-precedence",
-      "title": "Test Precedence Resolution",
-      "description": "Unit tests for project \u003e global \u003e default precedence resolution.",
-      "acceptanceCriteria": [
-        "Tests cover project override of global.",
-        "Tests cover global fallback when project is missing."
-      ],
-      "prompt": "Add unit tests validating precedence resolution for config merging.",
-      "parentId": "global-config-tests-docs",
-      "childIds": [],
-      "deps": [
-        "config-loader-api"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:34:53.425366Z"
-    },
-    "config-types": {
-      "id": "config-types",
-      "title": "Define Config Types",
-      "description": "Add Go structs for raw config and resolved config, including schemaVersion and tui interval fields.",
-      "acceptanceCriteria": [
-        "Config structs capture schemaVersion and tui.run/plan refresh interval fields.",
-        "Types live under a new internal/config package (or equivalent) without extra dependencies."
-      ],
-      "prompt": "Add Go types for raw and resolved config structs under internal/config.",
-      "parentId": "global-config-core",
+      "prompt": "Add a memory configuration section to internal/config (raw + resolved) with defaults and validation. Implement session metadata persistence and path helpers under a new internal/memory package. Ensure codex-only defaults are explicit and provide unit tests for config merge and session create/load.",
+      "parentId": null,
       "childIds": [],
       "deps": [],
-      "status": "todo",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-02T16:29:07.999457Z"
-    },
-    "docs-configuration": {
-      "id": "docs-configuration",
-      "title": "Update Configuration Docs",
-      "description": "Document config schema and precedence in docs/CONFIGURATION.md.",
-      "acceptanceCriteria": [
-        "Docs describe global and project config locations and precedence.",
-        "Docs list schemaVersion and TUI interval keys with defaults."
-      ],
-      "prompt": "Update docs/CONFIGURATION.md for global/project config and schema.",
-      "parentId": "global-config-tests-docs",
-      "childIds": [],
-      "deps": [
-        "config-loader-api"
-      ],
       "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:35:46.431201Z"
+      "createdAt": "2026-02-03T05:30:54.934013Z",
+      "updatedAt": "2026-02-03T05:45:42.913777Z"
     },
-    "docs-files-storage": {
-      "id": "docs-files-storage",
-      "title": "Update Files and Storage Docs",
-      "description": "List config paths in docs/FILES_AND_STORAGE.md.",
+    "mem-context-pack": {
+      "id": "mem-context-pack",
+      "title": "Session context pack builder",
+      "description": "Assemble bounded session context packs from artifacts with stable ordering and budgets.",
       "acceptanceCriteria": [
-        "Docs list ~/.blackbird/config.json and \u003cproject\u003e/.blackbird/config.json."
+        "Context pack includes session goal, key decisions/constraints, recent outcomes, open threads, and artifact IDs.",
+        "Section budgets enforced with stable ordering and deduplication.",
+        "Includes instruction text for memory tool usage/limits.",
+        "Unit tests cover budgeting and ordering."
       ],
-      "prompt": "Update docs/FILES_AND_STORAGE.md to include global and project config files.",
-      "parentId": "global-config-tests-docs",
-      "childIds": [],
-      "deps": [
-        "config-loader-api"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:36:05.809298Z"
-    },
-    "global-config-core": {
-      "id": "global-config-core",
-      "title": "Global Config Loader Core",
-      "description": "Implement config schema types and loader that merges global and project config with validation and defaults.",
-      "acceptanceCriteria": [
-        "Config types and defaults are defined in a new internal config package.",
-        "Global and project config files are read when present.",
-        "Resolved config applies project \u003e global \u003e built-in precedence with validation/clamping."
-      ],
-      "prompt": "Create internal config types and a loader that merges global and project configs with validation and default values.",
+      "prompt": "Implement a context pack builder that assembles a session context download from artifacts with per-section token budgets and stable ordering. Include instruction text for memory tool usage limits. Add tests for budgeting and ordering behavior.",
       "parentId": null,
-      "childIds": [
-        "config-types",
-        "config-defaults",
-        "config-parse-validate",
-        "config-load-global",
-        "config-load-project",
-        "config-merge-resolve",
-        "config-loader-api"
+      "childIds": [],
+      "deps": [
+        "mem-index-retrieval"
       ],
-      "deps": [],
-      "status": "todo",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-02T16:29:04.305828Z"
+      "status": "done",
+      "createdAt": "2026-02-03T05:30:54.934013Z",
+      "updatedAt": "2026-02-03T06:59:20.052889Z"
     },
-    "global-config-tests-docs": {
-      "id": "global-config-tests-docs",
-      "title": "Tests and Documentation",
-      "description": "Add config loader tests, TUI interval coverage where appropriate, and update documentation and AGENT_LOG.",
+    "mem-docs-log": {
+      "id": "mem-docs-log",
+      "title": "Documentation and agent log updates",
+      "description": "Document memory system usage, config, and storage layout; update AGENT_LOG.",
       "acceptanceCriteria": [
-        "Config loader tests cover precedence, invalid JSON, schemaVersion, and bounds.",
-        "Docs updated for config locations and precedence.",
-        "AGENT_LOG updated with a dated summary."
+        "docs/CONFIGURATION.md updated with memory settings and proxy behavior.",
+        "docs/FILES_AND_STORAGE.md updated with memory storage paths.",
+        "README/docs updated with codex-only note and memory CLI usage.",
+        "AGENT_LOG.md updated with a durable memory implementation summary."
       ],
-      "prompt": "Add tests and docs for the global/project config system and update AGENT_LOG.",
+      "prompt": "Update documentation to cover memory configuration, proxy behavior, storage paths, and CLI usage, including a codex-only note. Append a summary of the work to AGENT_LOG.md.",
       "parentId": null,
-      "childIds": [
-        "config-tests-precedence",
-        "config-tests-invalid",
-        "config-tests-bounds",
-        "config-tests-home-missing",
-        "tui-tests-intervals",
-        "docs-configuration",
-        "docs-files-storage",
-        "agent-log-update"
-      ],
+      "childIds": [],
       "deps": [
-        "config-loader-api",
-        "global-config-tui"
+        "mem-cli-commands",
+        "mem-execution-integration",
+        "mem-proxy-lifecycle"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:45:28.580049Z"
+      "createdAt": "2026-02-03T05:30:54.934013Z",
+      "updatedAt": "2026-02-03T08:08:48.460883Z"
     },
-    "global-config-tui": {
-      "id": "global-config-tui",
-      "title": "Wire TUI Refresh Intervals",
-      "description": "Load config at TUI startup and apply refresh intervals to run/plan loaders.",
+    "mem-execution-integration": {
+      "id": "mem-execution-integration",
+      "title": "Execution integration with memory",
+      "description": "Embed memory context into execution packs and propagate session/task/run IDs for codex runs.",
       "acceptanceCriteria": [
-        "TUI loads config once at startup with project root.",
-        "Run and plan refresh intervals use resolved config values instead of constants."
+        "ContextPack schema includes session/run metadata and memory context pack payload.",
+        "BuildContext (or new builder) attaches memory pack for codex when enabled; no-op for Claude.",
+        "Agent launch sets proxy base URL/headers for codex using provider adapter; IDs are propagated.",
+        "Execution/resume tests updated for new fields and gating."
       ],
-      "prompt": "Wire TUI to load config and apply refresh interval settings.",
+      "prompt": "Update execution context building to include memory session/run metadata and the session context pack when provider is codex and memory is enabled. Ensure LaunchAgent/RunExecute propagate IDs to the proxy (base URL prefix or headers) using the provider adapter, and skip for Claude. Update execution/resume tests accordingly.",
       "parentId": null,
-      "childIds": [
-        "tui-load-config",
-        "tui-wire-run-interval",
-        "tui-wire-plan-interval"
-      ],
-      "deps": [
-        "config-loader-api"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:43:18.850865Z"
-    },
-    "tui-load-config": {
-      "id": "tui-load-config",
-      "title": "Load Config at TUI Startup",
-      "description": "Call LoadConfig using the project root during TUI initialization.",
-      "acceptanceCriteria": [
-        "TUI initialization resolves config once and stores it for use by loaders.",
-        "Project root is derived from working directory (unless already passed)."
-      ],
-      "prompt": "Update TUI startup/init to load config via LoadConfig and store resolved values.",
-      "parentId": "global-config-tui",
       "childIds": [],
       "deps": [
-        "config-loader-api"
-      ],
-      "status": "todo",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-02T16:28:56.349393Z"
-    },
-    "tui-tests-intervals": {
-      "id": "tui-tests-intervals",
-      "title": "Test TUI Interval Wiring",
-      "description": "Add tests to ensure TUI loaders respect resolved config intervals.",
-      "acceptanceCriteria": [
-        "Tests verify run/plan loaders use configured intervals where testable.",
-        "Defaults are preserved when no config is set."
-      ],
-      "prompt": "Add or update TUI tests to cover interval wiring from resolved config.",
-      "parentId": "global-config-tests-docs",
-      "childIds": [],
-      "deps": [
-        "global-config-tui"
+        "mem-context-pack",
+        "mem-provider-adapters",
+        "mem-config-session"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:45:12.244714Z"
+      "createdAt": "2026-02-03T05:30:54.934013Z",
+      "updatedAt": "2026-02-03T07:28:44.335221Z"
     },
-    "tui-wire-plan-interval": {
-      "id": "tui-wire-plan-interval",
-      "title": "Apply Plan Refresh Interval",
-      "description": "Replace the plan data refresh interval constant with resolved config value.",
+    "mem-index-retrieval": {
+      "id": "mem-index-retrieval",
+      "title": "Lexical index and retrieval API",
+      "description": "Index artifacts for fast search and implement search/get/related APIs.",
       "acceptanceCriteria": [
-        "Plan data refresh interval uses resolved config value.",
-        "Default behavior remains 5 seconds when no config is set."
+        "Lexical index (SQLite FTS5 or equivalent) supports scoped search with type/recency weighting.",
+        "Search returns bounded cards with snippet and provenance; Get returns full artifacts.",
+        "Related expands adjacency based on provenance/task/run links.",
+        "Unit tests cover scoring, filtering, and snippet bounds."
       ],
-      "prompt": "Replace plan data refresh interval constant with resolved config value in the TUI plan loader.",
-      "parentId": "global-config-tui",
+      "prompt": "Build a lexical index over artifacts (SQLite FTS5 or equivalent) and implement a retrieval API with Search/Get/Related. Incorporate session/task scoping, type/recency weighting, and bounded snippets. Add unit tests for scoring and filters.",
+      "parentId": null,
       "childIds": [],
       "deps": [
-        "tui-load-config"
+        "mem-artifact-builder"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:41:41.500167Z"
+      "createdAt": "2026-02-03T05:30:54.934013Z",
+      "updatedAt": "2026-02-03T06:45:46.606225Z"
     },
-    "tui-wire-run-interval": {
-      "id": "tui-wire-run-interval",
-      "title": "Apply Run Refresh Interval",
-      "description": "Replace the run data refresh interval constant with resolved config value.",
+    "mem-provider-adapters": {
+      "id": "mem-provider-adapters",
+      "title": "Provider adapter interface (codex first)",
+      "description": "Define a provider adapter interface for memory capture/injection with codex implementation and Claude stub.",
       "acceptanceCriteria": [
-        "Run data refresh interval uses resolved config value.",
-        "Default behavior remains 5 seconds when no config is set."
+        "Adapter interface covers proxy routing rules, base URL prefix/headers, and enabled check.",
+        "Codex adapter implements routing/path rewrite per the investigation doc and defines ID propagation strategy.",
+        "Claude adapter returns disabled/no-op while preserving extension points.",
+        "Tests verify adapter selection and gating behavior."
       ],
-      "prompt": "Replace run data refresh interval constant with resolved config value in the TUI run loader.",
-      "parentId": "global-config-tui",
+      "prompt": "Create an internal/memory/provider package that defines a provider adapter interface (routing rules, base URL prefix/header strategy, enabled check). Implement codex adapter with the path rewrite rules from DURABLE_MEMORY_INVESTIGATION and a no-op Claude adapter for future extension. Add unit tests for selection and gating.",
+      "parentId": null,
       "childIds": [],
       "deps": [
-        "tui-load-config"
+        "mem-config-session"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:43:18.850865Z"
+      "createdAt": "2026-02-03T05:30:54.934013Z",
+      "updatedAt": "2026-02-03T05:52:27.950903Z"
+    },
+    "mem-proxy-core": {
+      "id": "mem-proxy-core",
+      "title": "Reverse proxy flight recorder",
+      "description": "Build streaming reverse proxy for Codex traffic and capture events to the trace store.",
+      "acceptanceCriteria": [
+        "Proxy forwards requests to correct upstream (API vs ChatGPT backend) with path rewrite rules.",
+        "Streaming SSE/chunked responses are passed through without buffering.",
+        "Each request is captured into WAL with generated request_id and session/task/run IDs from the adapter.",
+        "Tests validate routing, streaming passthrough, redaction, and ID tagging."
+      ],
+      "prompt": "Implement a streaming reverse proxy (internal/memory/proxy or cmd/reverse-proxy) that routes Codex traffic per the investigation doc, preserves streaming, and records trace events via the WAL. Use the provider adapter to extract/tag session/task/run IDs and add redaction. Add httptest-based tests for routing, streaming, and capture tagging.",
+      "parentId": null,
+      "childIds": [],
+      "deps": [
+        "mem-trace-store",
+        "mem-provider-adapters"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-03T05:30:54.934013Z",
+      "updatedAt": "2026-02-03T07:48:27.175401Z"
+    },
+    "mem-proxy-lifecycle": {
+      "id": "mem-proxy-lifecycle",
+      "title": "Proxy lifecycle management",
+      "description": "Start/stop proxy with Blackbird lifecycle and ensure safe single-instance behavior.",
+      "acceptanceCriteria": [
+        "TUI start launches the proxy and shuts it down on exit; CLI execute/resume start/stop when needed.",
+        "Graceful shutdown and port conflict handling with clear errors.",
+        "Proxy only starts for supported providers and when memory is enabled.",
+        "Tests cover lifecycle gating and shutdown."
+      ],
+      "prompt": "Add a proxy supervisor that starts the memory proxy when Blackbird opens (TUI start) and during CLI execute/resume runs, then shuts down cleanly. Handle port conflicts and no-op for unsupported providers or disabled memory. Add lifecycle tests for gating and shutdown.",
+      "parentId": null,
+      "childIds": [],
+      "deps": [
+        "mem-proxy-core",
+        "mem-provider-adapters",
+        "mem-config-session"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-03T05:30:54.934013Z",
+      "updatedAt": "2026-02-03T08:03:37.594577Z"
+    },
+    "mem-trace-store": {
+      "id": "mem-trace-store",
+      "title": "Trace WAL storage",
+      "description": "Implement append-only trace event store with redaction, rotation, and replay.",
+      "acceptanceCriteria": [
+        "Trace event schema supports request/response start/body/end/error with timestamps and IDs.",
+        "WAL writer appends in order with fsync strategy, rotation by size/age, and retention pruning.",
+        "Redaction strips sensitive headers and optional body capture obeys privacy mode.",
+        "Reader replays events in order; unit tests cover ordering, rotation, and redaction."
+      ],
+      "prompt": "Implement a trace WAL in internal/memory/trace with an event schema aligned to DURABLE_MEMORY_CONTEXT_PACKS (request/response start/body/end/error). Add redaction and privacy-mode body capture, rotation/retention, and a replay reader. Write unit tests for order, redaction, and rotation.",
+      "parentId": null,
+      "childIds": [],
+      "deps": [
+        "mem-config-session"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-03T05:30:54.934013Z",
+      "updatedAt": "2026-02-03T06:04:14.731616Z"
     }
   }
 }

@@ -1046,3 +1046,88 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 ## 2026-02-02 — TUI home page: Change agent shortcut back to [c]
 
 - Restored home view label from [a] to [c] for "Change agent" to match bottom bar and key binding (model already used "c"). Moved [c] just above Quit on home page.
+
+## 2026-02-03 — Memory config + session metadata
+
+- Added memory config schema (mode/proxy/retention/budgets) with defaults, validation/clamping, and merge logic in internal/config.
+- Introduced internal/memory package with path helpers (memory root, trace WAL, artifact/index DB) and session metadata create/load persisted to `.blackbird/memory/session.json`.
+- Added unit tests for memory config resolve/load precedence/validation and session create/load + path helpers.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config ./internal/memory`.
+
+## 2026-02-03 — Memory provider adapters
+
+- Added `internal/memory/provider` with a provider adapter interface covering proxy routing, base URL prefix + header strategy, and enabled gating.
+- Implemented Codex adapter routing/path rewrite per `DURABLE_MEMORY_INVESTIGATION` and Blackbird ID header propagation; added a disabled Claude stub adapter plus adapter selection helper.
+- Added unit tests for adapter selection/gating, Codex routing rules, and ID header propagation.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/memory/...`.
+
+## 2026-02-03 — Trace WAL storage
+
+- Added `internal/memory/trace` with trace event schema (request/response start/body/end/error), header redaction, privacy-mode body suppression, WAL writer with fsync/rotation/retention, and replay reader.
+- Implemented rotation naming/parsing + retention pruning helpers and default redaction rules.
+- Added unit tests for replay ordering across rotations, redaction/privacy behavior, and retention pruning.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/memory/...`.
+
+## 2026-02-03 — Memory canonicalizer (WAL replay + provenance)
+
+- Added `internal/memory/canonical` with canonical log types, SSE parser, WAL replay canonicalizer, and per-run log storage helpers.
+- Canonicalizer reassembles assistant text from SSE deltas (chat completions + responses-style events), tracks message/toolcall provenance back to response body chunk offsets, and captures basic request/response metadata.
+- Added canonical log path helpers under `.blackbird/memory/canonical/` and exported `memory.AtomicWriteFile` for durable log writes.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/memory/...`.
+
+## 2026-02-03 — Memory artifact builder (deterministic extraction)
+
+- Added `internal/memory/artifact` with artifact schema (ids, session/task/run refs, content, provenance, builder_version) plus a JSON store and update helpers.
+- Implemented deterministic extraction from canonical logs for outcomes, decisions, constraints, open threads, and transcript segments with basic heuristics.
+- Added dedup + supersedes merge rules for decisions/constraints and unit tests covering extraction + supersedes behavior.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/memory/...`.
+
+## 2026-02-03 — Memory lexical index + retrieval API
+
+- Added SQLite FTS5-backed memory index with schema, rebuild support, scoped search (type/session/task/run filters), recency/type weighting, bounded snippets, Get, and Related APIs.
+- Implemented adjacency links across session/task/run/provenance/trace for related artifacts plus project-level convenience helpers.
+- Added unit tests covering scoring weights/recency, search filtering + snippet bounds, and related adjacency ordering.
+- Note: `go mod tidy` failed due to sandboxed network/cache restrictions (modernc.org/sqlite fetch blocked).
+
+## 2026-02-03 — Session context pack builder
+
+- Added `internal/memory/contextpack` with a deterministic session context pack builder, instruction defaults, formatting helpers, and run-time lookup via execution records.
+- Implemented per-section budget enforcement with stable ordering and dedup for decisions/constraints/open threads, plus latest-per-task outcomes and artifact ID pointers.
+- Added unit tests covering ordering, dedup, and budgeting behavior for context pack assembly.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/memory/contextpack`.
+
+## 2026-02-03 — Memory CLI commands
+
+- Added `blackbird mem` subcommands (search/get/context) with session/task filters, formatted output, and context-pack rendering using resolved memory budgets + session metadata.
+- Added CLI tests covering search filters/limit formatting, get JSON output, context pack rendering, and missing-arg validation.
+- Tests: `go test ./internal/cli/...` failed due to Go build cache permission restrictions (`operation not permitted`).
+
+## 2026-02-03 — Execution memory integration
+
+- Extended execution context packs with session/run metadata and optional memory context pack payloads.
+- Added context builder options to attach memory packs for Codex when memory is enabled; Claude remains a no-op.
+- Added launch-time proxy env/header injection for Codex (base URL + X-Blackbird IDs) and run-id propagation.
+- Moved execution run-time lookup helper into execution package to avoid memory/contextpack import cycles; updated CLI memory context to use it.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/execution/...`.
+- Note: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/cli/...` failed due to missing `go.sum` entry for `modernc.org/sqlite`.
+
+## 2026-02-03 — Memory reverse proxy (streaming + WAL capture)
+
+- Added `internal/memory/proxy` streaming reverse proxy with Codex routing rules, path rewrite, hop-header stripping, and X-Forwarded-For removal.
+- Proxy emits trace WAL events (request/response start/body/end + errors) with generated request IDs and adapter-extracted session/task/run IDs; honors privacy mode via trace options/redaction defaults.
+- Added `cmd/reverse-proxy` to run the proxy using resolved memory config + trace retention settings.
+- Tests: added in-memory round-tripper tests for routing, streaming passthrough, redaction, and ID tagging.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/memory/proxy/...`.
+
+## 2026-02-03 — Memory proxy lifecycle supervisor
+
+- Added a ref-counted memory proxy supervisor with graceful shutdown, port-conflict errors, and optional listen overrides for tests.
+- Wired proxy startup/shutdown into TUI startup and execute/resume runs.
+- Added lifecycle gating/shutdown/port-conflict tests for the supervisor and set explicit providers in execution runner tests.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/memory/proxy/... ./internal/execution/... ./internal/tui/...`.
+
+## 2026-02-03 — Memory documentation refresh
+
+- Documented memory configuration (modes, proxy behavior, retention/budgets) with a Codex-only note and CLI usage for `blackbird mem`.
+- Expanded storage docs with the durable memory layout: session metadata, trace WALs, canonical logs, artifact store, and SQLite index.
+- Updated README and docs index to surface memory references.

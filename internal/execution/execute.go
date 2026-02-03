@@ -17,7 +17,10 @@ func ExecuteTask(ctx context.Context, g plan.WorkGraph, task plan.WorkItem, runt
 		return RunRecord{}, fmt.Errorf("unknown task id %q", task.ID)
 	}
 
-	ctxPack, err := BuildContext(g, task.ID)
+	runtime = applySelectedProvider(runtime)
+	ctxPack, err := BuildContextWithOptions(g, task.ID, ContextBuildOptions{
+		Provider: runtime.Provider,
+	})
 	if err != nil {
 		return RunRecord{}, err
 	}

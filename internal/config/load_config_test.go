@@ -43,6 +43,51 @@ func TestLoadConfigMergesGlobalAndProject(t *testing.T) {
 	}
 }
 
+func TestLoadConfigMergesMemoryFields(t *testing.T) {
+	homeDir := t.TempDir()
+	projectDir := t.TempDir()
+	restore := overrideUserHomeDir(func() (string, error) {
+		return homeDir, nil
+	})
+	t.Cleanup(restore)
+
+	globalPath := filepath.Join(homeDir, ".blackbird", "config.json")
+	if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
+		t.Fatalf("mkdir global: %v", err)
+	}
+	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"memory":{"mode":"provider","proxy":{"upstreamURL":"https://global.example"},"retention":{"traceRetentionDays":21},"budgets":{"totalTokens":1400}}}`), 0o644); err != nil {
+		t.Fatalf("write global config: %v", err)
+	}
+
+	projectPath := filepath.Join(projectDir, ".blackbird", "config.json")
+	if err := os.MkdirAll(filepath.Dir(projectPath), 0o755); err != nil {
+		t.Fatalf("mkdir project: %v", err)
+	}
+	if err := os.WriteFile(projectPath, []byte(`{"schemaVersion":1,"memory":{"proxy":{"lossless":false},"budgets":{"totalTokens":900}}}`), 0o644); err != nil {
+		t.Fatalf("write project config: %v", err)
+	}
+
+	resolved, err := LoadConfig(projectDir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if resolved.Memory.Mode != "provider" {
+		t.Fatalf("memory mode = %s, want provider", resolved.Memory.Mode)
+	}
+	if resolved.Memory.Proxy.UpstreamURL != "https://global.example" {
+		t.Fatalf("memory proxy upstream = %s, want global value", resolved.Memory.Proxy.UpstreamURL)
+	}
+	if resolved.Memory.Proxy.Lossless != false {
+		t.Fatalf("memory proxy lossless = %v, want false", resolved.Memory.Proxy.Lossless)
+	}
+	if resolved.Memory.Retention.TraceRetentionDays != 21 {
+		t.Fatalf("memory retention days = %d, want 21", resolved.Memory.Retention.TraceRetentionDays)
+	}
+	if resolved.Memory.Budgets.TotalTokens != 900 {
+		t.Fatalf("memory budget total = %d, want 900", resolved.Memory.Budgets.TotalTokens)
+	}
+}
+
 func TestLoadConfigProjectOverridesGlobal(t *testing.T) {
 	homeDir := t.TempDir()
 	projectDir := t.TempDir()

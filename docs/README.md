@@ -7,11 +7,11 @@
 
 ## Reference
 
-- [COMMANDS.md](COMMANDS.md) — Plan, manual edits, execution
+- [COMMANDS.md](COMMANDS.md) — Plan, manual edits, execution, memory CLI
 - [TUI.md](TUI.md) — Layout and key bindings
 - [READINESS.md](READINESS.md) — Readiness rules
-- [CONFIGURATION.md](CONFIGURATION.md) — Agent runtime (env vars)
-- [FILES_AND_STORAGE.md](FILES_AND_STORAGE.md) — Plan file, runs, snapshot
+- [CONFIGURATION.md](CONFIGURATION.md) — Agent runtime (env vars) and memory settings
+- [FILES_AND_STORAGE.md](FILES_AND_STORAGE.md) — Plan file, runs, snapshot, memory storage
 
 ## Workflows
 

@@ -27,3 +27,11 @@
 - `blackbird retry <taskID>` — Reset failed tasks with failed runs back to `todo`.
 
 Execute and resume share the execution runner in `internal/execution`. The CLI and TUI call the same runner API; the TUI runs execute/resume in-process (no subprocess) and cancels the shared context on quit so any in-flight run stops promptly.
+
+## Memory (Codex only)
+
+Memory commands operate on durable artifacts captured via the Codex memory proxy.
+
+- `blackbird mem search [--session <id>] [--task <id>] [--run <id>] [--type outcome,decision,constraint,open_thread,transcript] [--limit N] [--offset N] [--snippet-max N] [--snippet-tokens N] <query>` — Search artifacts and print a summary table.
+- `blackbird mem get <artifact_id>` — Print a single artifact as JSON.
+- `blackbird mem context --task <id> [--session <id>] [--goal "..."] [--budget N]` — Render a memory context pack for a task using stored artifacts and configured budgets.

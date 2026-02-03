@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jbonatakis/blackbird/internal/config"
+	"github.com/jbonatakis/blackbird/internal/memory"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
@@ -97,5 +99,83 @@ func TestBuildContextErrorsOnUnknownDep(t *testing.T) {
 	_, err := BuildContext(g, "task")
 	if err == nil {
 		t.Fatalf("expected error for unknown dependency")
+	}
+}
+
+func TestBuildContextWithMemoryPackForCodex(t *testing.T) {
+	tempDir := t.TempDir()
+	session, err := memory.CreateSession(memory.SessionPath(tempDir), "Ship memory")
+	if err != nil {
+		t.Fatalf("CreateSession: %v", err)
+	}
+
+	now := time.Date(2026, 1, 29, 9, 0, 0, 0, time.UTC)
+	g := plan.WorkGraph{
+		SchemaVersion: plan.SchemaVersion,
+		Items: map[string]plan.WorkItem{
+			"task": {
+				ID:        "task",
+				Title:     "Task",
+				Prompt:    "do it",
+				Status:    plan.StatusTodo,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+		},
+	}
+
+	resolved := config.DefaultResolvedConfig()
+	ctx, err := BuildContextWithOptions(g, "task", ContextBuildOptions{
+		BaseDir:  tempDir,
+		Provider: "codex",
+		Memory:   &resolved.Memory,
+		Now:      now,
+	})
+	if err != nil {
+		t.Fatalf("BuildContextWithOptions: %v", err)
+	}
+	if ctx.SessionID != session.SessionID {
+		t.Fatalf("session id = %q, want %q", ctx.SessionID, session.SessionID)
+	}
+	if ctx.Memory == nil {
+		t.Fatalf("expected memory context pack")
+	}
+	if ctx.Memory.SessionID != session.SessionID {
+		t.Fatalf("memory session id = %q, want %q", ctx.Memory.SessionID, session.SessionID)
+	}
+}
+
+func TestBuildContextWithMemoryPackNoopForClaude(t *testing.T) {
+	tempDir := t.TempDir()
+	now := time.Date(2026, 1, 29, 10, 0, 0, 0, time.UTC)
+	g := plan.WorkGraph{
+		SchemaVersion: plan.SchemaVersion,
+		Items: map[string]plan.WorkItem{
+			"task": {
+				ID:        "task",
+				Title:     "Task",
+				Prompt:    "do it",
+				Status:    plan.StatusTodo,
+				CreatedAt: now,
+				UpdatedAt: now,
+			},
+		},
+	}
+
+	resolved := config.DefaultResolvedConfig()
+	ctx, err := BuildContextWithOptions(g, "task", ContextBuildOptions{
+		BaseDir:  tempDir,
+		Provider: "claude",
+		Memory:   &resolved.Memory,
+		Now:      now,
+	})
+	if err != nil {
+		t.Fatalf("BuildContextWithOptions: %v", err)
+	}
+	if ctx.Memory != nil {
+		t.Fatalf("expected no memory context pack for claude")
+	}
+	if ctx.SessionID != "" {
+		t.Fatalf("expected empty session id for claude, got %q", ctx.SessionID)
 	}
 }

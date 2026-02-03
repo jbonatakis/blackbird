@@ -41,6 +41,9 @@ Usage:
   blackbird deps remove <id> <depId>
   blackbird deps set <id> [<depId> ...]
   blackbird deps infer [--hint <text> ...] [--model <model>] [--max-tokens <n>] [--temperature <n>] [--response-format <fmt>]
+  blackbird mem search <query> [--session <id>] [--task <id>] [--run <id>] [--type <type,...>] [--limit <n>] [--offset <n>] [--snippet-max <n>]
+  blackbird mem get <artifact_id>
+  blackbird mem context --task <id> [--session <id>] [--goal <text>] [--budget <n>]
   blackbird runs <taskID> [--verbose]
   blackbird execute
   blackbird resume <taskID>
@@ -108,6 +111,8 @@ func Run(args []string) error {
 		return runDeps(args[1:])
 	case "runs":
 		return runRuns(args[1:])
+	case "mem":
+		return runMem(args[1:])
 	case "execute":
 		return runExecute(args[1:])
 	case "resume":

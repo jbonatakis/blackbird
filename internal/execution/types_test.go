@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jbonatakis/blackbird/internal/memory/contextpack"
 )
 
 func TestRunRecordJSONRoundTrip(t *testing.T) {
@@ -24,12 +26,18 @@ func TestRunRecordJSONRoundTrip(t *testing.T) {
 		Stderr:      "",
 		Context: ContextPack{
 			SchemaVersion: ContextPackSchemaVersion,
+			SessionID:     "session-1",
+			RunID:         "run-123",
 			Task: TaskContext{
 				ID:     "task-456",
 				Title:  "Test Task",
 				Prompt: "Do the thing",
 			},
 			ProjectSnapshot: "snapshot",
+			Memory: &contextpack.ContextPack{
+				SchemaVersion: contextpack.SchemaVersion,
+				SessionID:     "session-1",
+			},
 		},
 	}
 
@@ -43,6 +51,12 @@ func TestRunRecordJSONRoundTrip(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "\"completedAt\":\"2026-01-28T10:35:00Z\"") {
 		t.Fatalf("expected completedAt in UTC, got %s", string(data))
+	}
+	if !strings.Contains(string(data), "\"sessionId\":\"session-1\"") {
+		t.Fatalf("expected sessionId in json, got %s", string(data))
+	}
+	if !strings.Contains(string(data), "\"runId\":\"run-123\"") {
+		t.Fatalf("expected runId in json, got %s", string(data))
 	}
 
 	var decoded RunRecord

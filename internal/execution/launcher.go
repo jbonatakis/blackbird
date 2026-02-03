@@ -9,12 +9,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/jbonatakis/blackbird/internal/agent"
+	"github.com/jbonatakis/blackbird/internal/config"
+	"github.com/jbonatakis/blackbird/internal/memory"
+	memprovider "github.com/jbonatakis/blackbird/internal/memory/provider"
 )
 
 // LaunchAgent executes the agent command with the provided context pack.
@@ -38,19 +42,26 @@ func LaunchAgentWithStream(ctx context.Context, runtime agent.Runtime, contextPa
 		return RunRecord{}, fmt.Errorf("context pack task id required")
 	}
 
-	payload, err := json.Marshal(contextPack)
+	start := time.Now().UTC()
+	runID := newRunID()
+	contextPack.RunID = runID
+	updatedPack, proxyEnv, err := applyMemoryProxy(contextPack, runtime)
+	if err != nil {
+		return RunRecord{}, err
+	}
+
+	payload, err := json.Marshal(updatedPack)
 	if err != nil {
 		return RunRecord{}, fmt.Errorf("encode context pack: %w", err)
 	}
 
-	start := time.Now().UTC()
 	record := RunRecord{
-		ID:        newRunID(),
-		TaskID:    contextPack.Task.ID,
+		ID:        runID,
+		TaskID:    updatedPack.Task.ID,
 		Provider:  runtime.Provider,
 		StartedAt: start,
 		Status:    RunStatusRunning,
-		Context:   contextPack,
+		Context:   updatedPack,
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, runtime.Timeout)
@@ -64,6 +75,7 @@ func LaunchAgentWithStream(ctx context.Context, runtime agent.Runtime, contextPa
 		args = applyAutoApproveArgs(runtime.Provider, args)
 		cmd = exec.CommandContext(ctx, runtime.Command, args...)
 	}
+	applyEnv(cmd, proxyEnv)
 	cmd.Stdin = bytes.NewReader(payload)
 
 	var stdout bytes.Buffer
@@ -165,4 +177,144 @@ func applySelectedProvider(runtime agent.Runtime) agent.Runtime {
 		runtime.Provider = string(selection.Agent.ID)
 	}
 	return runtime
+}
+
+const (
+	envOpenAIBaseURL        = "OPENAI_BASE_URL"
+	envOpenAIAPIBase        = "OPENAI_API_BASE"
+	envOpenAIDefaultHeaders = "OPENAI_DEFAULT_HEADERS"
+)
+
+func applyMemoryProxy(contextPack ContextPack, runtime agent.Runtime) (ContextPack, map[string]string, error) {
+	adapter := memprovider.Select(runtime.Provider)
+	if adapter == nil {
+		return contextPack, nil, nil
+	}
+
+	baseDir := resolveBaseDir("")
+	cfg, err := config.LoadConfig(baseDir)
+	if err != nil {
+		cfg = config.DefaultResolvedConfig()
+	}
+	if !adapter.Enabled(cfg.Memory) {
+		return contextPack, nil, nil
+	}
+
+	sessionID := strings.TrimSpace(contextPack.SessionID)
+	sessionGoal := strings.TrimSpace(contextPack.SessionGoal)
+	if sessionID == "" {
+		session, _, err := memory.LoadOrCreateSession(memory.SessionPath(baseDir), sessionGoal)
+		if err != nil {
+			return ContextPack{}, nil, err
+		}
+		sessionID = session.SessionID
+		if sessionGoal == "" {
+			sessionGoal = session.Goal
+		}
+		contextPack.SessionID = sessionID
+		contextPack.SessionGoal = sessionGoal
+	}
+	if contextPack.Memory != nil {
+		if contextPack.Memory.SessionID == "" {
+			contextPack.Memory.SessionID = sessionID
+		}
+		if contextPack.Memory.SessionGoal == "" {
+			contextPack.Memory.SessionGoal = sessionGoal
+		}
+	}
+
+	headers := adapter.BaseHeaders(memprovider.RequestIDs{
+		SessionID: sessionID,
+		TaskID:    contextPack.Task.ID,
+		RunID:     contextPack.RunID,
+	})
+	env := buildProxyEnv(cfg.Memory.Proxy, adapter, headers)
+	return contextPack, env, nil
+}
+
+func buildProxyEnv(proxy config.ResolvedMemoryProxy, adapter memprovider.Adapter, headers http.Header) map[string]string {
+	baseURL := proxyBaseURL(proxy.ListenAddr, adapter.BaseURLPrefix())
+	if baseURL == "" && len(headers) == 0 {
+		return nil
+	}
+	env := map[string]string{}
+	if baseURL != "" {
+		env[envOpenAIBaseURL] = baseURL
+		env[envOpenAIAPIBase] = baseURL
+	}
+	if len(headers) != 0 {
+		if encoded := encodeHeaders(headers); encoded != "" {
+			env[envOpenAIDefaultHeaders] = encoded
+		}
+	}
+	return env
+}
+
+func proxyBaseURL(listenAddr string, prefix string) string {
+	addr := strings.TrimSpace(listenAddr)
+	if addr == "" {
+		return ""
+	}
+	if !strings.Contains(addr, "://") {
+		addr = "http://" + addr
+	}
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		return strings.TrimRight(addr, "/")
+	}
+	if !strings.HasPrefix(prefix, "/") {
+		prefix = "/" + prefix
+	}
+	return strings.TrimRight(addr, "/") + prefix
+}
+
+func encodeHeaders(headers http.Header) string {
+	if len(headers) == 0 {
+		return ""
+	}
+	values := make(map[string]string, len(headers))
+	for key, vals := range headers {
+		trimmed := make([]string, 0, len(vals))
+		for _, val := range vals {
+			if v := strings.TrimSpace(val); v != "" {
+				trimmed = append(trimmed, v)
+			}
+		}
+		if len(trimmed) == 0 {
+			continue
+		}
+		values[key] = strings.Join(trimmed, ",")
+	}
+	if len(values) == 0 {
+		return ""
+	}
+	data, err := json.Marshal(values)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+func applyEnv(cmd *exec.Cmd, updates map[string]string) {
+	if len(updates) == 0 {
+		return
+	}
+	env := cmd.Env
+	if len(env) == 0 {
+		env = os.Environ()
+	}
+	index := make(map[string]int, len(env))
+	for i, entry := range env {
+		if eq := strings.Index(entry, "="); eq != -1 {
+			index[entry[:eq]] = i
+		}
+	}
+	for key, value := range updates {
+		if idx, ok := index[key]; ok {
+			env[idx] = key + "=" + value
+		} else {
+			env = append(env, key+"="+value)
+		}
+	}
+	cmd.Env = env
 }

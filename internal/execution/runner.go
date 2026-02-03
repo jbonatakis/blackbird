@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/jbonatakis/blackbird/internal/agent"
+	memproxy "github.com/jbonatakis/blackbird/internal/memory/proxy"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
@@ -76,6 +77,14 @@ func RunExecute(ctx context.Context, cfg ExecuteConfig) (ExecuteResult, error) {
 
 	baseDir := filepath.Dir(cfg.PlanPath)
 	preloaded := cfg.Graph != nil
+	runtime := applySelectedProvider(cfg.Runtime)
+	var proxyHandle *memproxy.SupervisorHandle
+
+	defer func() {
+		if proxyHandle != nil {
+			_ = proxyHandle.Close()
+		}
+	}()
 
 	for {
 		if ctx.Err() != nil {
@@ -95,12 +104,26 @@ func RunExecute(ctx context.Context, cfg ExecuteConfig) (ExecuteResult, error) {
 			return ExecuteResult{Reason: ExecuteReasonCanceled, Err: ctx.Err()}, nil
 		}
 
+		if proxyHandle == nil {
+			handle, err := memproxy.StartSupervisor(memproxy.SupervisorOptions{
+				ProviderID:  runtime.Provider,
+				ProjectRoot: baseDir,
+			})
+			if err != nil {
+				return ExecuteResult{Reason: ExecuteReasonError, Err: err}, err
+			}
+			proxyHandle = handle
+		}
+
 		taskID := ready[0]
 		if cfg.OnTaskStart != nil {
 			cfg.OnTaskStart(taskID)
 		}
 
-		ctxPack, err := BuildContext(g, taskID)
+		ctxPack, err := BuildContextWithOptions(g, taskID, ContextBuildOptions{
+			BaseDir:  baseDir,
+			Provider: runtime.Provider,
+		})
 		if err != nil {
 			return ExecuteResult{Reason: ExecuteReasonError, TaskID: taskID, Err: err}, err
 		}
@@ -108,7 +131,7 @@ func RunExecute(ctx context.Context, cfg ExecuteConfig) (ExecuteResult, error) {
 			return ExecuteResult{Reason: ExecuteReasonError, TaskID: taskID, Err: err}, err
 		}
 
-		record, execErr := LaunchAgentWithStream(ctx, cfg.Runtime, ctxPack, StreamConfig{
+		record, execErr := LaunchAgentWithStream(ctx, runtime, ctxPack, StreamConfig{
 			Stdout: cfg.StreamStdout,
 			Stderr: cfg.StreamStderr,
 		})
@@ -197,14 +220,27 @@ func RunResume(ctx context.Context, cfg ResumeConfig) (RunRecord, error) {
 		}
 	}
 
+	runtime := applySelectedProvider(cfg.Runtime)
+	proxyHandle, err := memproxy.StartSupervisor(memproxy.SupervisorOptions{
+		ProviderID:  runtime.Provider,
+		ProjectRoot: baseDir,
+	})
+	if err != nil {
+		return RunRecord{}, err
+	}
+	if proxyHandle != nil {
+		defer func() { _ = proxyHandle.Close() }()
+	}
+
 	if cfg.OnTaskStart != nil {
 		cfg.OnTaskStart(cfg.TaskID)
 	}
+
 	if err := UpdateTaskStatus(cfg.PlanPath, cfg.TaskID, plan.StatusInProgress); err != nil {
 		return RunRecord{}, err
 	}
 
-	record, execErr := LaunchAgentWithStream(ctx, cfg.Runtime, ctxPack, StreamConfig{
+	record, execErr := LaunchAgentWithStream(ctx, runtime, ctxPack, StreamConfig{
 		Stdout: cfg.StreamStdout,
 		Stderr: cfg.StreamStderr,
 	})

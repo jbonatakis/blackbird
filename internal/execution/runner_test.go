@@ -53,6 +53,7 @@ func TestRunExecuteResultsAndStatusUpdates(t *testing.T) {
 				"task": makeItem("task", plan.StatusTodo),
 			},
 			runtime: agent.Runtime{
+				Provider: "test",
 				Command:  `printf '{"tool":"AskUserQuestion","id":"q1","prompt":"Name?"}'`,
 				UseShell: true,
 				Timeout:  2 * time.Second,
@@ -71,6 +72,7 @@ func TestRunExecuteResultsAndStatusUpdates(t *testing.T) {
 				"b": makeItem("b", plan.StatusTodo),
 			},
 			runtime: agent.Runtime{
+				Provider: "test",
 				Command:  "exit 2",
 				UseShell: true,
 				Timeout:  2 * time.Second,
@@ -218,6 +220,7 @@ func TestRunResumeUpdatesStatusAndReturnsRecord(t *testing.T) {
 		{
 			name: "resume waiting user",
 			runtime: agent.Runtime{
+				Provider: "test",
 				Command:  `printf '{"tool":"AskUserQuestion","id":"q2","prompt":"More?"}'`,
 				UseShell: true,
 				Timeout:  2 * time.Second,

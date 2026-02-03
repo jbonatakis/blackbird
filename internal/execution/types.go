@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/jbonatakis/blackbird/internal/agent"
+	"github.com/jbonatakis/blackbird/internal/memory/contextpack"
 )
 
 const ContextPackSchemaVersion = 1
@@ -33,13 +34,17 @@ type DependencyContext struct {
 }
 
 type ContextPack struct {
-	SchemaVersion   int                 `json:"schemaVersion"`
-	Task            TaskContext         `json:"task"`
-	Dependencies    []DependencyContext `json:"dependencies,omitempty"`
-	ProjectSnapshot string              `json:"projectSnapshot,omitempty"`
-	Questions       []agent.Question    `json:"questions,omitempty"`
-	Answers         []agent.Answer      `json:"answers,omitempty"`
-	SystemPrompt    string              `json:"systemPrompt,omitempty"`
+	SchemaVersion   int                      `json:"schemaVersion"`
+	SessionID       string                   `json:"sessionId,omitempty"`
+	SessionGoal     string                   `json:"sessionGoal,omitempty"`
+	RunID           string                   `json:"runId,omitempty"`
+	Task            TaskContext              `json:"task"`
+	Dependencies    []DependencyContext      `json:"dependencies,omitempty"`
+	ProjectSnapshot string                   `json:"projectSnapshot,omitempty"`
+	Memory          *contextpack.ContextPack `json:"memory,omitempty"`
+	Questions       []agent.Question         `json:"questions,omitempty"`
+	Answers         []agent.Answer           `json:"answers,omitempty"`
+	SystemPrompt    string                   `json:"systemPrompt,omitempty"`
 }
 
 type RunRecord struct {

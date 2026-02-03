@@ -12,6 +12,8 @@ func TestResumeWithAnswer(t *testing.T) {
 		Stdout: `{"tool":"AskUserQuestion","id":"q1","prompt":"Pick","options":["a","b"]}`,
 		Context: ContextPack{
 			SchemaVersion: ContextPackSchemaVersion,
+			SessionID:     "session-1",
+			RunID:         "run-1",
 			Task:          TaskContext{ID: "task-1", Title: "Task"},
 		},
 	}
@@ -25,6 +27,12 @@ func TestResumeWithAnswer(t *testing.T) {
 	}
 	if ctx.Answers[0].Value != "a" {
 		t.Fatalf("unexpected answer: %#v", ctx.Answers[0])
+	}
+	if ctx.SessionID != "session-1" {
+		t.Fatalf("session id = %q, want %q", ctx.SessionID, "session-1")
+	}
+	if ctx.RunID != "run-1" {
+		t.Fatalf("run id = %q, want %q", ctx.RunID, "run-1")
 	}
 }
 

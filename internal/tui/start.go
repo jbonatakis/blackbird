@@ -7,15 +7,24 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jbonatakis/blackbird/internal/agent"
 	"github.com/jbonatakis/blackbird/internal/config"
+	memproxy "github.com/jbonatakis/blackbird/internal/memory/proxy"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
 func Start() error {
 	model := newStartupModel("")
+	handle, err := startMemoryProxy(model)
+	if err != nil {
+		return err
+	}
+	if handle != nil {
+		defer func() { _ = handle.Close() }()
+	}
 	program := tea.NewProgram(model, tea.WithAltScreen())
-	_, err := program.Run()
-	return err
+	_, runErr := program.Run()
+	return runErr
 }
 
 func newStartupModel(projectRoot string) Model {
@@ -30,6 +39,18 @@ func newStartupModel(projectRoot string) Model {
 	model.projectRoot = root
 	model.config = cfg
 	return model
+}
+
+func startMemoryProxy(model Model) (*memproxy.SupervisorHandle, error) {
+	provider := ""
+	if runtime, err := agent.NewRuntimeFromEnv(); err == nil {
+		provider = runtime.Provider
+	}
+	return memproxy.StartSupervisor(memproxy.SupervisorOptions{
+		ProviderID:  provider,
+		ProjectRoot: model.projectRoot,
+		Config:      &model.config,
+	})
 }
 
 func resolveProjectRoot(projectRoot string) string {
