@@ -1131,3 +1131,21 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 - Documented memory configuration (modes, proxy behavior, retention/budgets) with a Codex-only note and CLI usage for `blackbird mem`.
 - Expanded storage docs with the durable memory layout: session metadata, trace WALs, canonical logs, artifact store, and SQLite index.
 - Updated README and docs index to surface memory references.
+
+## 2026-02-03 — Test run (make test) failure diagnosis
+
+- Ran `make test`; build failed due to unused import in `internal/memory/index/related.go` (`artifact` import not used), which cascades to `cmd/blackbird` and `internal/cli` build failures.
+
+## 2026-02-03 — Test run after unused-import fix
+
+- Removed unused `artifact` import from `internal/memory/index/related.go`.
+- `make test` now fails due to Go build cache permission error accessing `/Users/jackbonatakis/Library/Caches/go-build/...` from `internal/cli/memory.go`. Recommend re-running with `GOCACHE=/tmp/blackbird-go-cache`.
+
+## 2026-02-03 — GOCACHE make test results
+
+- Ran `GOCACHE=/tmp/blackbird-go-cache make test`; tests now fail in `internal/memory/index` due to `TestRelatedByRunTaskAndProvenance` expecting run/task neighbor ordering (got a3 before a2).
+
+## 2026-02-03 — Related ranking fix
+
+- Updated related ranking to prioritize run adjacency, then task adjacency, then total score; added flags to related scoring and sorting.
+- `GOCACHE=/tmp/blackbird-go-cache make test` now passes.

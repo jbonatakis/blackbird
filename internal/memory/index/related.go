@@ -7,8 +7,6 @@ import (
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/jbonatakis/blackbird/internal/memory/artifact"
 )
 
 var relatedWeights = map[string]float64{
@@ -49,7 +47,7 @@ func (idx *Index) Related(artifactID string, opts RelatedOptions) ([]SearchCard,
 	}
 	defer rows.Close()
 
-	scores := make(map[string]float64)
+	scores := make(map[string]relatedScore)
 	for rows.Next() {
 		var otherID, linkType string
 		if err := rows.Scan(&otherID, &linkType); err != nil {
@@ -58,11 +56,18 @@ func (idx *Index) Related(artifactID string, opts RelatedOptions) ([]SearchCard,
 		if otherID == art.ArtifactID {
 			continue
 		}
+		entry := scores[otherID]
+		if linkType == linkTypeRun {
+			entry.hasRun = true
+		} else if linkType == linkTypeTask {
+			entry.hasTask = true
+		}
 		weight := relatedWeights[linkType]
 		if weight == 0 {
 			weight = 1.0
 		}
-		scores[otherID] += weight
+		entry.score += weight
+		scores[otherID] = entry
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("related rows: %w", err)
@@ -100,16 +105,30 @@ func buildLinkQuery(links map[linkKey]struct{}) (string, []any) {
 }
 
 type relatedItem struct {
-	id    string
-	score float64
+	id      string
+	score   float64
+	hasRun  bool
+	hasTask bool
 }
 
-func sortRelated(scores map[string]float64) []relatedItem {
+type relatedScore struct {
+	score   float64
+	hasRun  bool
+	hasTask bool
+}
+
+func sortRelated(scores map[string]relatedScore) []relatedItem {
 	ordered := make([]relatedItem, 0, len(scores))
 	for id, score := range scores {
-		ordered = append(ordered, relatedItem{id: id, score: score})
+		ordered = append(ordered, relatedItem{id: id, score: score.score, hasRun: score.hasRun, hasTask: score.hasTask})
 	}
 	sort.SliceStable(ordered, func(i, j int) bool {
+		if ordered[i].hasRun != ordered[j].hasRun {
+			return ordered[i].hasRun
+		}
+		if ordered[i].hasTask != ordered[j].hasTask {
+			return ordered[i].hasTask
+		}
 		if ordered[i].score == ordered[j].score {
 			return ordered[i].id < ordered[j].id
 		}
