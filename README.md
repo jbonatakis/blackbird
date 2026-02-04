@@ -12,6 +12,13 @@ The control plane for durable, dependency-aware planning and execution with AI a
 
 ## Install
 
+### Homebrew
+```
+brew tap jbonatakis/tap
+brew install blackbird
+```
+
+### From Source
 Requires Go 1.22+.
 
 ```bash
