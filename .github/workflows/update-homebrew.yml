@@ -34,7 +34,7 @@ jobs:
 
       - name: Update formula
         run: |
-          formula="tap/Formula/blackbird.rb"
+          formula="tap/blackbird.rb"
 
           sed -i "s/version \".*\"/version \"${VERSION}\"/" "$formula"
 
@@ -49,6 +49,6 @@ jobs:
           git config user.name "blackbird-bot"
           git config user.email "actions@github.com"
 
-          git add Formula/blackbird.rb
+          git add blackbird.rb
           git commit -m "blackbird ${VERSION}"
           git push
