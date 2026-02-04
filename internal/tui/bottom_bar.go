@@ -123,6 +123,13 @@ func actionHints(model Model, readyCount int) []string {
 			return []string{"[ctrl+s]submit", "[esc]back", "[ctrl+c]quit"}
 		}
 	}
+	if model.actionMode == ActionModeReviewCheckpoint {
+		if model.reviewCheckpointForm != nil && model.reviewCheckpointForm.mode == ReviewCheckpointChooseAction {
+			return []string{"[↑/↓]navigate", "[1-4]select", "[enter]confirm", "[ctrl+c]quit"}
+		} else if model.reviewCheckpointForm != nil && model.reviewCheckpointForm.mode == ReviewCheckpointRequestChanges {
+			return []string{"[ctrl+s]submit", "[esc]back", "[ctrl+c]quit"}
+		}
+	}
 	if model.actionMode == ActionModeSelectAgent {
 		return []string{"[↑/↓]move", "[enter]select", "[esc]cancel", "[ctrl+c]quit"}
 	}

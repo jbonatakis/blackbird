@@ -17,6 +17,16 @@ const (
 	RunStatusWaitingUser RunStatus = "waiting_user"
 )
 
+type DecisionState string
+
+const (
+	DecisionStatePending          DecisionState = "pending"
+	DecisionStateApprovedContinue DecisionState = "approved_continue"
+	DecisionStateApprovedQuit     DecisionState = "approved_quit"
+	DecisionStateChangesRequested DecisionState = "changes_requested"
+	DecisionStateRejected         DecisionState = "rejected"
+)
+
 type TaskContext struct {
 	ID                 string   `json:"id"`
 	Title              string   `json:"title"`
@@ -42,16 +52,34 @@ type ContextPack struct {
 	SystemPrompt    string              `json:"systemPrompt,omitempty"`
 }
 
+type ReviewSummary struct {
+	Files    []string        `json:"files,omitempty"`
+	DiffStat string          `json:"diffstat,omitempty"`
+	Snippets []ReviewSnippet `json:"snippets,omitempty"`
+}
+
+type ReviewSnippet struct {
+	File    string `json:"file,omitempty"`
+	Snippet string `json:"snippet,omitempty"`
+}
+
 type RunRecord struct {
-	ID          string      `json:"id"`
-	TaskID      string      `json:"taskId"`
-	Provider    string      `json:"provider,omitempty"`
-	StartedAt   time.Time   `json:"startedAt"`
-	CompletedAt *time.Time  `json:"completedAt,omitempty"`
-	Status      RunStatus   `json:"status"`
-	ExitCode    *int        `json:"exitCode,omitempty"`
-	Stdout      string      `json:"stdout,omitempty"`
-	Stderr      string      `json:"stderr,omitempty"`
-	Context     ContextPack `json:"context"`
-	Error       string      `json:"error,omitempty"`
+	ID                  string         `json:"id"`
+	TaskID              string         `json:"taskId"`
+	Provider            string         `json:"provider,omitempty"`
+	ProviderSessionRef  string         `json:"provider_session_ref,omitempty"`
+	StartedAt           time.Time      `json:"startedAt"`
+	CompletedAt         *time.Time     `json:"completedAt,omitempty"`
+	Status              RunStatus      `json:"status"`
+	ExitCode            *int           `json:"exitCode,omitempty"`
+	Stdout              string         `json:"stdout,omitempty"`
+	Stderr              string         `json:"stderr,omitempty"`
+	Context             ContextPack    `json:"context"`
+	Error               string         `json:"error,omitempty"`
+	DecisionRequired    bool           `json:"decision_required,omitempty"`
+	DecisionState       DecisionState  `json:"decision_state,omitempty"`
+	DecisionRequestedAt *time.Time     `json:"decision_requested_at,omitempty"`
+	DecisionResolvedAt  *time.Time     `json:"decision_resolved_at,omitempty"`
+	DecisionFeedback    string         `json:"decision_feedback,omitempty"`
+	ReviewSummary       *ReviewSummary `json:"review_summary,omitempty"`
 }

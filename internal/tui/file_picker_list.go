@@ -102,3 +102,8 @@ func filterFilePickerMatches(query string, files []string, limit int) []string {
 func normalizeFilePickerPath(value string) string {
 	return strings.ReplaceAll(filepath.ToSlash(value), "\\", "/")
 }
+
+// ListWorkspaceFiles exposes workspace file matching for non-TUI callers.
+func ListWorkspaceFiles(query string, limit int) ([]string, error) {
+	return listWorkspaceFiles(query, limit)
+}

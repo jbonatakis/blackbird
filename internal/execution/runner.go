@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"strings"
 
 	"github.com/jbonatakis/blackbird/internal/agent"
 	"github.com/jbonatakis/blackbird/internal/plan"
@@ -14,10 +15,11 @@ import (
 type ExecuteStopReason string
 
 const (
-	ExecuteReasonCompleted   ExecuteStopReason = "completed"
-	ExecuteReasonWaitingUser ExecuteStopReason = "waiting_user"
-	ExecuteReasonCanceled    ExecuteStopReason = "canceled"
-	ExecuteReasonError       ExecuteStopReason = "error"
+	ExecuteReasonCompleted        ExecuteStopReason = "completed"
+	ExecuteReasonWaitingUser      ExecuteStopReason = "waiting_user"
+	ExecuteReasonDecisionRequired ExecuteStopReason = "decision_required"
+	ExecuteReasonCanceled         ExecuteStopReason = "canceled"
+	ExecuteReasonError            ExecuteStopReason = "error"
 )
 
 type ExecuteResult struct {
@@ -28,13 +30,14 @@ type ExecuteResult struct {
 }
 
 type ExecuteConfig struct {
-	PlanPath     string
-	Graph        *plan.WorkGraph
-	Runtime      agent.Runtime
-	StreamStdout io.Writer
-	StreamStderr io.Writer
-	OnTaskStart  func(taskID string)
-	OnTaskFinish func(taskID string, record RunRecord, execErr error)
+	PlanPath          string
+	Graph             *plan.WorkGraph
+	Runtime           agent.Runtime
+	StopAfterEachTask bool
+	StreamStdout      io.Writer
+	StreamStderr      io.Writer
+	OnTaskStart       func(taskID string)
+	OnTaskFinish      func(taskID string, record RunRecord, execErr error)
 }
 
 type ResumeConfig struct {
@@ -42,6 +45,7 @@ type ResumeConfig struct {
 	Graph        *plan.WorkGraph
 	TaskID       string
 	Answers      []agent.Answer
+	Feedback     string
 	Context      *ContextPack
 	Runtime      agent.Runtime
 	StreamStdout io.Writer
@@ -112,6 +116,11 @@ func RunExecute(ctx context.Context, cfg ExecuteConfig) (ExecuteResult, error) {
 			Stdout: cfg.StreamStdout,
 			Stderr: cfg.StreamStderr,
 		})
+		maybeAttachReviewSummary(baseDir, &record)
+		decisionGate := requiresDecisionGate(cfg.StopAfterEachTask, record.Status)
+		if decisionGate {
+			markDecisionRequired(&record)
+		}
 		if err := SaveRun(baseDir, record); err != nil {
 			return ExecuteResult{Reason: ExecuteReasonError, TaskID: taskID, Err: err}, err
 		}
@@ -139,6 +148,9 @@ func RunExecute(ctx context.Context, cfg ExecuteConfig) (ExecuteResult, error) {
 
 		if record.Status == RunStatusWaitingUser {
 			return ExecuteResult{Reason: ExecuteReasonWaitingUser, TaskID: taskID, Run: &record}, nil
+		}
+		if decisionGate {
+			return ExecuteResult{Reason: ExecuteReasonDecisionRequired, TaskID: taskID, Run: &record}, nil
 		}
 		if ctx.Err() != nil {
 			return ExecuteResult{Reason: ExecuteReasonCanceled, TaskID: taskID, Run: &record, Err: ctx.Err()}, nil
@@ -169,6 +181,80 @@ func RunResume(ctx context.Context, cfg ResumeConfig) (RunRecord, error) {
 	}
 	if _, ok := g.Items[cfg.TaskID]; !ok {
 		return RunRecord{}, fmt.Errorf("unknown id %q", cfg.TaskID)
+	}
+
+	if strings.TrimSpace(cfg.Feedback) != "" {
+		if len(cfg.Answers) != 0 {
+			return RunRecord{}, fmt.Errorf("resume feedback cannot be combined with answers")
+		}
+		latest, err := GetLatestRun(baseDir, cfg.TaskID)
+		if err != nil {
+			return RunRecord{}, err
+		}
+		if latest == nil {
+			return RunRecord{}, fmt.Errorf("no runs found for %s", cfg.TaskID)
+		}
+		if latest.Status == RunStatusWaitingUser {
+			return RunRecord{}, fmt.Errorf("latest run for %s is waiting for user input; answer questions to resume", cfg.TaskID)
+		}
+		if normalizeProvider(latest.Provider) == "" {
+			return RunRecord{}, fmt.Errorf("resume with feedback requires provider on previous run")
+		}
+		if cfg.Runtime.Provider != "" && normalizeProvider(cfg.Runtime.Provider) != normalizeProvider(latest.Provider) {
+			return RunRecord{}, fmt.Errorf("resume with feedback provider mismatch: run uses %q, runtime uses %q", latest.Provider, cfg.Runtime.Provider)
+		}
+		if !supportsResumeProvider(latest.Provider) {
+			return RunRecord{}, fmt.Errorf("resume with feedback unsupported for provider %q", latest.Provider)
+		}
+		if strings.TrimSpace(latest.ProviderSessionRef) == "" {
+			return RunRecord{}, fmt.Errorf("resume with feedback requires provider session ref for run %q", latest.ID)
+		}
+
+		if cfg.OnTaskStart != nil {
+			cfg.OnTaskStart(cfg.TaskID)
+		}
+		if err := UpdateTaskStatus(cfg.PlanPath, cfg.TaskID, plan.StatusInProgress); err != nil {
+			return RunRecord{}, err
+		}
+
+		record, execErr := ResumeWithFeedback(ctx, cfg.Runtime, *latest, cfg.Feedback, StreamConfig{
+			Stdout: cfg.StreamStdout,
+			Stderr: cfg.StreamStderr,
+		})
+		if record.ID == "" {
+			return RunRecord{}, execErr
+		}
+		maybeAttachReviewSummary(baseDir, &record)
+		if err := SaveRun(baseDir, record); err != nil {
+			return RunRecord{}, err
+		}
+
+		switch record.Status {
+		case RunStatusSuccess:
+			if err := UpdateTaskStatus(cfg.PlanPath, cfg.TaskID, plan.StatusDone); err != nil {
+				return record, err
+			}
+		case RunStatusWaitingUser:
+			if err := UpdateTaskStatus(cfg.PlanPath, cfg.TaskID, plan.StatusWaitingUser); err != nil {
+				return record, err
+			}
+		case RunStatusFailed:
+			if err := UpdateTaskStatus(cfg.PlanPath, cfg.TaskID, plan.StatusFailed); err != nil {
+				return record, err
+			}
+		default:
+			return record, fmt.Errorf("unexpected run status %q", record.Status)
+		}
+
+		if cfg.OnTaskFinish != nil {
+			cfg.OnTaskFinish(cfg.TaskID, record, execErr)
+		}
+
+		if ctx.Err() != nil {
+			return record, ctx.Err()
+		}
+
+		return record, nil
 	}
 
 	waiting, err := latestWaitingRun(baseDir, cfg.TaskID)
@@ -208,6 +294,7 @@ func RunResume(ctx context.Context, cfg ResumeConfig) (RunRecord, error) {
 		Stdout: cfg.StreamStdout,
 		Stderr: cfg.StreamStderr,
 	})
+	maybeAttachReviewSummary(baseDir, &record)
 	if err := SaveRun(baseDir, record); err != nil {
 		return RunRecord{}, err
 	}

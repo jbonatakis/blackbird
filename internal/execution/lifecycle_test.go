@@ -96,7 +96,7 @@ func TestUpdateTaskStatusRejectsInvalidTransition(t *testing.T) {
 		t.Fatalf("save plan: %v", err)
 	}
 
-	if err := UpdateTaskStatus(planFile, "task", plan.StatusInProgress); err == nil {
+	if err := UpdateTaskStatus(planFile, "task", plan.StatusWaitingUser); err == nil {
 		t.Fatalf("expected invalid transition error")
 	}
 }

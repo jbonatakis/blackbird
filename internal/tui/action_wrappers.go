@@ -30,6 +30,12 @@ type ExecuteActionComplete struct {
 	Record  *execution.RunRecord
 }
 
+type DecisionActionComplete struct {
+	Action execution.DecisionState
+	Result execution.DecisionResult
+	Err    error
+}
+
 type PlanGenerateInMemoryResult struct {
 	Success   bool
 	Plan      *plan.WorkGraph
@@ -43,10 +49,10 @@ func ExecuteCmd() tea.Cmd {
 }
 
 func ExecuteCmdWithContext(ctx context.Context) tea.Cmd {
-	return ExecuteCmdWithContextAndStream(ctx, nil, nil, nil)
+	return ExecuteCmdWithContextAndStream(ctx, nil, nil, nil, false)
 }
 
-func ExecuteCmdWithContextAndStream(ctx context.Context, stdout io.Writer, stderr io.Writer, liveOutput chan liveOutputMsg) tea.Cmd {
+func ExecuteCmdWithContextAndStream(ctx context.Context, stdout io.Writer, stderr io.Writer, liveOutput chan liveOutputMsg, stopAfterEachTask bool) tea.Cmd {
 	return func() tea.Msg {
 		if liveOutput != nil {
 			defer close(liveOutput)
@@ -57,10 +63,11 @@ func ExecuteCmdWithContextAndStream(ctx context.Context, stdout io.Writer, stder
 		}
 
 		result, runErr := execution.RunExecute(ctx, execution.ExecuteConfig{
-			PlanPath:     plan.PlanPath(),
-			Runtime:      runtime,
-			StreamStdout: stdout,
-			StreamStderr: stderr,
+			PlanPath:          plan.PlanPath(),
+			Runtime:           runtime,
+			StopAfterEachTask: stopAfterEachTask,
+			StreamStdout:      stdout,
+			StreamStderr:      stderr,
 		})
 		msg := ExecuteActionComplete{
 			Action: "execute",
@@ -117,6 +124,42 @@ func ResumeCmdWithContextAndStream(ctx context.Context, taskID string, answers [
 	}
 }
 
+func ResolveDecisionCmdWithContext(ctx context.Context, taskID string, runID string, action execution.DecisionState, feedback string, stopAfterEachTask bool) tea.Cmd {
+	return ResolveDecisionCmdWithContextAndStream(ctx, taskID, runID, action, feedback, stopAfterEachTask, nil, nil, nil)
+}
+
+func ResolveDecisionCmdWithContextAndStream(ctx context.Context, taskID string, runID string, action execution.DecisionState, feedback string, stopAfterEachTask bool, stdout io.Writer, stderr io.Writer, liveOutput chan liveOutputMsg) tea.Cmd {
+	return func() tea.Msg {
+		if liveOutput != nil {
+			defer close(liveOutput)
+		}
+		runtime, err := agent.NewRuntimeFromEnv()
+		if err != nil {
+			return DecisionActionComplete{Action: action, Err: err}
+		}
+
+		controller := execution.ExecutionController{
+			PlanPath:          plan.PlanPath(),
+			Runtime:           runtime,
+			StopAfterEachTask: stopAfterEachTask,
+			StreamStdout:      stdout,
+			StreamStderr:      stderr,
+		}
+
+		result, err := controller.ResolveDecision(ctx, execution.DecisionRequest{
+			TaskID:   taskID,
+			RunID:    runID,
+			Action:   action,
+			Feedback: feedback,
+		})
+		if err != nil {
+			return DecisionActionComplete{Action: action, Err: err}
+		}
+
+		return DecisionActionComplete{Action: action, Result: result}
+	}
+}
+
 func SetStatusCmd(id string, status string) tea.Cmd {
 	return func() tea.Msg {
 		s, ok := plan.ParseStatus(status)
@@ -168,6 +211,11 @@ func summarizeExecuteResult(result execution.ExecuteResult) string {
 			return result.TaskID + " is waiting for user input"
 		}
 		return "waiting for user input"
+	case execution.ExecuteReasonDecisionRequired:
+		if result.TaskID != "" {
+			return result.TaskID + " requires review before continuing"
+		}
+		return "decision required before continuing"
 	case execution.ExecuteReasonCanceled:
 		return "execution interrupted"
 	case execution.ExecuteReasonError:

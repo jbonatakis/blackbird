@@ -1046,3 +1046,82 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 ## 2026-02-02 — TUI home page: Change agent shortcut back to [c]
 
 - Restored home view label from [a] to [c] for "Change agent" to match bottom bar and key binding (model already used "c"). Moved [c] just above Quit on home page.
+
+## 2026-02-04 — Task review checkpoint spec
+
+- Added spec for stop-after-each-task review checkpoint with approve/request-changes/reject flows, config key, summary requirements, DRY controller notes, and test coverage expectations.
+
+## 2026-02-04 — Add execution.stopAfterEachTask config
+
+- Added execution.stopAfterEachTask to raw/resolved config types with default false and resolve precedence handling.
+- Extended config load/resolve tests to cover defaults and project-over-global overrides for stopAfterEachTask.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config/...`.
+
+## 2026-02-04 — Decision gate fields on run records
+
+- Added decision gate state and review summary data types to execution run records, including decision state constants and review summary/snippet structs.
+- Updated execution storage/query/type tests to cover decision gate persistence and JSON omission behavior.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/execution/...`.
+
+## 2026-02-04 — Resume with feedback support
+
+- Added provider session ref to execution run records and defaulted resumable providers to store the run ID as the session ref.
+- Implemented resume-with-feedback helper using provider-native resume commands for Codex/Claude and wired RunResume to use it when feedback is provided, with clear errors on missing sessions/unsupported providers.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/execution/...`.
+
+## 2026-02-04 — Review summary capture
+
+- Added review summary capture helper in `internal/execution` that uses `git status --porcelain` and `git diff --stat` with bounded file/snippet limits and a timeout, with empty-summary fallback on errors.
+- Wired summary capture into execution run completion paths (execute + resume) before persisting run records.
+- Added unit tests for summary bounds and fallback behavior.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/execution/...`.
+
+## 2026-02-04 — Execution checkpoint controller
+
+- Added decision-gate helpers and execution controller APIs to persist decisions and drive approve/quit/request-changes/reject flows.
+- Wired stop-after-each-task gating into RunExecute (new decision-required stop reason) and surfaced it in CLI/TUI summaries.
+- Allowed done -> in_progress/failed transitions to support request-changes and rejection updates; updated lifecycle test.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/execution/... ./internal/cli/... ./internal/tui/...`.
+
+## 2026-02-04 — CLI task review prompt
+
+- Added interactive CLI review prompt for decision-required executions, rendering task metadata, run status, and review summary with arrow/j/k selection and line-mode fallback.
+- Routed approve/quit/request-changes/reject decisions through the execution controller and looped execution on approve-continue or change requests.
+- Added CLI tests for approve-quit and approve-continue decision flows (forcing non-TTY selection input).
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/cli/...`.
+
+## 2026-02-04 — CLI request changes input
+
+- Added multiline change-request input for CLI review checkpoints with `/cancel` support and `@` file picker expansion using workspace file matches.
+- Wired cancel handling to return to the decision prompt without recording a decision.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/cli/...`.
+
+## 2026-02-04 — Execution checkpoint + config tests
+
+- Added execution tests for approve-quit decision handling, review summary capture success, and resume-with-feedback validation.
+- Added config resolve test asserting stopAfterEachTask defaults to false.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config/... ./internal/execution/...`.
+
+## 2026-02-04 — TUI review checkpoint modal + action-required banner
+
+- Added review checkpoint modal state and rendering with task metadata, review summary, and approve/request-changes/reject actions.
+- Implemented decision resolution via execution controller commands, plus resume-with-feedback streaming and approve-continue execution flow.
+- Added action-required banner tied to pending decision runs and wired modal auto-open on run load.
+- Updated bottom-bar hints for review checkpoint mode and added unit tests for modal and banner.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui/...`.
+
+## 2026-02-04 — Docs: review checkpoint updates
+
+- Documented `execution.stopAfterEachTask` in `docs/CONFIGURATION.md` with default and precedence notes.
+- Added CLI review checkpoint prompt, request changes flow, and limitation/error notes in `docs/COMMANDS.md`.
+- Updated `docs/TUI.md` with review checkpoint banner/modal behavior, inputs, and resume/error limitations.
+
+## 2026-02-04 — TUI review checkpoint request changes picker
+
+- Added review checkpoint request-changes file picker helpers and tests for @-open/query updates, selection insertion, picker rendering, and esc back preserving input.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui/...`.
+
+## 2026-02-04 — CLI review prompt tests
+
+- Added CLI unit tests for review decision line selection and request-changes input handling with file picker + empty retry.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/cli/... ./internal/tui/...`.

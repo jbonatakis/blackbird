@@ -52,6 +52,9 @@ func LaunchAgentWithStream(ctx context.Context, runtime agent.Runtime, contextPa
 		Status:    RunStatusRunning,
 		Context:   contextPack,
 	}
+	if supportsResumeProvider(record.Provider) {
+		record.ProviderSessionRef = record.ID
+	}
 
 	ctx, cancel := context.WithTimeout(ctx, runtime.Timeout)
 	defer cancel()
