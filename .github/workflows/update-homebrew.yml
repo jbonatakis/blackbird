@@ -1,0 +1,54 @@
+name: Update Homebrew Tap
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-tap:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout blackbird repo
+        uses: actions/checkout@v4
+
+      - name: Checkout homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: jbonatakis/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Extract version
+        run: |
+          echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+
+      - name: Download checksums
+        run: |
+          base="https://github.com/jbonatakis/blackbird/releases/download/v${VERSION}"
+
+          curl -sL "$base/blackbird-v${VERSION}-darwin-arm64.tar.gz.sha256"  | awk '{print $1}' > darwin_arm64
+          curl -sL "$base/blackbird-v${VERSION}-darwin-amd64.tar.gz.sha256" | awk '{print $1}' > darwin_amd64
+          curl -sL "$base/blackbird-v${VERSION}-linux-arm64.tar.gz.sha256"   | awk '{print $1}' > linux_arm64
+          curl -sL "$base/blackbird-v${VERSION}-linux-amd64.tar.gz.sha256"  | awk '{print $1}' > linux_amd64
+
+      - name: Update formula
+        run: |
+          formula="tap/Formula/blackbird.rb"
+
+          sed -i "s/version \".*\"/version \"${VERSION}\"/" "$formula"
+
+          sed -i "0,/sha256 \".*\"/s//sha256 \"$(cat darwin_arm64)\"/" "$formula"
+          sed -i "0,/sha256 \".*\"/s//sha256 \"$(cat darwin_amd64)\"/" "$formula"
+          sed -i "0,/sha256 \".*\"/s//sha256 \"$(cat linux_arm64)\"/" "$formula"
+          sed -i "0,/sha256 \".*\"/s//sha256 \"$(cat linux_amd64)\"/" "$formula"
+
+      - name: Commit and push
+        run: |
+          cd tap
+          git config user.name "blackbird-bot"
+          git config user.email "actions@github.com"
+
+          git add Formula/blackbird.rb
+          git commit -m "blackbird ${VERSION}"
+          git push
