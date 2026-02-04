@@ -60,3 +60,20 @@ func TestModelViewRendersHomeView(t *testing.T) {
 		t.Fatalf("expected home view tagline in output, got %q", out)
 	}
 }
+
+func TestModelViewRendersSettingsView(t *testing.T) {
+	model := Model{
+		viewMode:     ViewModeSettings,
+		windowWidth:  100,
+		windowHeight: 20,
+		settings:     defaultSettingsState(),
+	}
+
+	out := model.View()
+	if !strings.Contains(out, "Settings") {
+		t.Fatalf("expected settings title in output, got %q", out)
+	}
+	if !strings.Contains(out, "Local > Global > Default") {
+		t.Fatalf("expected settings precedence line in output, got %q", out)
+	}
+}

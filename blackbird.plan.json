@@ -1,330 +1,232 @@
 {
   "schemaVersion": 1,
   "items": {
-    "checkpoint-tests-docs": {
-      "id": "checkpoint-tests-docs",
-      "title": "Checkpoint Tests and Docs",
-      "description": "Add test coverage and documentation for the review checkpoint feature.",
+    "config-option-registry": {
+      "id": "config-option-registry",
+      "title": "Config Option Registry",
+      "description": "Define a central list of known config options with metadata needed by the TUI settings table.",
       "acceptanceCriteria": [
-        "Config and execution checkpoint logic are covered by unit tests.",
-        "CLI and TUI review checkpoint UX are covered by tests.",
-        "Documentation reflects new config and workflow."
+        "Registry contains the three keys from the spec with display name, key path, type (bool/int), default, bounds, and description.",
+        "Defaults are sourced from config.DefaultResolvedConfig().",
+        "Registry API is explicit and does not use reflection."
       ],
-      "prompt": "Add tests and documentation for the stop-after-each-task review checkpoint feature.",
+      "prompt": "Add a metadata registry in internal/config describing the known options for the settings view; use explicit structs and defaults from DefaultResolvedConfig().",
+      "parentId": "config-settings-backend",
+      "childIds": [],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-02-04T20:20:10.841379Z",
+      "updatedAt": "2026-02-04T20:24:54.561215Z"
+    },
+    "config-settings-backend": {
+      "id": "config-settings-backend",
+      "title": "Config Settings Backend",
+      "description": "Add config option metadata, layer load/save helpers, and applied-value resolution for the TUI settings page.",
+      "acceptanceCriteria": [
+        "Config option registry exists with display names, types, defaults, bounds, and descriptions for the three keys in the spec.",
+        "Local/global config layer load/save helpers support atomic writes and remove empty files.",
+        "Applied values resolve with local \u003e global \u003e default precedence and clamping matches existing config resolution.",
+        "Backend tests cover save/clear, applied source selection, and invalid config handling."
+      ],
+      "prompt": "Implement backend helpers in internal/config to support the TUI settings table (option registry, load/save helpers, applied resolution). Keep dependencies minimal and add Go tests.",
       "parentId": null,
       "childIds": [
-        "tests-config-execution",
-        "tests-cli-tui",
-        "docs-update"
+        "config-option-registry",
+        "config-settings-store",
+        "config-settings-resolution",
+        "config-settings-backend-tests"
       ],
       "deps": [],
       "status": "done",
-      "createdAt": "2026-02-04T02:39:50.928693Z",
-      "updatedAt": "2026-02-04T04:46:32.53193Z"
+      "createdAt": "2026-02-04T20:20:10.841379Z",
+      "updatedAt": "2026-02-04T20:47:40.896365Z"
     },
-    "cli-request-changes-input": {
-      "id": "cli-request-changes-input",
-      "title": "CLI Request Changes Input",
-      "description": "Multiline change-request input with @ file references for CLI.",
+    "config-settings-backend-tests": {
+      "id": "config-settings-backend-tests",
+      "title": "Config Settings Backend Tests",
+      "description": "Add unit tests for settings metadata, save/load helpers, and applied value resolution.",
       "acceptanceCriteria": [
-        "Users can enter multiline feedback and include @ file references.",
-        "Feedback is passed to resume-with-feedback for the same task.",
-        "Cancel returns to the decision prompt without mutating state."
+        "Tests cover save create/update and clear removing the config file.",
+        "Applied value source selection and clamping behavior is verified.",
+        "Invalid config JSON/unsupported schema handling is covered."
       ],
-      "prompt": "Implement CLI multiline input with @ file picker support and wire it to resume-with-feedback handling.",
-      "parentId": "cli-review-checkpoint",
+      "prompt": "Write Go tests for the settings config helpers (registry, save/load, applied resolution) and keep them fast and deterministic.",
+      "parentId": "config-settings-backend",
       "childIds": [],
       "deps": [
-        "cli-review-prompt",
-        "resume-with-feedback"
+        "config-option-registry",
+        "config-settings-store",
+        "config-settings-resolution"
       ],
       "status": "done",
-      "createdAt": "2026-02-04T02:39:50.928693Z",
-      "updatedAt": "2026-02-04T04:05:45.883845Z"
+      "createdAt": "2026-02-04T20:20:10.841379Z",
+      "updatedAt": "2026-02-04T20:47:40.896365Z"
     },
-    "cli-review-checkpoint": {
-      "id": "cli-review-checkpoint",
-      "title": "CLI Review Checkpoint UX",
-      "description": "Add CLI prompts for review checkpoints, including decision selection and request changes input.",
+    "config-settings-resolution": {
+      "id": "config-settings-resolution",
+      "title": "Applied Settings Resolution",
+      "description": "Compute applied values and source labels for the settings table, including clamping and warnings.",
       "acceptanceCriteria": [
-        "CLI shows a prominent review prompt with task metadata and summary.",
-        "Decisions are captured via interactive selection and routed to the controller.",
-        "Request changes collects multiline feedback with @ file references."
+        "Applied value uses local \u003e global \u003e default precedence with source label.",
+        "Out-of-range stored values surface warning metadata and applied values use the clamped result.",
+        "Invalid JSON or unsupported schema in a layer is surfaced as a warning and treated as unset.",
+        "Global-unavailable state is representable for the TUI header and disables the Global column."
       ],
-      "prompt": "Implement CLI review checkpoint UX that integrates with the shared execution controller.",
+      "prompt": "Add helpers in internal/config to compute applied settings with source labels and warning metadata, reusing ResolveConfig/clamping rules.",
+      "parentId": "config-settings-backend",
+      "childIds": [],
+      "deps": [
+        "config-option-registry",
+        "config-settings-store"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-04T20:20:10.841379Z",
+      "updatedAt": "2026-02-04T20:46:12.19033Z"
+    },
+    "config-settings-store": {
+      "id": "config-settings-store",
+      "title": "Config Layer Load/Save Helpers",
+      "description": "Expose raw local/global config values and provide atomic save helpers for settings edits.",
+      "acceptanceCriteria": [
+        "Helpers load local and global configs using existing loaders and surface per-option raw values.",
+        "Save helper writes schemaVersion plus only set keys, creating parent dirs if needed.",
+        "If all values are unset for a layer, the config file is removed.",
+        "Writes are atomic (temp file + rename) like plan writes."
+      ],
+      "prompt": "Implement internal/config helpers to read raw local/global settings and to save edited values atomically; remove empty files and keep schemaVersion.",
+      "parentId": "config-settings-backend",
+      "childIds": [],
+      "deps": [
+        "config-option-registry"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-04T20:20:10.841379Z",
+      "updatedAt": "2026-02-04T20:33:39.434898Z"
+    },
+    "settings-docs": {
+      "id": "settings-docs",
+      "title": "Settings Documentation",
+      "description": "Document the Settings view and config editing behavior.",
+      "acceptanceCriteria": [
+        "docs/TUI.md includes Settings view entry, keys, and edit behavior.",
+        "docs/CONFIGURATION.md mentions the Settings editor and precedence reminder."
+      ],
+      "prompt": "Update docs/TUI.md and docs/CONFIGURATION.md to describe the new Settings page and precedence rules.",
+      "parentId": null,
+      "childIds": [],
+      "deps": [
+        "tui-settings-editing",
+        "config-settings-store"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-04T20:20:10.841379Z",
+      "updatedAt": "2026-02-04T21:29:05.652382Z"
+    },
+    "tui-settings-editing": {
+      "id": "tui-settings-editing",
+      "title": "Settings Editing and Autosave",
+      "description": "Support row/column navigation, edit mode, validation, and autosave for local/global values.",
+      "acceptanceCriteria": [
+        "Up/Down changes row, Left/Right changes column; only Local/Global are editable.",
+        "Bool values toggle with space/enter; Delete clears; int edit enforces digits and min/max on commit.",
+        "Edits autosave to the correct config layer and refresh applied values plus model config.",
+        "Save failures show errors and keep the prior value."
+      ],
+      "prompt": "Implement editing interactions for the settings view, including autosave to config files, validation, and live applied-value updates.",
+      "parentId": "tui-settings-page",
+      "childIds": [],
+      "deps": [
+        "tui-settings-table-render",
+        "config-settings-store",
+        "config-settings-resolution"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-04T20:20:10.841379Z",
+      "updatedAt": "2026-02-04T21:26:52.497701Z"
+    },
+    "tui-settings-page": {
+      "id": "tui-settings-page",
+      "title": "TUI Settings Page",
+      "description": "Add a Settings view in the TUI with table layout, navigation, and inline editing with autosave.",
+      "acceptanceCriteria": [
+        "Settings view is accessible from Home via [s], with esc/h returning Home.",
+        "Table shows Option, Local, Global, Default, Applied with placeholders and source highlighting.",
+        "Local/global edits autosave, update applied values, and surface validation/save errors.",
+        "TUI tests cover navigation and edit flows."
+      ],
+      "prompt": "Implement the Settings page in internal/tui using the config helpers, keeping UI consistent with existing TUI patterns.",
       "parentId": null,
       "childIds": [
-        "cli-review-prompt",
-        "cli-request-changes-input"
+        "tui-settings-view-shell",
+        "tui-settings-table-render",
+        "tui-settings-editing",
+        "tui-settings-tests"
       ],
       "deps": [],
       "status": "done",
-      "createdAt": "2026-02-04T02:39:50.928693Z",
-      "updatedAt": "2026-02-04T04:05:45.883845Z"
+      "createdAt": "2026-02-04T20:20:10.841379Z",
+      "updatedAt": "2026-02-04T21:33:10.777898Z"
     },
-    "cli-review-prompt": {
-      "id": "cli-review-prompt",
-      "title": "CLI Review Prompt",
-      "description": "Interactive CLI decision prompt after each task with summary and options.",
+    "tui-settings-table-render": {
+      "id": "tui-settings-table-render",
+      "title": "Settings Table Rendering",
+      "description": "Render the settings table with headers, placeholders, and footer description/error text.",
       "acceptanceCriteria": [
-        "Prompt shows task id/title, run status, and review summary.",
-        "Options include approve+continue, approve+quit, request changes, reject.",
-        "Selection uses arrow/j/k + enter and routes decisions to the controller."
+        "Table columns render Option, Local, Global, Default, Applied with centered '-' for empty values.",
+        "Header shows precedence reminder and local/global file paths (N/A when unavailable).",
+        "Applied column shows value plus source tag; source cell is highlighted.",
+        "Footer shows selected option description and any warnings/errors."
       ],
-      "prompt": "Update internal/cli execute flow to render the review prompt and handle decision selection.",
-      "parentId": "cli-review-checkpoint",
+      "prompt": "Implement the settings table renderer in internal/tui with clear layout and styling; keep output stable for tests.",
+      "parentId": "tui-settings-page",
       "childIds": [],
       "deps": [
-        "execution-checkpoint-controller"
+        "tui-settings-view-shell",
+        "config-settings-resolution"
       ],
       "status": "done",
-      "createdAt": "2026-02-04T02:39:50.928693Z",
-      "updatedAt": "2026-02-04T03:54:41.546156Z"
+      "createdAt": "2026-02-04T20:20:10.841379Z",
+      "updatedAt": "2026-02-04T21:11:12.175556Z"
     },
-    "config-stop-after-each-task": {
-      "id": "config-stop-after-each-task",
-      "title": "Config: stopAfterEachTask",
-      "description": "Extend config schema and resolution to include execution.stopAfterEachTask.",
+    "tui-settings-tests": {
+      "id": "tui-settings-tests",
+      "title": "TUI Settings Tests",
+      "description": "Add tests for Settings view navigation, editing, and global-disabled behavior.",
       "acceptanceCriteria": [
-        "Raw/Resolved config structs include execution.stopAfterEachTask with default false.",
-        "Load/resolve merges global and project config with precedence and ignores invalid layers.",
-        "Unit tests cover default false and project-over-global overrides."
+        "Home view renders [s] Settings and key routing enters the view.",
+        "Navigation changes row/column selection and edit mode works for bool/int.",
+        "Autosave updates applied values; clear/unset removes layer values.",
+        "Global unavailable state disables the column and shows N/A."
       ],
-      "prompt": "Update internal/config types, defaults, resolve/load logic, and tests to support execution.stopAfterEachTask with default false.",
-      "parentId": "review-checkpoint-core",
-      "childIds": [],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-02-04T02:39:50.928693Z",
-      "updatedAt": "2026-02-04T02:45:38.983371Z"
-    },
-    "docs-update": {
-      "id": "docs-update",
-      "title": "Docs: Review Checkpoint",
-      "description": "Document the stop-after-each-task config key and review checkpoint workflow.",
-      "acceptanceCriteria": [
-        "docs/CONFIGURATION.md documents execution.stopAfterEachTask default and precedence.",
-        "docs/TUI.md and CLI docs describe the review prompt and request changes flow.",
-        "Docs mention resume limitations and error behavior."
-      ],
-      "prompt": "Update documentation to describe stop-after-each-task review checkpoints and decision outcomes.",
-      "parentId": "checkpoint-tests-docs",
+      "prompt": "Write TUI tests covering the settings view navigation and edit flows; follow existing test patterns.",
+      "parentId": "tui-settings-page",
       "childIds": [],
       "deps": [
-        "config-stop-after-each-task",
-        "execution-checkpoint-controller",
-        "cli-review-prompt",
-        "tui-review-modal"
+        "tui-settings-editing"
       ],
       "status": "done",
-      "createdAt": "2026-02-04T02:39:50.928693Z",
-      "updatedAt": "2026-02-04T04:35:34.773051Z"
+      "createdAt": "2026-02-04T20:20:10.841379Z",
+      "updatedAt": "2026-02-04T21:33:10.777898Z"
     },
-    "execution-checkpoint-controller": {
-      "id": "execution-checkpoint-controller",
-      "title": "Execution Checkpoint Controller",
-      "description": "Update the execution loop to stop after each task when enabled and wait for a decision before continuing.",
+    "tui-settings-view-shell": {
+      "id": "tui-settings-view-shell",
+      "title": "Settings View Mode and Navigation Shell",
+      "description": "Add the Settings view mode, entry/exit keys, and base state wiring.",
       "acceptanceCriteria": [
-        "With stopAfterEachTask=false, execution behavior is unchanged.",
-        "With stopAfterEachTask=true, execution stops after each terminal run and awaits a decision.",
-        "Decision outcomes (approve continue/quit, request changes, reject) are persisted and affect flow.",
-        "Shared controller APIs exist for CLI/TUI to resolve decisions."
+        "Home view shows [s] Settings and model handles `s` to enter settings.",
+        "Settings view mode is added to model update/view with esc or h returning Home.",
+        "Bottom bar shows Settings hint when on Home.",
+        "Settings model initializes using project root and config data."
       ],
-      "prompt": "Modify internal/execution RunExecute (or add a controller) to implement decision checkpoint flow and expose APIs for resolving decisions.",
-      "parentId": "review-checkpoint-core",
+      "prompt": "Add a settings view mode/state in internal/tui with Home entry, exit keys, and bottom bar hints; wire config data into the model.",
+      "parentId": "tui-settings-page",
       "childIds": [],
       "deps": [
-        "config-stop-after-each-task",
-        "run-decision-gate-model",
-        "review-summary-capture",
-        "resume-with-feedback"
+        "config-settings-resolution"
       ],
       "status": "done",
-      "createdAt": "2026-02-04T02:39:50.928693Z",
-      "updatedAt": "2026-02-04T03:37:10.640692Z"
-    },
-    "resume-with-feedback": {
-      "id": "resume-with-feedback",
-      "title": "Resume With Feedback",
-      "description": "Support request-changes by resuming the same provider session with feedback injection.",
-      "acceptanceCriteria": [
-        "Run records store provider session reference needed for resume.",
-        "Resume helper uses provider-specific resume commands for Codex and Claude with feedback.",
-        "Missing or unsupported resume paths return clear errors with no silent fallback."
-      ],
-      "prompt": "Add resume-with-feedback support using provider resume commands, stored session refs, and clear error handling; add tests.",
-      "parentId": "review-checkpoint-core",
-      "childIds": [],
-      "deps": [
-        "run-decision-gate-model"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-04T02:39:50.928693Z",
-      "updatedAt": "2026-02-04T03:05:08.736269Z"
-    },
-    "review-checkpoint-core": {
-      "id": "review-checkpoint-core",
-      "title": "Review Checkpoint Core",
-      "description": "Implement the execution-layer review checkpoint capability (config, decision gate, review summary, resume-with-feedback, and controller flow).",
-      "acceptanceCriteria": [
-        "Config supports execution.stopAfterEachTask with default false and precedence rules.",
-        "Run records persist decision gate state and review summaries.",
-        "Execution controller pauses after each task and honors approve/quit/request-changes/reject outcomes.",
-        "Resume-with-feedback uses provider resume with clear errors when unavailable."
-      ],
-      "prompt": "Coordinate and implement the core execution-layer changes for stop-after-each-task review checkpoints; exclude CLI/TUI presentation details.",
-      "parentId": null,
-      "childIds": [
-        "config-stop-after-each-task",
-        "run-decision-gate-model",
-        "review-summary-capture",
-        "resume-with-feedback",
-        "execution-checkpoint-controller"
-      ],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-02-04T02:39:50.928693Z",
-      "updatedAt": "2026-02-04T03:37:10.640692Z"
-    },
-    "review-summary-capture": {
-      "id": "review-summary-capture",
-      "title": "Review Summary Capture",
-      "description": "Generate bounded change summaries after each run and store them.",
-      "acceptanceCriteria": [
-        "Summary generation uses git status/diff and enforces size limits on files/snippets.",
-        "Failures fall back to a minimal summary without blocking completion.",
-        "Run records persist review summaries for completed tasks."
-      ],
-      "prompt": "Implement review summary capture helper in execution package; integrate into run completion path; add tests for bounded output and fallback.",
-      "parentId": "review-checkpoint-core",
-      "childIds": [],
-      "deps": [
-        "run-decision-gate-model"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-04T02:39:50.928693Z",
-      "updatedAt": "2026-02-04T03:17:53.101918Z"
-    },
-    "run-decision-gate-model": {
-      "id": "run-decision-gate-model",
-      "title": "Run Decision Gate Model",
-      "description": "Add decision gate fields and review summary data to execution run records.",
-      "acceptanceCriteria": [
-        "RunRecord includes decision_required/state/timestamps/feedback and review_summary fields.",
-        "Decision state constants are defined and used consistently.",
-        "Save/Load round-trip preserves decision gate data."
-      ],
-      "prompt": "Extend internal/execution RunRecord and related types to store decision gate state and review summary data; update storage tests.",
-      "parentId": "review-checkpoint-core",
-      "childIds": [],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-02-04T02:39:50.928693Z",
-      "updatedAt": "2026-02-04T02:49:59.7366Z"
-    },
-    "tests-cli-tui": {
-      "id": "tests-cli-tui",
-      "title": "Tests: CLI + TUI UX",
-      "description": "Test CLI decision prompts and TUI review modals, including request changes input.",
-      "acceptanceCriteria": [
-        "CLI tests cover decision prompt selection and request changes input handling.",
-        "TUI tests cover modal rendering, action-required indicator, and @ file picker integration.",
-        "Tests pass using existing helpers and fixtures."
-      ],
-      "prompt": "Add CLI and TUI tests for review checkpoint decision handling and request changes input.",
-      "parentId": "checkpoint-tests-docs",
-      "childIds": [],
-      "deps": [
-        "cli-review-prompt",
-        "cli-request-changes-input",
-        "tui-review-modal",
-        "tui-request-changes-modal"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-04T02:39:50.928693Z",
-      "updatedAt": "2026-02-04T04:46:32.53193Z"
-    },
-    "tests-config-execution": {
-      "id": "tests-config-execution",
-      "title": "Tests: Config + Execution",
-      "description": "Test config precedence, decision gate persistence, execution pause, decision outcomes, summary capture, and resume-with-feedback.",
-      "acceptanceCriteria": [
-        "Config tests cover default false and project-over-global overrides.",
-        "Execution tests verify pause-after-task and decision outcomes (continue/quit/reject/request changes).",
-        "Review summary capture tests cover success and fallback paths."
-      ],
-      "prompt": "Add unit tests for config resolution and execution checkpoint behavior, including summary capture and resume-with-feedback.",
-      "parentId": "checkpoint-tests-docs",
-      "childIds": [],
-      "deps": [
-        "config-stop-after-each-task",
-        "run-decision-gate-model",
-        "review-summary-capture",
-        "resume-with-feedback",
-        "execution-checkpoint-controller"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-04T02:39:50.928693Z",
-      "updatedAt": "2026-02-04T04:10:56.471141Z"
-    },
-    "tui-request-changes-modal": {
-      "id": "tui-request-changes-modal",
-      "title": "TUI Request Changes Modal",
-      "description": "Multiline request-changes modal with @ file picker reuse.",
-      "acceptanceCriteria": [
-        "Request changes opens multiline input with @ file picker behavior matching plan modals.",
-        "Feedback is passed to resume-with-feedback and re-enters review on completion.",
-        "Escape/back returns to the review modal without losing state."
-      ],
-      "prompt": "Reuse plan generate/refine modal + file picker components to implement request changes input in TUI.",
-      "parentId": "tui-review-checkpoint",
-      "childIds": [],
-      "deps": [
-        "tui-review-modal",
-        "resume-with-feedback"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-04T02:39:50.928693Z",
-      "updatedAt": "2026-02-04T04:42:51.449096Z"
-    },
-    "tui-review-checkpoint": {
-      "id": "tui-review-checkpoint",
-      "title": "TUI Review Checkpoint UX",
-      "description": "Add TUI banner/modal for decision gates and request-changes input.",
-      "acceptanceCriteria": [
-        "TUI surfaces an action-required banner and review modal on checkpoint.",
-        "Decision buttons route actions to the shared controller.",
-        "Request changes uses multiline input with @ file picker."
-      ],
-      "prompt": "Implement TUI review checkpoint UX that integrates with the shared execution controller.",
-      "parentId": null,
-      "childIds": [
-        "tui-review-modal",
-        "tui-request-changes-modal"
-      ],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-02-04T02:39:50.928693Z",
-      "updatedAt": "2026-02-04T04:42:51.449096Z"
-    },
-    "tui-review-modal": {
-      "id": "tui-review-modal",
-      "title": "TUI Review Modal",
-      "description": "Banner + modal for decision gates with summary and action buttons.",
-      "acceptanceCriteria": [
-        "Modal shows task metadata and review summary with action buttons.",
-        "Action-required indicator is visible until a decision is made.",
-        "Decisions route to the controller and update run state."
-      ],
-      "prompt": "Add TUI state and rendering for the review checkpoint modal and action-required banner.",
-      "parentId": "tui-review-checkpoint",
-      "childIds": [],
-      "deps": [
-        "execution-checkpoint-controller"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-04T02:39:50.928693Z",
-      "updatedAt": "2026-02-04T04:31:28.568821Z"
+      "createdAt": "2026-02-04T20:20:10.841379Z",
+      "updatedAt": "2026-02-04T20:58:39.008828Z"
     }
   }
 }

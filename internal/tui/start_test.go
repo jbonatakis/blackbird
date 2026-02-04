@@ -50,6 +50,17 @@ func TestNewStartupModelLoadsConfigFromProjectRoot(t *testing.T) {
 	if model.config.SchemaVersion != config.SchemaVersion {
 		t.Fatalf("expected schema version %d, got %d", config.SchemaVersion, model.config.SchemaVersion)
 	}
+	if model.settings.ProjectRoot != root {
+		t.Fatalf("expected settings projectRoot %q, got %q", root, model.settings.ProjectRoot)
+	}
+	projectValue, ok := model.settings.Resolution.Project.Values["tui.runDataRefreshIntervalSeconds"]
+	if !ok || projectValue.Int == nil || *projectValue.Int != 12 {
+		t.Fatalf("expected settings to load local run refresh interval 12, got %#v", projectValue)
+	}
+	appliedValue, ok := model.settings.Resolution.Applied["tui.runDataRefreshIntervalSeconds"]
+	if !ok || appliedValue.Value.Int == nil || *appliedValue.Value.Int != 12 || appliedValue.Source != config.ConfigSourceLocal {
+		t.Fatalf("expected applied run refresh interval 12 from local, got %#v", appliedValue)
+	}
 }
 
 func TestNewStartupModelUsesDefaultConfigWhenMissing(t *testing.T) {
@@ -67,5 +78,9 @@ func TestNewStartupModelUsesDefaultConfigWhenMissing(t *testing.T) {
 	}
 	if model.config.SchemaVersion != defaults.SchemaVersion {
 		t.Fatalf("expected schema version %d, got %d", defaults.SchemaVersion, model.config.SchemaVersion)
+	}
+	appliedValue, ok := model.settings.Resolution.Applied["tui.runDataRefreshIntervalSeconds"]
+	if !ok || appliedValue.Value.Int == nil || *appliedValue.Value.Int != defaults.TUI.RunDataRefreshIntervalSeconds {
+		t.Fatalf("expected settings applied run refresh interval %d, got %#v", defaults.TUI.RunDataRefreshIntervalSeconds, appliedValue)
 	}
 }

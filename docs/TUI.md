@@ -7,7 +7,8 @@ Running `blackbird` with no arguments launches the TUI. CLI commands like `black
 - **Left pane** — Plan tree with status and readiness labels.
 - **Right pane** — Details or execution dashboard (toggle with `t`).
 - **Bottom bar** — Action shortcuts and ready/blocked counts.
-- **Home view** — Shows the current agent selection; press `a` to open the agent picker (selection persists to `.blackbird/agent.json`).
+- **Home view** — Shows the current agent selection; press `c` to open the agent picker (selection persists to `.blackbird/agent.json`) and `s` to open Settings.
+- **Settings view** — Table of config options with local/global/default/applied values and inline editing.
 
 ## Key bindings
 
@@ -22,10 +23,22 @@ Running `blackbird` with no arguments launches the TUI. CLI commands like `black
 | `g` | Plan generate |
 | `r` | Plan refine |
 | `e` | Execute ready tasks |
-| `a` | Change agent (Home view) |
+| `c` | Change agent (Home view) |
+| `s` | Settings (Home view); set status for selected item (Main view) |
 | `u` | Resume waiting task (when available) |
-| `s` | Set status for selected item |
 | `ctrl+c` | Quit |
+
+**Settings View**
+Open from Home with `s`. The Settings table shows `Option`, `Local`, `Global`, `Default`, and `Applied` columns. Local/global are editable; default/applied are read-only. Edits autosave to the selected layer and refresh applied values; save or load errors appear in the footer.
+
+Keys:
+- `up` / `down` or `j` / `k` — Move row selection
+- `left` / `right` — Move column selection
+- `space` — Toggle boolean values in the Local/Global columns
+- `enter` — Edit integer values in the Local/Global columns (digits only; `enter` saves, `esc` cancels)
+- `backspace` / `delete` — Clear the selected Local/Global value (removes the key from that layer)
+- `esc` or `h` — Return to Home
+- `ctrl+c` — Quit
 
 ## Plan generate/refine @path lookup
 

@@ -28,12 +28,12 @@ func TestBottomBarHomeHints(t *testing.T) {
 		plan:         g,
 		viewMode:     ViewModeHome,
 		planExists:   true,
-		windowWidth:  80,
+		windowWidth:  120,
 		windowHeight: 10,
 	}
 
 	out := RenderBottomBar(model)
-	expected := []string{"[g]enerate", "[v]iew", "[r]efine", "[e]xecute", "[c]hange", "[ctrl+c]quit"}
+	expected := []string{"[g]enerate", "[v]iew", "[r]efine", "[e]xecute", "[s]ettings", "[c]hange", "[ctrl+c]quit"}
 	for _, hint := range expected {
 		if !strings.Contains(out, hint) {
 			t.Fatalf("expected home hint %q in bottom bar, got %q", hint, out)
@@ -58,6 +58,9 @@ func TestBottomBarHomeHidesCountsWhenNoPlan(t *testing.T) {
 	}
 	if !strings.Contains(out, "[c]hange") {
 		t.Fatalf("expected change agent hint on home screen, got %q", out)
+	}
+	if !strings.Contains(out, "[s]ettings") {
+		t.Fatalf("expected settings hint on home screen, got %q", out)
 	}
 	if !strings.Contains(out, "[g]enerate") {
 		t.Fatalf("expected generate hint on home screen, got %q", out)
