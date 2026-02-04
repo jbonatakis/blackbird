@@ -136,12 +136,16 @@ func actionHints(model Model, readyCount int) []string {
 	if model.actionInProgress {
 		return []string{"[ctrl+c]quit"}
 	}
+	if model.viewMode == ViewModeSettings {
+		return []string{"[esc]back", "[h]ome", "[ctrl+c]quit"}
+	}
 	if model.viewMode == ViewModeHome {
 		actions = []string{
 			"[g]enerate",
 			"[v]iew",
 			"[r]efine",
 			"[e]xecute",
+			"[s]ettings",
 			"[c]hange",
 			"[ctrl+c]quit",
 		}

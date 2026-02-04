@@ -124,6 +124,35 @@ func TestHomeKeySelectAgentOpensModal(t *testing.T) {
 	}
 }
 
+func TestHomeKeySettingsOpensSettingsView(t *testing.T) {
+	model := Model{
+		viewMode:   ViewModeHome,
+		planExists: false,
+	}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("s")})
+	if updated.(Model).viewMode != ViewModeSettings {
+		t.Fatalf("expected settings view to open from home view")
+	}
+}
+
+func TestSettingsViewExitKeysReturnHome(t *testing.T) {
+	model := Model{
+		viewMode: ViewModeSettings,
+	}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if updated.(Model).viewMode != ViewModeHome {
+		t.Fatalf("expected esc to return to home from settings view")
+	}
+
+	model.viewMode = ViewModeSettings
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("h")})
+	if updated.(Model).viewMode != ViewModeHome {
+		t.Fatalf("expected h to return to home from settings view")
+	}
+}
+
 func TestHomeKeyExecuteRequiresReadyTasks(t *testing.T) {
 	nonReadyPlan := plan.WorkGraph{
 		Items: map[string]plan.WorkItem{

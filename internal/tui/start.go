@@ -29,6 +29,7 @@ func newStartupModel(projectRoot string) Model {
 	model.viewMode = ViewModeHome
 	model.projectRoot = root
 	model.config = cfg
+	model.settings = NewSettingsState(root, cfg)
 	return model
 }
 

@@ -48,6 +48,7 @@ type ViewMode int
 const (
 	ViewModeHome ViewMode = iota
 	ViewModeMain
+	ViewModeSettings
 )
 
 type PendingPlanRequestKind int
@@ -105,6 +106,7 @@ type Model struct {
 	agentSelectionHighlight int // index into agent.AgentRegistry when modal is open
 	projectRoot             string
 	config                  config.ResolvedConfig
+	settings                SettingsState
 }
 
 func NewModel(g plan.WorkGraph) Model {
@@ -122,7 +124,8 @@ func NewModel(g plan.WorkGraph) Model {
 			Agent:         agent.DefaultAgent(),
 			ConfigPresent: false,
 		},
-		config: config.DefaultResolvedConfig(),
+		config:   config.DefaultResolvedConfig(),
+		settings: defaultSettingsState(),
 	}
 	for id := range g.Items {
 		m.selectedID = id
@@ -540,11 +543,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		key := typed.String()
 		switch key {
 		case "h":
-			if m.viewMode == ViewModeHome {
+			switch m.viewMode {
+			case ViewModeSettings:
+				m.viewMode = ViewModeHome
+			case ViewModeHome:
 				if m.planExists {
 					m.viewMode = ViewModeMain
 				}
-			} else {
+			default:
 				m.viewMode = ViewModeHome
 			}
 			return m, nil
@@ -590,9 +596,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.actionMode = ActionModeSelectAgent
 				m.agentSelectionHighlight = agentSelectionHighlightIndex(m)
 				return m, nil
+			case "s":
+				if m.actionMode != ActionModeNone || m.actionInProgress {
+					return m, nil
+				}
+				m.settings = NewSettingsState(m.projectRoot, m.config)
+				m.viewMode = ViewModeSettings
+				return m, nil
 			default:
 				return m, nil
 			}
+		}
+		if m.viewMode == ViewModeSettings {
+			return HandleSettingsKey(m, typed)
 		}
 		switch key {
 		case "ctrl+c":
@@ -829,9 +845,12 @@ func (m Model) View() string {
 	}
 
 	var content string
-	if m.viewMode == ViewModeHome {
+	switch m.viewMode {
+	case ViewModeHome:
 		content = RenderHomeView(m)
-	} else {
+	case ViewModeSettings:
+		content = RenderSettingsView(m)
+	default:
 		content = m.renderMainView(availableHeight)
 		if banner != "" {
 			content = banner + "\n" + content

@@ -1125,3 +1125,67 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 
 - Added CLI unit tests for review decision line selection and request-changes input handling with file picker + empty retry.
 - Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/cli/... ./internal/tui/...`.
+
+## 2026-02-04 — TUI config settings spec
+
+- Added `specs/improvements/TUI_CONFIG_SETTINGS.md` defining a Settings view for editing local/global config values with applied resolution, autosave, and precedence indicators.
+
+## 2026-02-04 — TUI config settings spec decisions
+
+- Settings entry remains Home-only; invalid config values render raw with warning styling while Applied uses clamped values.
+
+## 2026-02-04 — TUI settings table rendering
+
+- Reworked Settings view rendering with a styled table header, centered `-` placeholders, applied-value source tags, and highlighted source cells.
+- Added footer rendering for selected option descriptions plus config load/layer/option warnings.
+- Added settings view/table tests for layout, highlighting, and footer warnings.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui/...`.
+
+## 2026-02-04 — Config option registry
+
+- Added explicit config option registry metadata (type, bounds, defaults, descriptions) for the three settings keys, sourcing defaults from `DefaultResolvedConfig()`.
+- Added registry unit tests for keys, defaults, bounds, and descriptions.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config/...`.
+
+## 2026-02-04 — Config settings helpers (raw values + save)
+
+- Added config layer helpers to load per-option raw values for local/global configs and to persist edited values with schemaVersion and only set keys.
+- Implemented atomic config writes (temp + rename + fsync) and empty-layer removal semantics.
+- Added unit tests covering raw option extraction, load helper, save/write output, empty removal, and validation errors.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config/...`.
+
+## 2026-02-04 — Config settings applied resolution helpers
+
+- Added settings resolution helpers in `internal/config` to load local/global layers with warnings, compute applied values with source labels, and surface out-of-range clamping metadata.
+- Added layer-warning handling for invalid JSON/unsupported schema and global-unavailable detection for settings headers.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config/...`.
+
+## 2026-02-04 — Config settings helper tests update
+
+- Added SaveConfigValues update coverage to ensure existing configs are overwritten and unset keys are removed.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config/...`.
+
+## 2026-02-04 — TUI settings view shell
+
+- Added Settings view mode with Home entry ([s]) and exit via esc or h; new settings state holds config resolution and option metadata.
+- Wired startup to initialize settings state using project root + resolved config; Settings view renders a basic table with local/global/default/applied values.
+- Updated Home view and bottom bar hints to include Settings; added settings view key handling and tests.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui/...`.
+
+## 2026-02-04 — TUI settings editing + autosave
+
+- Added settings table column selection, edit mode for int values, and bool toggles with delete-to-clear behavior.
+- Implemented autosave to local/global config files with validation, applied-value refresh, and model config updates; save errors surface in the footer without mutating prior values.
+- Added settings editing tests for navigation, bool toggles/clear, int validation/autosave, and save failure behavior.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config/... ./internal/tui/...`.
+
+## 2026-02-04 — Settings documentation updates
+
+- Documented the Settings view, key bindings, and edit behavior in `docs/TUI.md`.
+- Noted the TUI Settings editor and per-key precedence reminder in `docs/CONFIGURATION.md`.
+
+## 2026-02-04 — TUI settings global-disabled tests
+
+- Added settings edit test coverage for global-unavailable state to ensure global column edits are blocked and no config writes occur; validated applied source remains default.
+- Extended int edit autosave test to assert applied value/source updates after commit.
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui/...`.

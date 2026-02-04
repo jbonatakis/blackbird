@@ -30,6 +30,8 @@ func TestRenderHomeViewNoPlan(t *testing.T) {
 	assertContains(t, out, "View plan")
 	assertContains(t, out, "[e]")
 	assertContains(t, out, "Execute")
+	assertContains(t, out, "[s]")
+	assertContains(t, out, "Settings")
 	assertContains(t, out, "[ctrl+c]")
 }
 

@@ -13,6 +13,11 @@ Precedence is per key: project config overrides global config, which overrides b
 
 If a config file is missing, contains invalid JSON, or uses an unsupported `schemaVersion`, that layer is skipped.
 
+**Settings Editor**
+The Home screen includes a Settings view (`s`) in the TUI that edits the same config files. Local edits write to `<projectRoot>/.blackbird/config.json`; global edits write to `~/.blackbird/config.json`. Changes autosave per key and the Settings table shows the resolved applied value plus its source.
+
+Reminder: precedence is per key — project overrides global, which overrides defaults. Clearing a value in Settings removes it from that layer so the next layer takes effect.
+
 ## Config schema
 
 Current schema version: `1`.
