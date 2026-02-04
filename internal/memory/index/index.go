@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/jbonatakis/blackbird/internal/execution"
 	"github.com/jbonatakis/blackbird/internal/memory"
 	"github.com/jbonatakis/blackbird/internal/memory/artifact"
 
@@ -149,35 +148,12 @@ func RebuildForProject(projectRoot string, opts RebuildOptions) error {
 	if err != nil {
 		return err
 	}
-	if opts.RunTimeLookup == nil {
-		opts.RunTimeLookup = RunTimeLookupFromExecution(projectRoot)
-	}
 	idx, err := Open(memory.IndexDBPath(projectRoot))
 	if err != nil {
 		return err
 	}
 	defer idx.Close()
 	return idx.Rebuild(store.Artifacts, opts)
-}
-
-// RunTimeLookupFromExecution uses execution run records for timestamps.
-func RunTimeLookupFromExecution(baseDir string) RunTimeLookup {
-	cache := make(map[string]time.Time)
-	return func(taskID, runID string) (time.Time, bool) {
-		if taskID == "" || runID == "" {
-			return time.Time{}, false
-		}
-		key := taskID + ":" + runID
-		if ts, ok := cache[key]; ok {
-			return ts, true
-		}
-		record, err := execution.LoadRun(baseDir, taskID, runID)
-		if err != nil {
-			return time.Time{}, false
-		}
-		cache[key] = record.StartedAt
-		return record.StartedAt, true
-	}
 }
 
 func (idx *Index) ensureSchema(ctx context.Context) error {

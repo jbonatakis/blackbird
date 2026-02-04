@@ -1149,3 +1149,24 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 
 - Updated related ranking to prioritize run adjacency, then task adjacency, then total score; added flags to related scoring and sorting.
 - `GOCACHE=/tmp/blackbird-go-cache make test` now passes.
+
+## 2026-02-03 — Memory system review
+
+- Reviewed memory pipeline; noted missing integration from trace WAL -> canonical logs -> artifact store/index before building context packs.
+
+## 2026-02-03 — Memory derivation pipeline wiring
+
+- Added a derivation helper (`internal/memory/derive`) to replay WAL, save canonical logs, update the artifact store, and rebuild the index; added tests for WAL -> artifacts/index and empty WAL no-op.
+- Hooked derivation after each run in `RunExecute` and `RunResume` so new context packs include artifacts from the previous task.
+- Removed `internal/memory/index`’s dependency on `execution` (deleted `RunTimeLookupFromExecution` default) to avoid cycles; derivation now supplies run-time lookup from execution.
+- Note: revisit session goal sourcing (currently only session.json / empty goal on create).
+
+- Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/memory/derive/... ./internal/execution/... ./internal/memory/index/...`
+
+## 2026-02-03 — Memory derivation scaling note
+
+- Added `specs/improvements/MEMORY_DERIVATION_SCALING.md` describing current WAL replay behavior, impact if unchanged, and options (incremental replay, per-run WAL, incremental index, background derivation).
+
+## 2026-02-03 — Memory derivation scaling doc update
+
+- Expanded `specs/improvements/MEMORY_DERIVATION_SCALING.md` with the missing-ID decision point and options (proxy fallback IDs, per-run WAL files, strict headers, wrapper injection).

@@ -159,6 +159,9 @@ func RunExecute(ctx context.Context, cfg ExecuteConfig) (ExecuteResult, error) {
 		if cfg.OnTaskFinish != nil {
 			cfg.OnTaskFinish(taskID, record, execErr)
 		}
+		if err := deriveMemoryFromWAL(baseDir, runtime.Provider, record.ID); err != nil {
+			return ExecuteResult{Reason: ExecuteReasonError, TaskID: taskID, Err: err}, err
+		}
 
 		if record.Status == RunStatusWaitingUser {
 			return ExecuteResult{Reason: ExecuteReasonWaitingUser, TaskID: taskID, Run: &record}, nil
@@ -267,6 +270,9 @@ func RunResume(ctx context.Context, cfg ResumeConfig) (RunRecord, error) {
 
 	if cfg.OnTaskFinish != nil {
 		cfg.OnTaskFinish(cfg.TaskID, record, execErr)
+	}
+	if err := deriveMemoryFromWAL(baseDir, runtime.Provider, record.ID); err != nil {
+		return record, err
 	}
 
 	if ctx.Err() != nil {
