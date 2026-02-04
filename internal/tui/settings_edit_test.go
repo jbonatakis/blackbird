@@ -50,9 +50,9 @@ func TestSettingsBoolToggleAndClearAutosave(t *testing.T) {
 	defer restoreHome()
 
 	model := Model{
-		viewMode:   ViewModeSettings,
+		viewMode:    ViewModeSettings,
 		projectRoot: projectRoot,
-		config:     config.DefaultResolvedConfig(),
+		config:      config.DefaultResolvedConfig(),
 	}
 	model.settings = NewSettingsState(projectRoot, model.config)
 
@@ -102,9 +102,9 @@ func TestSettingsIntEditValidationAndAutosave(t *testing.T) {
 	defer restoreHome()
 
 	model := Model{
-		viewMode:   ViewModeSettings,
+		viewMode:    ViewModeSettings,
 		projectRoot: projectRoot,
-		config:     config.DefaultResolvedConfig(),
+		config:      config.DefaultResolvedConfig(),
 	}
 	model.settings = NewSettingsState(projectRoot, model.config)
 
@@ -194,9 +194,9 @@ func TestSettingsSaveFailureKeepsPriorValue(t *testing.T) {
 	}
 
 	model := Model{
-		viewMode:   ViewModeSettings,
+		viewMode:    ViewModeSettings,
 		projectRoot: projectRoot,
-		config:     config.DefaultResolvedConfig(),
+		config:      config.DefaultResolvedConfig(),
 	}
 	model.settings = NewSettingsState(projectRoot, model.config)
 
