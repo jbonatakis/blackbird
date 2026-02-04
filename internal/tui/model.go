@@ -26,6 +26,7 @@ const (
 	ActionModePlanReview
 	ActionModePlanRefine
 	ActionModeSelectAgent
+	ActionModeReviewCheckpoint
 )
 
 type ActivePane int
@@ -96,6 +97,7 @@ type Model struct {
 	planRefineForm          *PlanRefineForm
 	agentQuestionForm       *AgentQuestionForm
 	planReviewForm          *PlanReviewForm
+	reviewCheckpointForm    *ReviewCheckpointForm
 	pendingPlanRequest      PendingPlanRequest
 	pendingResumeTask       string
 	agentSelection          agent.AgentSelection
@@ -166,6 +168,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.planReviewForm != nil {
 			m.planReviewForm.SetSize(typed.Width, typed.Height)
 		}
+		if m.reviewCheckpointForm != nil {
+			m.reviewCheckpointForm.SetSize(typed.Width, typed.Height)
+		}
 
 		return m, nil
 	case spinnerTickMsg:
@@ -234,10 +239,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if typed.Action == "execute" || typed.Action == "resume" {
 			m.clearLiveOutput()
 		}
+		decisionRequired := typed.Result != nil && typed.Result.Reason == execution.ExecuteReasonDecisionRequired
 		if typed.Err != nil {
 			m.actionOutput = &ActionOutput{
 				Message: fmt.Sprintf("Action failed: %v\n\n%s", typed.Err, typed.Output),
 				IsError: true,
+			}
+		} else if decisionRequired {
+			m.actionOutput = nil
+			if typed.Result != nil && typed.Result.Run != nil {
+				m = openReviewCheckpointModal(m, *typed.Result.Run)
 			}
 		} else {
 			if typed.Action == "execute" || typed.Action == "resume" {
@@ -260,6 +271,76 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Batch(m.LoadRunData(), m.LoadPlanData())
 		}
 		return m, nil
+	case DecisionActionComplete:
+		m.actionInProgress = false
+		m.actionName = ""
+		m.actionCancel = nil
+		if typed.Action == execution.DecisionStateChangesRequested {
+			m.clearLiveOutput()
+		}
+		if typed.Err != nil {
+			m.actionOutput = &ActionOutput{
+				Message: fmt.Sprintf("Decision failed: %v", typed.Err),
+				IsError: true,
+			}
+			return m, tea.Batch(m.LoadRunData(), m.LoadPlanData())
+		}
+
+		if typed.Result.Next != nil {
+			next := typed.Result.Next
+			if next.Err != nil {
+				m.actionOutput = &ActionOutput{
+					Message: fmt.Sprintf("Action failed: %v", next.Err),
+					IsError: true,
+				}
+			}
+			switch next.Reason {
+			case execution.ExecuteReasonDecisionRequired:
+				if next.Run != nil {
+					m = openReviewCheckpointModal(m, *next.Run)
+				}
+			case execution.ExecuteReasonWaitingUser:
+				m.actionOutput = &ActionOutput{
+					Message: summarizeExecuteResult(*next),
+					IsError: false,
+				}
+			}
+		}
+
+		if typed.Action == execution.DecisionStateApprovedContinue {
+			m.actionInProgress = true
+			m.actionName = "Executing..."
+			ctx, cancel := context.WithCancel(context.Background())
+			m.actionCancel = cancel
+			streamCh, stdout, stderr := m.startLiveOutput()
+			return m, tea.Batch(
+				ExecuteCmdWithContextAndStream(ctx, stdout, stderr, streamCh, m.config.Execution.StopAfterEachTask),
+				listenLiveOutputCmd(streamCh),
+				spinnerTickCmd(),
+				m.LoadRunData(),
+				m.LoadPlanData(),
+			)
+		}
+
+		if typed.Action == execution.DecisionStateApprovedQuit {
+			m.actionOutput = &ActionOutput{
+				Message: "Decision recorded: approved and quit",
+				IsError: false,
+			}
+		}
+		if typed.Action == execution.DecisionStateRejected {
+			m.actionOutput = &ActionOutput{
+				Message: "Decision recorded: changes rejected",
+				IsError: false,
+			}
+		}
+		if typed.Action == execution.DecisionStateChangesRequested && typed.Result.Next == nil {
+			m.actionOutput = &ActionOutput{
+				Message: "Change request submitted",
+				IsError: false,
+			}
+		}
+		return m, tea.Batch(m.LoadRunData(), m.LoadPlanData())
 	case PlanDataLoaded:
 		m.plan = typed.Plan
 		m.planExists = typed.PlanExists
@@ -300,6 +381,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.runData = typed.Data
+		if pending := pendingDecisionRunFromData(m.runData); pending != nil {
+			if m.actionMode == ActionModeNone && m.reviewCheckpointForm == nil && !m.actionInProgress {
+				m = openReviewCheckpointModal(m, *pending)
+			}
+		} else if m.actionMode == ActionModeReviewCheckpoint && m.reviewCheckpointForm != nil {
+			m.actionMode = ActionModeNone
+			m.reviewCheckpointForm = nil
+		}
 		if hasActiveRuns(m.runData) {
 			if !m.timerActive {
 				m.timerActive = true
@@ -426,6 +515,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return HandlePlanReviewKey(m, typed)
 			}
 		}
+		if m.actionMode == ActionModeReviewCheckpoint {
+			switch typed.String() {
+			case "ctrl+c":
+				m = cancelRunningAction(m)
+				return m, tea.Quit
+			default:
+				return HandleReviewCheckpointKey(m, typed)
+			}
+		}
 		if m.actionMode == ActionModeSelectAgent {
 			switch typed.String() {
 			case "ctrl+c":
@@ -478,7 +576,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.actionCancel = cancel
 				streamCh, stdout, stderr := m.startLiveOutput()
 				return m, tea.Batch(
-					ExecuteCmdWithContextAndStream(ctx, stdout, stderr, streamCh),
+					ExecuteCmdWithContextAndStream(ctx, stdout, stderr, streamCh, m.config.Execution.StopAfterEachTask),
 					listenLiveOutputCmd(streamCh),
 					spinnerTickCmd(),
 				)
@@ -615,7 +713,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.actionCancel = cancel
 			streamCh, stdout, stderr := m.startLiveOutput()
 			return m, tea.Batch(
-				ExecuteCmdWithContextAndStream(ctx, stdout, stderr, streamCh),
+				ExecuteCmdWithContextAndStream(ctx, stdout, stderr, streamCh, m.config.Execution.StopAfterEachTask),
 				listenLiveOutputCmd(streamCh),
 				spinnerTickCmd(),
 			)
@@ -706,13 +804,22 @@ func cancelRunningAction(m Model) Model {
 }
 
 func (m Model) View() string {
+	banner := ""
+	bannerHeight := 0
+	if m.viewMode == ViewModeMain {
+		banner = RenderActionRequiredBanner(m)
+		if banner != "" {
+			bannerHeight = lipgloss.Height(banner)
+		}
+	}
+
 	// Reserve space so total output is strictly less than windowHeight. Each pane
 	// gets Height(availableHeight) and lipgloss adds top+bottom border (2 lines),
 	// so pane height is availableHeight+2. We add a newline and the bar (2 lines).
 	// Total = (availableHeight+2)+2 = availableHeight+4. Use windowHeight-5 so
 	// total = windowHeight-1, avoiding exact-height redraw bugs and ensuring the
 	// top border is visible.
-	availableHeight := m.windowHeight - 5
+	availableHeight := m.windowHeight - 5 - bannerHeight
 	if availableHeight < 0 {
 		availableHeight = 0
 	}
@@ -726,6 +833,9 @@ func (m Model) View() string {
 		content = RenderHomeView(m)
 	} else {
 		content = m.renderMainView(availableHeight)
+		if banner != "" {
+			content = banner + "\n" + content
+		}
 	}
 
 	// Overlay action output if present
@@ -735,59 +845,99 @@ func (m Model) View() string {
 		content = outputView + "\n" + content
 	}
 
+	modalModel := m
+	if bannerHeight > 0 {
+		modalModel.windowHeight = m.windowHeight - bannerHeight
+		if modalModel.windowHeight < 0 {
+			modalModel.windowHeight = 0
+		}
+	}
+
 	// Overlay set-status modal if active
 	if m.actionMode == ActionModeSetStatus {
-		modal := RenderSetStatusModal(m)
+		modal := RenderSetStatusModal(modalModel)
 		if modal != "" {
 			content = modal
+			if banner != "" {
+				content = banner + "\n" + content
+			}
 		}
 	}
 
 	// Overlay confirm overwrite modal if active
 	if m.actionMode == ActionModeConfirmOverwrite {
-		modal := RenderConfirmOverwriteModal(m)
+		modal := RenderConfirmOverwriteModal(modalModel)
 		if modal != "" {
 			content = modal
+			if banner != "" {
+				content = banner + "\n" + content
+			}
 		}
 	}
 
 	// Overlay plan generate modal if active
 	if m.actionMode == ActionModeGeneratePlan && m.planGenerateForm != nil {
-		modal := RenderPlanGenerateModal(m, *m.planGenerateForm)
+		modal := RenderPlanGenerateModal(modalModel, *m.planGenerateForm)
 		if modal != "" {
 			content = modal
+			if banner != "" {
+				content = banner + "\n" + content
+			}
 		}
 	}
 
 	// Overlay plan refine modal if active
 	if m.actionMode == ActionModePlanRefine && m.planRefineForm != nil {
-		modal := RenderPlanRefineModal(m, *m.planRefineForm)
+		modal := RenderPlanRefineModal(modalModel, *m.planRefineForm)
 		if modal != "" {
 			content = modal
+			if banner != "" {
+				content = banner + "\n" + content
+			}
 		}
 	}
 
 	// Overlay agent question modal if active
 	if m.actionMode == ActionModeAgentQuestion && m.agentQuestionForm != nil {
-		modal := RenderAgentQuestionModal(m, *m.agentQuestionForm)
+		modal := RenderAgentQuestionModal(modalModel, *m.agentQuestionForm)
 		if modal != "" {
 			content = modal
+			if banner != "" {
+				content = banner + "\n" + content
+			}
 		}
 	}
 
 	// Overlay plan review modal if active
 	if m.actionMode == ActionModePlanReview && m.planReviewForm != nil {
-		modal := RenderPlanReviewModal(m, *m.planReviewForm)
+		modal := RenderPlanReviewModal(modalModel, *m.planReviewForm)
 		if modal != "" {
 			content = modal
+			if banner != "" {
+				content = banner + "\n" + content
+			}
+		}
+	}
+
+	// Overlay review checkpoint modal if active
+	if m.actionMode == ActionModeReviewCheckpoint && m.reviewCheckpointForm != nil {
+		modal := RenderReviewCheckpointModal(modalModel, *m.reviewCheckpointForm)
+		if modal != "" {
+			content = modal
+			if banner != "" {
+				content = banner + "\n" + content
+			}
 		}
 	}
 
 	// Overlay agent selection modal if active
 	if m.actionMode == ActionModeSelectAgent {
-		modal := RenderAgentSelectionModal(m)
+		modal := RenderAgentSelectionModal(modalModel)
 		if modal != "" {
 			content = modal
+			if banner != "" {
+				content = banner + "\n" + content
+			}
 		}
 	}
 

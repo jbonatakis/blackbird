@@ -19,7 +19,7 @@ func TestLoadConfigMergesGlobalAndProject(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
 		t.Fatalf("mkdir global: %v", err)
 	}
-	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":20,"planDataRefreshIntervalSeconds":8}}`), 0o644); err != nil {
+	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":20,"planDataRefreshIntervalSeconds":8},"execution":{"stopAfterEachTask":true}}`), 0o644); err != nil {
 		t.Fatalf("write global config: %v", err)
 	}
 
@@ -41,6 +41,9 @@ func TestLoadConfigMergesGlobalAndProject(t *testing.T) {
 	if resolved.TUI.PlanDataRefreshIntervalSeconds != 8 {
 		t.Fatalf("plan interval = %d, want 8", resolved.TUI.PlanDataRefreshIntervalSeconds)
 	}
+	if resolved.Execution.StopAfterEachTask != true {
+		t.Fatalf("stopAfterEachTask = %v, want true", resolved.Execution.StopAfterEachTask)
+	}
 }
 
 func TestLoadConfigProjectOverridesGlobal(t *testing.T) {
@@ -55,7 +58,7 @@ func TestLoadConfigProjectOverridesGlobal(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
 		t.Fatalf("mkdir global: %v", err)
 	}
-	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":30,"planDataRefreshIntervalSeconds":25}}`), 0o644); err != nil {
+	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":30,"planDataRefreshIntervalSeconds":25},"execution":{"stopAfterEachTask":true}}`), 0o644); err != nil {
 		t.Fatalf("write global config: %v", err)
 	}
 
@@ -63,7 +66,7 @@ func TestLoadConfigProjectOverridesGlobal(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(projectPath), 0o755); err != nil {
 		t.Fatalf("mkdir project: %v", err)
 	}
-	if err := os.WriteFile(projectPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":12,"planDataRefreshIntervalSeconds":9}}`), 0o644); err != nil {
+	if err := os.WriteFile(projectPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":12,"planDataRefreshIntervalSeconds":9},"execution":{"stopAfterEachTask":false}}`), 0o644); err != nil {
 		t.Fatalf("write project config: %v", err)
 	}
 
@@ -76,6 +79,9 @@ func TestLoadConfigProjectOverridesGlobal(t *testing.T) {
 	}
 	if resolved.TUI.PlanDataRefreshIntervalSeconds != 9 {
 		t.Fatalf("plan interval = %d, want 9", resolved.TUI.PlanDataRefreshIntervalSeconds)
+	}
+	if resolved.Execution.StopAfterEachTask != false {
+		t.Fatalf("stopAfterEachTask = %v, want false", resolved.Execution.StopAfterEachTask)
 	}
 }
 
@@ -124,6 +130,9 @@ func TestLoadConfigDefaultsWhenMissing(t *testing.T) {
 	}
 	if resolved.TUI.PlanDataRefreshIntervalSeconds != DefaultPlanDataRefreshIntervalSeconds {
 		t.Fatalf("plan interval = %d, want %d", resolved.TUI.PlanDataRefreshIntervalSeconds, DefaultPlanDataRefreshIntervalSeconds)
+	}
+	if resolved.Execution.StopAfterEachTask != DefaultStopAfterEachTask {
+		t.Fatalf("stopAfterEachTask = %v, want %v", resolved.Execution.StopAfterEachTask, DefaultStopAfterEachTask)
 	}
 }
 

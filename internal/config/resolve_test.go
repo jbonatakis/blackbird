@@ -8,11 +8,17 @@ func TestResolveConfigPrecedence(t *testing.T) {
 			RunDataRefreshIntervalSeconds:  intPtr(12),
 			PlanDataRefreshIntervalSeconds: nil,
 		},
+		Execution: &RawExecution{
+			StopAfterEachTask: boolPtr(true),
+		},
 	}
 	global := RawConfig{
 		TUI: &RawTUI{
 			RunDataRefreshIntervalSeconds:  intPtr(20),
 			PlanDataRefreshIntervalSeconds: intPtr(9),
+		},
+		Execution: &RawExecution{
+			StopAfterEachTask: boolPtr(false),
 		},
 	}
 
@@ -23,6 +29,9 @@ func TestResolveConfigPrecedence(t *testing.T) {
 	if resolved.TUI.PlanDataRefreshIntervalSeconds != 9 {
 		t.Fatalf("plan interval = %d, want 9", resolved.TUI.PlanDataRefreshIntervalSeconds)
 	}
+	if resolved.Execution.StopAfterEachTask != true {
+		t.Fatalf("stopAfterEachTask = %v, want true", resolved.Execution.StopAfterEachTask)
+	}
 }
 
 func TestResolveConfigDefaults(t *testing.T) {
@@ -32,6 +41,16 @@ func TestResolveConfigDefaults(t *testing.T) {
 	}
 	if resolved.TUI.PlanDataRefreshIntervalSeconds != DefaultPlanDataRefreshIntervalSeconds {
 		t.Fatalf("plan interval = %d, want %d", resolved.TUI.PlanDataRefreshIntervalSeconds, DefaultPlanDataRefreshIntervalSeconds)
+	}
+	if resolved.Execution.StopAfterEachTask != DefaultStopAfterEachTask {
+		t.Fatalf("stopAfterEachTask = %v, want %v", resolved.Execution.StopAfterEachTask, DefaultStopAfterEachTask)
+	}
+}
+
+func TestResolveConfigStopAfterEachTaskDefaultsFalse(t *testing.T) {
+	resolved := ResolveConfig(RawConfig{}, RawConfig{})
+	if resolved.Execution.StopAfterEachTask {
+		t.Fatalf("expected stopAfterEachTask default false, got true")
 	}
 }
 
@@ -77,5 +96,9 @@ func TestResolveConfigClampGlobalWhenProjectMissing(t *testing.T) {
 }
 
 func intPtr(value int) *int {
+	return &value
+}
+
+func boolPtr(value bool) *bool {
 	return &value
 }

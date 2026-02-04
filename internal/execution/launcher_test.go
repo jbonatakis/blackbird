@@ -188,3 +188,27 @@ func TestLaunchAgentKeepsExplicitProvider(t *testing.T) {
 		t.Fatalf("expected provider claude, got %q", record.Provider)
 	}
 }
+
+func TestLaunchAgentSetsProviderSessionRef(t *testing.T) {
+	runtime := agent.Runtime{
+		Provider: "codex",
+		Command:  "cat",
+		UseShell: true, // avoid provider args being passed to cat
+		Timeout:  2 * time.Second,
+	}
+	ctx := ContextPack{
+		SchemaVersion: ContextPackSchemaVersion,
+		Task:          TaskContext{ID: "task-7", Title: "Task"},
+	}
+
+	record, err := LaunchAgent(context.Background(), runtime, ctx)
+	if err != nil {
+		t.Fatalf("LaunchAgent: %v", err)
+	}
+	if record.ProviderSessionRef == "" {
+		t.Fatalf("expected provider session ref to be set")
+	}
+	if record.ProviderSessionRef != record.ID {
+		t.Fatalf("expected provider session ref to match run id, got %q", record.ProviderSessionRef)
+	}
+}

@@ -25,6 +25,9 @@ Supported keys:
   "tui": {
     "runDataRefreshIntervalSeconds": 5,
     "planDataRefreshIntervalSeconds": 5
+  },
+  "execution": {
+    "stopAfterEachTask": false
   }
 }
 ```
@@ -34,8 +37,11 @@ Defaults:
 - `schemaVersion`: `1`
 - `tui.runDataRefreshIntervalSeconds`: `5`
 - `tui.planDataRefreshIntervalSeconds`: `5`
+- `execution.stopAfterEachTask`: `false`
 
 Interval values are clamped to a minimum of `1` and a maximum of `300` seconds.
+
+`execution.stopAfterEachTask` uses the same per-key precedence rules (project config overrides global, which overrides defaults). When enabled, execution pauses after each completed run to request a review decision.
 
 ## Agent runtime configuration
 

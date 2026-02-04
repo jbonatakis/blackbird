@@ -16,6 +16,8 @@ This package implements Phase 2 execution primitives:
 1. `blackbird execute` loads the plan and selects ready tasks via `ReadyTasks`.
 2. Each task is marked `in_progress`, context is built, and the agent is launched.
 3. `RunRecord` is written to disk and plan status is updated to `done`, `failed`, or `waiting_user`.
+   If execution review checkpoints are enabled, the run record is marked with a pending decision
+   and execution halts until a decision is resolved.
 4. `blackbird resume` prompts for answers and continues execution for waiting tasks.
 
 ## Execution Output

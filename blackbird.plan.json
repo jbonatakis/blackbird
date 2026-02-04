@@ -1,410 +1,330 @@
 {
   "schemaVersion": 1,
   "items": {
-    "agent-log-update": {
-      "id": "agent-log-update",
-      "title": "Update AGENT_LOG",
-      "description": "Append a dated entry describing the global config work and test status.",
+    "checkpoint-tests-docs": {
+      "id": "checkpoint-tests-docs",
+      "title": "Checkpoint Tests and Docs",
+      "description": "Add test coverage and documentation for the review checkpoint feature.",
       "acceptanceCriteria": [
-        "AGENT_LOG.md contains a new dated entry summarizing global config changes and test results."
+        "Config and execution checkpoint logic are covered by unit tests.",
+        "CLI and TUI review checkpoint UX are covered by tests.",
+        "Documentation reflects new config and workflow."
       ],
-      "prompt": "Append a concise entry to AGENT_LOG.md summarizing the global config implementation and tests.",
-      "parentId": "global-config-tests-docs",
-      "childIds": [],
-      "deps": [
-        "docs-configuration",
-        "docs-files-storage",
-        "config-tests-precedence",
-        "config-tests-invalid",
-        "config-tests-bounds",
-        "config-tests-home-missing",
-        "tui-tests-intervals"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:45:28.580049Z"
-    },
-    "config-defaults": {
-      "id": "config-defaults",
-      "title": "Define Built-in Defaults",
-      "description": "Introduce constants/defaults for TUI refresh intervals.",
-      "acceptanceCriteria": [
-        "Default values for run/plan refresh intervals are defined in one place.",
-        "Defaults match the spec (5 seconds each)."
-      ],
-      "prompt": "Add built-in defaults for tui refresh intervals in the config package.",
-      "parentId": "global-config-core",
-      "childIds": [],
-      "deps": [
-        "config-types"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:24:57.608284Z"
-    },
-    "config-load-global": {
-      "id": "config-load-global",
-      "title": "Load Global Config File",
-      "description": "Read ~/.blackbird/config.json using os.UserHomeDir; skip if missing or home is unavailable.",
-      "acceptanceCriteria": [
-        "Global config is read from ~/.blackbird/config.json when home dir is available.",
-        "Missing file or missing home directory does not error and falls back to next layer."
-      ],
-      "prompt": "Implement reading of the global config file using os.UserHomeDir; skip if missing.",
-      "parentId": "global-config-core",
-      "childIds": [],
-      "deps": [
-        "config-types"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:26:43.267082Z"
-    },
-    "config-load-project": {
-      "id": "config-load-project",
-      "title": "Load Project Config File",
-      "description": "Read project .blackbird/config.json from the provided project root.",
-      "acceptanceCriteria": [
-        "Project config is read from \u003cproject\u003e/.blackbird/config.json when present.",
-        "Missing project file does not error and falls back to next layer."
-      ],
-      "prompt": "Implement reading of project config from \u003cprojectRoot\u003e/.blackbird/config.json.",
-      "parentId": "global-config-core",
-      "childIds": [],
-      "deps": [
-        "config-types"
-      ],
-      "status": "todo",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-02T16:29:11.698656Z"
-    },
-    "config-loader-api": {
-      "id": "config-loader-api",
-      "title": "Expose LoadConfig API",
-      "description": "Create LoadConfig(projectRoot) that reads both layers and returns resolved config.",
-      "acceptanceCriteria": [
-        "LoadConfig reads global and project config, merges them, and returns resolved config.",
-        "LoadConfig accepts a project root path and uses it for project config lookup."
-      ],
-      "prompt": "Create LoadConfig(projectRoot string) in internal/config to load and merge global/project config.",
-      "parentId": "global-config-core",
-      "childIds": [],
-      "deps": [
-        "config-load-global",
-        "config-load-project",
-        "config-merge-resolve"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:31:11.785923Z"
-    },
-    "config-merge-resolve": {
-      "id": "config-merge-resolve",
-      "title": "Merge with Precedence and Clamp",
-      "description": "Resolve final config values using project \u003e global \u003e defaults and clamp invalid intervals.",
-      "acceptanceCriteria": [
-        "Resolution follows project \u003e global \u003e built-in precedence per key.",
-        "Invalid interval values are clamped or replaced with next layer/default.",
-        "Minimum and maximum bounds are enforced (min 1, max 300)."
-      ],
-      "prompt": "Implement merge logic with precedence and value clamping for interval fields.",
-      "parentId": "global-config-core",
-      "childIds": [],
-      "deps": [
-        "config-defaults",
-        "config-parse-validate"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:29:55.063805Z"
-    },
-    "config-parse-validate": {
-      "id": "config-parse-validate",
-      "title": "Parse and Validate Config",
-      "description": "Parse JSON, validate schemaVersion, and ignore unknown keys.",
-      "acceptanceCriteria": [
-        "Invalid JSON is treated as missing config for that layer.",
-        "Unsupported schemaVersion is treated as missing for that layer.",
-        "Unknown keys are ignored."
-      ],
-      "prompt": "Add JSON parsing and schemaVersion validation for config files; ignore unknown keys.",
-      "parentId": "global-config-core",
-      "childIds": [],
-      "deps": [
-        "config-types"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:28:42.502425Z"
-    },
-    "config-tests-bounds": {
-      "id": "config-tests-bounds",
-      "title": "Test Interval Bounds",
-      "description": "Unit tests to verify clamping or fallback for invalid interval values.",
-      "acceptanceCriteria": [
-        "Values below minimum or above maximum are clamped or replaced by next layer/default."
-      ],
-      "prompt": "Add tests to validate interval bounds behavior for config resolution.",
-      "parentId": "global-config-tests-docs",
-      "childIds": [],
-      "deps": [
-        "config-merge-resolve"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:31:56.953352Z"
-    },
-    "config-tests-home-missing": {
-      "id": "config-tests-home-missing",
-      "title": "Test Missing Home Directory",
-      "description": "Unit tests for when os.UserHomeDir fails or returns empty.",
-      "acceptanceCriteria": [
-        "Loader skips global config when home dir is unavailable without failing."
-      ],
-      "prompt": "Add tests to ensure LoadConfig behaves when os.UserHomeDir is unavailable.",
-      "parentId": "global-config-tests-docs",
-      "childIds": [],
-      "deps": [
-        "config-load-global"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:32:47.063274Z"
-    },
-    "config-tests-invalid": {
-      "id": "config-tests-invalid",
-      "title": "Test Invalid JSON and Schema",
-      "description": "Unit tests for invalid JSON and unsupported schemaVersion handling.",
-      "acceptanceCriteria": [
-        "Invalid JSON in a layer is skipped without failing the load.",
-        "Unsupported schemaVersion is skipped."
-      ],
-      "prompt": "Add tests for invalid JSON and schemaVersion handling in config loading.",
-      "parentId": "global-config-tests-docs",
-      "childIds": [],
-      "deps": [
-        "config-parse-validate"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:33:57.556527Z"
-    },
-    "config-tests-precedence": {
-      "id": "config-tests-precedence",
-      "title": "Test Precedence Resolution",
-      "description": "Unit tests for project \u003e global \u003e default precedence resolution.",
-      "acceptanceCriteria": [
-        "Tests cover project override of global.",
-        "Tests cover global fallback when project is missing."
-      ],
-      "prompt": "Add unit tests validating precedence resolution for config merging.",
-      "parentId": "global-config-tests-docs",
-      "childIds": [],
-      "deps": [
-        "config-loader-api"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:34:53.425366Z"
-    },
-    "config-types": {
-      "id": "config-types",
-      "title": "Define Config Types",
-      "description": "Add Go structs for raw config and resolved config, including schemaVersion and tui interval fields.",
-      "acceptanceCriteria": [
-        "Config structs capture schemaVersion and tui.run/plan refresh interval fields.",
-        "Types live under a new internal/config package (or equivalent) without extra dependencies."
-      ],
-      "prompt": "Add Go types for raw and resolved config structs under internal/config.",
-      "parentId": "global-config-core",
-      "childIds": [],
-      "deps": [],
-      "status": "todo",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-02T16:29:07.999457Z"
-    },
-    "docs-configuration": {
-      "id": "docs-configuration",
-      "title": "Update Configuration Docs",
-      "description": "Document config schema and precedence in docs/CONFIGURATION.md.",
-      "acceptanceCriteria": [
-        "Docs describe global and project config locations and precedence.",
-        "Docs list schemaVersion and TUI interval keys with defaults."
-      ],
-      "prompt": "Update docs/CONFIGURATION.md for global/project config and schema.",
-      "parentId": "global-config-tests-docs",
-      "childIds": [],
-      "deps": [
-        "config-loader-api"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:35:46.431201Z"
-    },
-    "docs-files-storage": {
-      "id": "docs-files-storage",
-      "title": "Update Files and Storage Docs",
-      "description": "List config paths in docs/FILES_AND_STORAGE.md.",
-      "acceptanceCriteria": [
-        "Docs list ~/.blackbird/config.json and \u003cproject\u003e/.blackbird/config.json."
-      ],
-      "prompt": "Update docs/FILES_AND_STORAGE.md to include global and project config files.",
-      "parentId": "global-config-tests-docs",
-      "childIds": [],
-      "deps": [
-        "config-loader-api"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:36:05.809298Z"
-    },
-    "global-config-core": {
-      "id": "global-config-core",
-      "title": "Global Config Loader Core",
-      "description": "Implement config schema types and loader that merges global and project config with validation and defaults.",
-      "acceptanceCriteria": [
-        "Config types and defaults are defined in a new internal config package.",
-        "Global and project config files are read when present.",
-        "Resolved config applies project \u003e global \u003e built-in precedence with validation/clamping."
-      ],
-      "prompt": "Create internal config types and a loader that merges global and project configs with validation and default values.",
+      "prompt": "Add tests and documentation for the stop-after-each-task review checkpoint feature.",
       "parentId": null,
       "childIds": [
-        "config-types",
-        "config-defaults",
-        "config-parse-validate",
-        "config-load-global",
-        "config-load-project",
-        "config-merge-resolve",
-        "config-loader-api"
+        "tests-config-execution",
+        "tests-cli-tui",
+        "docs-update"
       ],
       "deps": [],
-      "status": "todo",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-02T16:29:04.305828Z"
+      "status": "done",
+      "createdAt": "2026-02-04T02:39:50.928693Z",
+      "updatedAt": "2026-02-04T04:46:32.53193Z"
     },
-    "global-config-tests-docs": {
-      "id": "global-config-tests-docs",
-      "title": "Tests and Documentation",
-      "description": "Add config loader tests, TUI interval coverage where appropriate, and update documentation and AGENT_LOG.",
+    "cli-request-changes-input": {
+      "id": "cli-request-changes-input",
+      "title": "CLI Request Changes Input",
+      "description": "Multiline change-request input with @ file references for CLI.",
       "acceptanceCriteria": [
-        "Config loader tests cover precedence, invalid JSON, schemaVersion, and bounds.",
-        "Docs updated for config locations and precedence.",
-        "AGENT_LOG updated with a dated summary."
+        "Users can enter multiline feedback and include @ file references.",
+        "Feedback is passed to resume-with-feedback for the same task.",
+        "Cancel returns to the decision prompt without mutating state."
       ],
-      "prompt": "Add tests and docs for the global/project config system and update AGENT_LOG.",
+      "prompt": "Implement CLI multiline input with @ file picker support and wire it to resume-with-feedback handling.",
+      "parentId": "cli-review-checkpoint",
+      "childIds": [],
+      "deps": [
+        "cli-review-prompt",
+        "resume-with-feedback"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-04T02:39:50.928693Z",
+      "updatedAt": "2026-02-04T04:05:45.883845Z"
+    },
+    "cli-review-checkpoint": {
+      "id": "cli-review-checkpoint",
+      "title": "CLI Review Checkpoint UX",
+      "description": "Add CLI prompts for review checkpoints, including decision selection and request changes input.",
+      "acceptanceCriteria": [
+        "CLI shows a prominent review prompt with task metadata and summary.",
+        "Decisions are captured via interactive selection and routed to the controller.",
+        "Request changes collects multiline feedback with @ file references."
+      ],
+      "prompt": "Implement CLI review checkpoint UX that integrates with the shared execution controller.",
       "parentId": null,
       "childIds": [
-        "config-tests-precedence",
-        "config-tests-invalid",
-        "config-tests-bounds",
-        "config-tests-home-missing",
-        "tui-tests-intervals",
-        "docs-configuration",
-        "docs-files-storage",
-        "agent-log-update"
+        "cli-review-prompt",
+        "cli-request-changes-input"
       ],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-02-04T02:39:50.928693Z",
+      "updatedAt": "2026-02-04T04:05:45.883845Z"
+    },
+    "cli-review-prompt": {
+      "id": "cli-review-prompt",
+      "title": "CLI Review Prompt",
+      "description": "Interactive CLI decision prompt after each task with summary and options.",
+      "acceptanceCriteria": [
+        "Prompt shows task id/title, run status, and review summary.",
+        "Options include approve+continue, approve+quit, request changes, reject.",
+        "Selection uses arrow/j/k + enter and routes decisions to the controller."
+      ],
+      "prompt": "Update internal/cli execute flow to render the review prompt and handle decision selection.",
+      "parentId": "cli-review-checkpoint",
+      "childIds": [],
       "deps": [
-        "config-loader-api",
-        "global-config-tui"
+        "execution-checkpoint-controller"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:45:28.580049Z"
+      "createdAt": "2026-02-04T02:39:50.928693Z",
+      "updatedAt": "2026-02-04T03:54:41.546156Z"
     },
-    "global-config-tui": {
-      "id": "global-config-tui",
-      "title": "Wire TUI Refresh Intervals",
-      "description": "Load config at TUI startup and apply refresh intervals to run/plan loaders.",
+    "config-stop-after-each-task": {
+      "id": "config-stop-after-each-task",
+      "title": "Config: stopAfterEachTask",
+      "description": "Extend config schema and resolution to include execution.stopAfterEachTask.",
       "acceptanceCriteria": [
-        "TUI loads config once at startup with project root.",
-        "Run and plan refresh intervals use resolved config values instead of constants."
+        "Raw/Resolved config structs include execution.stopAfterEachTask with default false.",
+        "Load/resolve merges global and project config with precedence and ignores invalid layers.",
+        "Unit tests cover default false and project-over-global overrides."
       ],
-      "prompt": "Wire TUI to load config and apply refresh interval settings.",
+      "prompt": "Update internal/config types, defaults, resolve/load logic, and tests to support execution.stopAfterEachTask with default false.",
+      "parentId": "review-checkpoint-core",
+      "childIds": [],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-02-04T02:39:50.928693Z",
+      "updatedAt": "2026-02-04T02:45:38.983371Z"
+    },
+    "docs-update": {
+      "id": "docs-update",
+      "title": "Docs: Review Checkpoint",
+      "description": "Document the stop-after-each-task config key and review checkpoint workflow.",
+      "acceptanceCriteria": [
+        "docs/CONFIGURATION.md documents execution.stopAfterEachTask default and precedence.",
+        "docs/TUI.md and CLI docs describe the review prompt and request changes flow.",
+        "Docs mention resume limitations and error behavior."
+      ],
+      "prompt": "Update documentation to describe stop-after-each-task review checkpoints and decision outcomes.",
+      "parentId": "checkpoint-tests-docs",
+      "childIds": [],
+      "deps": [
+        "config-stop-after-each-task",
+        "execution-checkpoint-controller",
+        "cli-review-prompt",
+        "tui-review-modal"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-04T02:39:50.928693Z",
+      "updatedAt": "2026-02-04T04:35:34.773051Z"
+    },
+    "execution-checkpoint-controller": {
+      "id": "execution-checkpoint-controller",
+      "title": "Execution Checkpoint Controller",
+      "description": "Update the execution loop to stop after each task when enabled and wait for a decision before continuing.",
+      "acceptanceCriteria": [
+        "With stopAfterEachTask=false, execution behavior is unchanged.",
+        "With stopAfterEachTask=true, execution stops after each terminal run and awaits a decision.",
+        "Decision outcomes (approve continue/quit, request changes, reject) are persisted and affect flow.",
+        "Shared controller APIs exist for CLI/TUI to resolve decisions."
+      ],
+      "prompt": "Modify internal/execution RunExecute (or add a controller) to implement decision checkpoint flow and expose APIs for resolving decisions.",
+      "parentId": "review-checkpoint-core",
+      "childIds": [],
+      "deps": [
+        "config-stop-after-each-task",
+        "run-decision-gate-model",
+        "review-summary-capture",
+        "resume-with-feedback"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-04T02:39:50.928693Z",
+      "updatedAt": "2026-02-04T03:37:10.640692Z"
+    },
+    "resume-with-feedback": {
+      "id": "resume-with-feedback",
+      "title": "Resume With Feedback",
+      "description": "Support request-changes by resuming the same provider session with feedback injection.",
+      "acceptanceCriteria": [
+        "Run records store provider session reference needed for resume.",
+        "Resume helper uses provider-specific resume commands for Codex and Claude with feedback.",
+        "Missing or unsupported resume paths return clear errors with no silent fallback."
+      ],
+      "prompt": "Add resume-with-feedback support using provider resume commands, stored session refs, and clear error handling; add tests.",
+      "parentId": "review-checkpoint-core",
+      "childIds": [],
+      "deps": [
+        "run-decision-gate-model"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-04T02:39:50.928693Z",
+      "updatedAt": "2026-02-04T03:05:08.736269Z"
+    },
+    "review-checkpoint-core": {
+      "id": "review-checkpoint-core",
+      "title": "Review Checkpoint Core",
+      "description": "Implement the execution-layer review checkpoint capability (config, decision gate, review summary, resume-with-feedback, and controller flow).",
+      "acceptanceCriteria": [
+        "Config supports execution.stopAfterEachTask with default false and precedence rules.",
+        "Run records persist decision gate state and review summaries.",
+        "Execution controller pauses after each task and honors approve/quit/request-changes/reject outcomes.",
+        "Resume-with-feedback uses provider resume with clear errors when unavailable."
+      ],
+      "prompt": "Coordinate and implement the core execution-layer changes for stop-after-each-task review checkpoints; exclude CLI/TUI presentation details.",
       "parentId": null,
       "childIds": [
-        "tui-load-config",
-        "tui-wire-run-interval",
-        "tui-wire-plan-interval"
+        "config-stop-after-each-task",
+        "run-decision-gate-model",
+        "review-summary-capture",
+        "resume-with-feedback",
+        "execution-checkpoint-controller"
       ],
-      "deps": [
-        "config-loader-api"
-      ],
+      "deps": [],
       "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:43:18.850865Z"
+      "createdAt": "2026-02-04T02:39:50.928693Z",
+      "updatedAt": "2026-02-04T03:37:10.640692Z"
     },
-    "tui-load-config": {
-      "id": "tui-load-config",
-      "title": "Load Config at TUI Startup",
-      "description": "Call LoadConfig using the project root during TUI initialization.",
+    "review-summary-capture": {
+      "id": "review-summary-capture",
+      "title": "Review Summary Capture",
+      "description": "Generate bounded change summaries after each run and store them.",
       "acceptanceCriteria": [
-        "TUI initialization resolves config once and stores it for use by loaders.",
-        "Project root is derived from working directory (unless already passed)."
+        "Summary generation uses git status/diff and enforces size limits on files/snippets.",
+        "Failures fall back to a minimal summary without blocking completion.",
+        "Run records persist review summaries for completed tasks."
       ],
-      "prompt": "Update TUI startup/init to load config via LoadConfig and store resolved values.",
-      "parentId": "global-config-tui",
+      "prompt": "Implement review summary capture helper in execution package; integrate into run completion path; add tests for bounded output and fallback.",
+      "parentId": "review-checkpoint-core",
       "childIds": [],
       "deps": [
-        "config-loader-api"
-      ],
-      "status": "todo",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-02T16:28:56.349393Z"
-    },
-    "tui-tests-intervals": {
-      "id": "tui-tests-intervals",
-      "title": "Test TUI Interval Wiring",
-      "description": "Add tests to ensure TUI loaders respect resolved config intervals.",
-      "acceptanceCriteria": [
-        "Tests verify run/plan loaders use configured intervals where testable.",
-        "Defaults are preserved when no config is set."
-      ],
-      "prompt": "Add or update TUI tests to cover interval wiring from resolved config.",
-      "parentId": "global-config-tests-docs",
-      "childIds": [],
-      "deps": [
-        "global-config-tui"
+        "run-decision-gate-model"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:45:12.244714Z"
+      "createdAt": "2026-02-04T02:39:50.928693Z",
+      "updatedAt": "2026-02-04T03:17:53.101918Z"
     },
-    "tui-wire-plan-interval": {
-      "id": "tui-wire-plan-interval",
-      "title": "Apply Plan Refresh Interval",
-      "description": "Replace the plan data refresh interval constant with resolved config value.",
+    "run-decision-gate-model": {
+      "id": "run-decision-gate-model",
+      "title": "Run Decision Gate Model",
+      "description": "Add decision gate fields and review summary data to execution run records.",
       "acceptanceCriteria": [
-        "Plan data refresh interval uses resolved config value.",
-        "Default behavior remains 5 seconds when no config is set."
+        "RunRecord includes decision_required/state/timestamps/feedback and review_summary fields.",
+        "Decision state constants are defined and used consistently.",
+        "Save/Load round-trip preserves decision gate data."
       ],
-      "prompt": "Replace plan data refresh interval constant with resolved config value in the TUI plan loader.",
-      "parentId": "global-config-tui",
+      "prompt": "Extend internal/execution RunRecord and related types to store decision gate state and review summary data; update storage tests.",
+      "parentId": "review-checkpoint-core",
+      "childIds": [],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-02-04T02:39:50.928693Z",
+      "updatedAt": "2026-02-04T02:49:59.7366Z"
+    },
+    "tests-cli-tui": {
+      "id": "tests-cli-tui",
+      "title": "Tests: CLI + TUI UX",
+      "description": "Test CLI decision prompts and TUI review modals, including request changes input.",
+      "acceptanceCriteria": [
+        "CLI tests cover decision prompt selection and request changes input handling.",
+        "TUI tests cover modal rendering, action-required indicator, and @ file picker integration.",
+        "Tests pass using existing helpers and fixtures."
+      ],
+      "prompt": "Add CLI and TUI tests for review checkpoint decision handling and request changes input.",
+      "parentId": "checkpoint-tests-docs",
       "childIds": [],
       "deps": [
-        "tui-load-config"
+        "cli-review-prompt",
+        "cli-request-changes-input",
+        "tui-review-modal",
+        "tui-request-changes-modal"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:41:41.500167Z"
+      "createdAt": "2026-02-04T02:39:50.928693Z",
+      "updatedAt": "2026-02-04T04:46:32.53193Z"
     },
-    "tui-wire-run-interval": {
-      "id": "tui-wire-run-interval",
-      "title": "Apply Run Refresh Interval",
-      "description": "Replace the run data refresh interval constant with resolved config value.",
+    "tests-config-execution": {
+      "id": "tests-config-execution",
+      "title": "Tests: Config + Execution",
+      "description": "Test config precedence, decision gate persistence, execution pause, decision outcomes, summary capture, and resume-with-feedback.",
       "acceptanceCriteria": [
-        "Run data refresh interval uses resolved config value.",
-        "Default behavior remains 5 seconds when no config is set."
+        "Config tests cover default false and project-over-global overrides.",
+        "Execution tests verify pause-after-task and decision outcomes (continue/quit/reject/request changes).",
+        "Review summary capture tests cover success and fallback paths."
       ],
-      "prompt": "Replace run data refresh interval constant with resolved config value in the TUI run loader.",
-      "parentId": "global-config-tui",
+      "prompt": "Add unit tests for config resolution and execution checkpoint behavior, including summary capture and resume-with-feedback.",
+      "parentId": "checkpoint-tests-docs",
       "childIds": [],
       "deps": [
-        "tui-load-config"
+        "config-stop-after-each-task",
+        "run-decision-gate-model",
+        "review-summary-capture",
+        "resume-with-feedback",
+        "execution-checkpoint-controller"
       ],
       "status": "done",
-      "createdAt": "2026-02-01T22:23:01.547661Z",
-      "updatedAt": "2026-02-01T22:43:18.850865Z"
+      "createdAt": "2026-02-04T02:39:50.928693Z",
+      "updatedAt": "2026-02-04T04:10:56.471141Z"
+    },
+    "tui-request-changes-modal": {
+      "id": "tui-request-changes-modal",
+      "title": "TUI Request Changes Modal",
+      "description": "Multiline request-changes modal with @ file picker reuse.",
+      "acceptanceCriteria": [
+        "Request changes opens multiline input with @ file picker behavior matching plan modals.",
+        "Feedback is passed to resume-with-feedback and re-enters review on completion.",
+        "Escape/back returns to the review modal without losing state."
+      ],
+      "prompt": "Reuse plan generate/refine modal + file picker components to implement request changes input in TUI.",
+      "parentId": "tui-review-checkpoint",
+      "childIds": [],
+      "deps": [
+        "tui-review-modal",
+        "resume-with-feedback"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-04T02:39:50.928693Z",
+      "updatedAt": "2026-02-04T04:42:51.449096Z"
+    },
+    "tui-review-checkpoint": {
+      "id": "tui-review-checkpoint",
+      "title": "TUI Review Checkpoint UX",
+      "description": "Add TUI banner/modal for decision gates and request-changes input.",
+      "acceptanceCriteria": [
+        "TUI surfaces an action-required banner and review modal on checkpoint.",
+        "Decision buttons route actions to the shared controller.",
+        "Request changes uses multiline input with @ file picker."
+      ],
+      "prompt": "Implement TUI review checkpoint UX that integrates with the shared execution controller.",
+      "parentId": null,
+      "childIds": [
+        "tui-review-modal",
+        "tui-request-changes-modal"
+      ],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-02-04T02:39:50.928693Z",
+      "updatedAt": "2026-02-04T04:42:51.449096Z"
+    },
+    "tui-review-modal": {
+      "id": "tui-review-modal",
+      "title": "TUI Review Modal",
+      "description": "Banner + modal for decision gates with summary and action buttons.",
+      "acceptanceCriteria": [
+        "Modal shows task metadata and review summary with action buttons.",
+        "Action-required indicator is visible until a decision is made.",
+        "Decisions route to the controller and update run state."
+      ],
+      "prompt": "Add TUI state and rendering for the review checkpoint modal and action-required banner.",
+      "parentId": "tui-review-checkpoint",
+      "childIds": [],
+      "deps": [
+        "execution-checkpoint-controller"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-04T02:39:50.928693Z",
+      "updatedAt": "2026-02-04T04:31:28.568821Z"
     }
   }
 }

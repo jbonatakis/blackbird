@@ -62,14 +62,25 @@ func TestListRunsEmptyWhenMissing(t *testing.T) {
 
 func TestLoadRun(t *testing.T) {
 	baseDir := t.TempDir()
+	decisionRequested := time.Date(2026, 1, 28, 12, 5, 0, 0, time.UTC)
+	decisionResolved := time.Date(2026, 1, 28, 12, 10, 0, 0, time.UTC)
 	record := RunRecord{
-		ID:        "run-1",
-		TaskID:    "task-1",
-		StartedAt: time.Date(2026, 1, 28, 12, 0, 0, 0, time.UTC),
-		Status:    RunStatusRunning,
+		ID:                 "run-1",
+		TaskID:             "task-1",
+		ProviderSessionRef: "session-xyz",
+		StartedAt:          time.Date(2026, 1, 28, 12, 0, 0, 0, time.UTC),
+		Status:             RunStatusRunning,
 		Context: ContextPack{
 			SchemaVersion: ContextPackSchemaVersion,
 			Task:          TaskContext{ID: "task-1", Title: "Task"},
+		},
+		DecisionRequired:    true,
+		DecisionState:       DecisionStateApprovedContinue,
+		DecisionRequestedAt: &decisionRequested,
+		DecisionResolvedAt:  &decisionResolved,
+		DecisionFeedback:    "Ship it",
+		ReviewSummary: &ReviewSummary{
+			Files: []string{"main.go"},
 		},
 	}
 	if err := SaveRun(baseDir, record); err != nil {
@@ -82,6 +93,24 @@ func TestLoadRun(t *testing.T) {
 	}
 	if loaded.ID != record.ID || loaded.TaskID != record.TaskID {
 		t.Fatalf("loaded mismatch: %#v", loaded)
+	}
+	if loaded.ProviderSessionRef != "session-xyz" {
+		t.Fatalf("providerSessionRef mismatch: %#v", loaded.ProviderSessionRef)
+	}
+	if !loaded.DecisionRequired || loaded.DecisionState != DecisionStateApprovedContinue {
+		t.Fatalf("decision gate mismatch: %#v", loaded)
+	}
+	if loaded.DecisionRequestedAt == nil || !loaded.DecisionRequestedAt.Equal(decisionRequested) {
+		t.Fatalf("decisionRequestedAt mismatch: %#v", loaded.DecisionRequestedAt)
+	}
+	if loaded.DecisionResolvedAt == nil || !loaded.DecisionResolvedAt.Equal(decisionResolved) {
+		t.Fatalf("decisionResolvedAt mismatch: %#v", loaded.DecisionResolvedAt)
+	}
+	if loaded.DecisionFeedback != "Ship it" {
+		t.Fatalf("decisionFeedback mismatch: %#v", loaded.DecisionFeedback)
+	}
+	if loaded.ReviewSummary == nil || len(loaded.ReviewSummary.Files) != 1 {
+		t.Fatalf("reviewSummary mismatch: %#v", loaded.ReviewSummary)
 	}
 }
 

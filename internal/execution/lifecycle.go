@@ -38,7 +38,10 @@ var allowedTransitions = map[plan.Status]map[plan.Status]bool{
 	plan.StatusSkipped: {
 		plan.StatusTodo: true,
 	},
-	plan.StatusDone: {},
+	plan.StatusDone: {
+		plan.StatusInProgress: true,
+		plan.StatusFailed:     true,
+	},
 }
 
 // UpdateTaskStatus updates a task status with lifecycle validation and atomic persistence.

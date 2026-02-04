@@ -15,12 +15,20 @@ func ResolveConfig(project RawConfig, global RawConfig) ResolvedConfig {
 		valueFromRaw(global, func(tui RawTUI) *int { return tui.PlanDataRefreshIntervalSeconds }),
 		defaults.TUI.PlanDataRefreshIntervalSeconds,
 	)
+	stopAfterEachTask := resolveBool(
+		valueFromRawExecution(project, func(exec RawExecution) *bool { return exec.StopAfterEachTask }),
+		valueFromRawExecution(global, func(exec RawExecution) *bool { return exec.StopAfterEachTask }),
+		defaults.Execution.StopAfterEachTask,
+	)
 
 	return ResolvedConfig{
 		SchemaVersion: SchemaVersion,
 		TUI: ResolvedTUI{
 			RunDataRefreshIntervalSeconds:  runInterval,
 			PlanDataRefreshIntervalSeconds: planInterval,
+		},
+		Execution: ResolvedExecution{
+			StopAfterEachTask: stopAfterEachTask,
 		},
 	}
 }
@@ -32,6 +40,13 @@ func valueFromRaw(cfg RawConfig, pick func(RawTUI) *int) *int {
 	return pick(*cfg.TUI)
 }
 
+func valueFromRawExecution(cfg RawConfig, pick func(RawExecution) *bool) *bool {
+	if cfg.Execution == nil {
+		return nil
+	}
+	return pick(*cfg.Execution)
+}
+
 func resolveInterval(projectVal *int, globalVal *int, defaultVal int) int {
 	if projectVal != nil {
 		return clampInterval(*projectVal)
@@ -40,6 +55,16 @@ func resolveInterval(projectVal *int, globalVal *int, defaultVal int) int {
 		return clampInterval(*globalVal)
 	}
 	return clampInterval(defaultVal)
+}
+
+func resolveBool(projectVal *bool, globalVal *bool, defaultVal bool) bool {
+	if projectVal != nil {
+		return *projectVal
+	}
+	if globalVal != nil {
+		return *globalVal
+	}
+	return defaultVal
 }
 
 func clampInterval(value int) int {
