@@ -2,13 +2,15 @@
 
 The control plane for durable, dependency-aware planning and execution with AI agents.
 
+<img src="static/blackbird-execution.gif" width="600" />
+
 ## What it does
 
-- Maintains a validated, dependency-aware work graph in a single JSON plan file.
-- Surfaces readiness so you can see what is actionable next.
-- Runs agent-backed plan generation/refinement and dependency inference.
-- Executes ready tasks with a headless agent runtime, logging runs for traceability.
-- Provides a TUI for interactive navigation, detail views, and execution status.
+- Builds a dependency-aware work graph based on the spec you provide.
+- Spawns headless instances of your selected coding agent to execute tasks in order. It uses your existing settings, respects CLAUDE.md/AGENTS.md, and never runs out of context.
+- Supports Claude Code and Codex. More to come.
+- Allows you to approve, reject, or revise the agent's work after every task (or not -- you're in control).
+- Streams agent output as it works.
 
 ## Install
 
@@ -19,32 +21,16 @@ brew install blackbird
 ```
 
 ### From Source
-Requires Go 1.22+.
+Requires Go 1.25+.
 
 ```bash
 go build -o blackbird ./cmd/blackbird
-# or: go install ./cmd/blackbird
+# or: make build
 ```
 
 ## Quickstart
 
-1. **Initialize** a plan file: `blackbird init`
-2. **Generate** an initial plan: `blackbird plan generate`
-3. **Launch the TUI** (default entrypoint): `blackbird`
-4. **List** ready work: `blackbird list`
-5. **Execute** ready tasks: `blackbird execute`
-6. **Resume** a waiting task: `blackbird resume <taskID>`
-7. **View run history**: `blackbird runs <taskID>`
-
-The plan file lives at repo root as `blackbird.plan.json`.
-
-## TUI
-
-Running `blackbird` with no arguments opens the TUI: plan tree on the left, details/execution on the right, action shortcuts in the bottom bar.
-
-![TUI home screen](static/tui-home-screen.png)
-
-See [docs/TUI.md](docs/TUI.md) for layout and key bindings.
+Just open a repo and run `blackbird`
 
 ## Documentation
 
