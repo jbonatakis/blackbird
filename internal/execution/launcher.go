@@ -52,8 +52,17 @@ func LaunchAgentWithStream(ctx context.Context, runtime agent.Runtime, contextPa
 		Status:    RunStatusRunning,
 		Context:   contextPack,
 	}
+	sessionRef := ""
 	if supportsResumeProvider(record.Provider) {
-		record.ProviderSessionRef = record.ID
+		switch normalizeProvider(record.Provider) {
+		case "claude":
+			if !runtime.UseShell {
+				sessionRef = newSessionID()
+				record.ProviderSessionRef = sessionRef
+			}
+		case "codex":
+			record.ProviderSessionRef = record.ID
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, runtime.Timeout)
@@ -64,7 +73,7 @@ func LaunchAgentWithStream(ctx context.Context, runtime agent.Runtime, contextPa
 		cmd = exec.CommandContext(ctx, "sh", "-c", runtime.Command)
 	} else {
 		args := append([]string{}, runtime.Args...)
-		args = applyAutoApproveArgs(runtime.Provider, args)
+		args = buildLaunchArgs(runtime.Provider, args, sessionRef)
 		cmd = exec.CommandContext(ctx, runtime.Command, args...)
 	}
 	cmd.Stdin = bytes.NewReader(payload)
@@ -130,6 +139,23 @@ func newRunID() string {
 	return hex.EncodeToString(b[:])
 }
 
+func newSessionID() string {
+	var b [16]byte
+	_, _ = rand.Read(b[:])
+	// RFC 4122 variant and version 4.
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+
+	encoded := hex.EncodeToString(b[:])
+	return fmt.Sprintf("%s-%s-%s-%s-%s",
+		encoded[0:8],
+		encoded[8:12],
+		encoded[12:16],
+		encoded[16:20],
+		encoded[20:32],
+	)
+}
+
 func extractExitCode(err error) *int {
 	if err == nil {
 		code := 0
@@ -143,14 +169,18 @@ func extractExitCode(err error) *int {
 	return nil
 }
 
-func applyAutoApproveArgs(provider string, args []string) []string {
-	switch provider {
+func buildLaunchArgs(provider string, args []string, sessionRef string) []string {
+	switch normalizeProvider(provider) {
 	case "codex":
 		// Prefer headless auto-approve for execution runs.
 		return append([]string{"exec", "--full-auto"}, args...)
 	case "claude":
 		// Claude Code permission mode to bypass prompts for edits and commands.
-		return append([]string{"--permission-mode", "bypassPermissions"}, args...)
+		prefix := []string{"--permission-mode", "bypassPermissions"}
+		if strings.TrimSpace(sessionRef) != "" {
+			prefix = append(prefix, "--session-id", sessionRef)
+		}
+		return append(prefix, args...)
 	default:
 		return args
 	}

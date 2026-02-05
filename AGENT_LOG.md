@@ -1194,3 +1194,13 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 - Root cause: BLACKBIRD_AGENT_PROVIDER=codex in environment disabled change-agent hint and overrode default agent in tests.
 - Made TUI tests deterministic by clearing BLACKBIRD_AGENT_PROVIDER via t.Setenv in bottom bar, home view, and home key tests.
 - Ran `go test ./...` (all packages pass).
+
+## 2026-02-05 — Investigated Claude request-changes resume
+
+- Traced request-changes flow to `ResumeWithFeedback` and found `ProviderSessionRef` is set to the run ID, not a provider-native session ID.
+- `claude --resume <runID>` therefore points at a non-existent Claude session; Codex appears more forgiving.
+
+## 2026-02-05 — Claude session-id on launch
+
+- Added a Claude-only `--session-id <uuid>` on execution launch, persisted as `provider_session_ref`.
+- Added execution test coverage to ensure the session id is passed and recorded.
