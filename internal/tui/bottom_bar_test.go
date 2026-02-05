@@ -10,6 +10,7 @@ import (
 )
 
 func TestBottomBarHomeHints(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	now := time.Date(2026, 1, 30, 10, 0, 0, 0, time.UTC)
 	g := plan.WorkGraph{
 		SchemaVersion: plan.SchemaVersion,
@@ -45,6 +46,7 @@ func TestBottomBarHomeHints(t *testing.T) {
 }
 
 func TestBottomBarHomeHidesCountsWhenNoPlan(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	model := Model{
 		viewMode:     ViewModeHome,
 		planExists:   false,
@@ -74,6 +76,7 @@ func TestBottomBarHomeHidesCountsWhenNoPlan(t *testing.T) {
 }
 
 func TestBottomBarMainShowsAgentAndCounts(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	now := time.Date(2026, 1, 30, 10, 0, 0, 0, time.UTC)
 	g := plan.WorkGraph{
 		SchemaVersion: plan.SchemaVersion,
@@ -106,6 +109,7 @@ func TestBottomBarMainShowsAgentAndCounts(t *testing.T) {
 }
 
 func TestBottomBarHomeShowsSelectedAgentLabel(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	model := Model{
 		viewMode:   ViewModeHome,
 		planExists: false,
@@ -124,6 +128,7 @@ func TestBottomBarHomeShowsSelectedAgentLabel(t *testing.T) {
 }
 
 func TestBottomBarMainShowsSelectedAgentLabel(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	model := Model{
 		viewMode:   ViewModeMain,
 		planExists: true,

@@ -10,6 +10,7 @@ import (
 )
 
 func TestRenderHomeViewNoPlan(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	model := Model{
 		plan:        plan.NewEmptyWorkGraph(),
 		planExists:  false,
@@ -36,6 +37,7 @@ func TestRenderHomeViewNoPlan(t *testing.T) {
 }
 
 func TestRenderHomeViewShowsSelectedAgent(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	model := Model{
 		plan:       plan.NewEmptyWorkGraph(),
 		planExists: false,
@@ -51,6 +53,7 @@ func TestRenderHomeViewShowsSelectedAgent(t *testing.T) {
 }
 
 func TestRenderHomeViewWithPlan(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	now := time.Date(2026, 1, 30, 10, 0, 0, 0, time.UTC)
 	g := plan.WorkGraph{
 		SchemaVersion: plan.SchemaVersion,
@@ -95,6 +98,7 @@ func TestRenderHomeViewWithPlan(t *testing.T) {
 }
 
 func TestRenderHomeViewPlanCompletionPercentage(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	now := time.Date(2026, 1, 30, 10, 0, 0, 0, time.UTC)
 	g := plan.WorkGraph{
 		SchemaVersion: plan.SchemaVersion,
@@ -127,6 +131,7 @@ func TestRenderHomeViewPlanCompletionPercentage(t *testing.T) {
 }
 
 func TestRenderHomeViewValidationErrorBanner(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	model := Model{
 		plan:              plan.NewEmptyWorkGraph(),
 		planExists:        true,

@@ -1189,3 +1189,8 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 - Added settings edit test coverage for global-unavailable state to ensure global column edits are blocked and no config writes occur; validated applied source remains default.
 - Extended int edit autosave test to assert applied value/source updates after commit.
 - Tests: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui/...`.
+## 2026-02-05 — Fix TUI test env dependency
+
+- Root cause: BLACKBIRD_AGENT_PROVIDER=codex in environment disabled change-agent hint and overrode default agent in tests.
+- Made TUI tests deterministic by clearing BLACKBIRD_AGENT_PROVIDER via t.Setenv in bottom bar, home view, and home key tests.
+- Ran `go test ./...` (all packages pass).

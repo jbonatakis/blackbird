@@ -9,6 +9,7 @@ import (
 )
 
 func TestHomeKeyToggleView(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	model := Model{
 		viewMode:   ViewModeHome,
 		planExists: false,
@@ -32,6 +33,7 @@ func TestHomeKeyToggleView(t *testing.T) {
 }
 
 func TestHomeKeyGeneratePlan(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	model := Model{
 		viewMode:   ViewModeHome,
 		planExists: false,
@@ -49,6 +51,7 @@ func TestHomeKeyGeneratePlan(t *testing.T) {
 }
 
 func TestHomeKeyPlanActionGating(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	model := Model{
 		viewMode:   ViewModeHome,
 		planExists: false,
@@ -71,6 +74,7 @@ func TestHomeKeyPlanActionGating(t *testing.T) {
 }
 
 func TestHomeKeyPlanActionsWithPlan(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	readyPlan := plan.WorkGraph{
 		Items: map[string]plan.WorkItem{
 			"task-1": {
@@ -109,6 +113,7 @@ func TestHomeKeyPlanActionsWithPlan(t *testing.T) {
 }
 
 func TestHomeKeySelectAgentOpensModal(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	model := Model{
 		viewMode:   ViewModeHome,
 		planExists: false,
@@ -125,6 +130,7 @@ func TestHomeKeySelectAgentOpensModal(t *testing.T) {
 }
 
 func TestHomeKeySettingsOpensSettingsView(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	model := Model{
 		viewMode:   ViewModeHome,
 		planExists: false,
@@ -137,6 +143,7 @@ func TestHomeKeySettingsOpensSettingsView(t *testing.T) {
 }
 
 func TestSettingsViewExitKeysReturnHome(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	model := Model{
 		viewMode: ViewModeSettings,
 	}
@@ -154,6 +161,7 @@ func TestSettingsViewExitKeysReturnHome(t *testing.T) {
 }
 
 func TestHomeKeyExecuteRequiresReadyTasks(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	nonReadyPlan := plan.WorkGraph{
 		Items: map[string]plan.WorkItem{
 			"task-1": {
@@ -180,6 +188,7 @@ func TestHomeKeyExecuteRequiresReadyTasks(t *testing.T) {
 }
 
 func TestHomeKeyCtrlCQuits(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
 	model := Model{
 		viewMode: ViewModeHome,
 	}
