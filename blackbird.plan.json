@@ -1,232 +1,145 @@
 {
   "schemaVersion": 1,
   "items": {
-    "config-option-registry": {
-      "id": "config-option-registry",
-      "title": "Config Option Registry",
-      "description": "Define a central list of known config options with metadata needed by the TUI settings table.",
+    "child-1a": {
+      "id": "child-1a",
+      "title": "Sleep 1s A1",
+      "description": "Sleep for 1 second then exit.",
       "acceptanceCriteria": [
-        "Registry contains the three keys from the spec with display name, key path, type (bool/int), default, bounds, and description.",
-        "Defaults are sourced from config.DefaultResolvedConfig().",
-        "Registry API is explicit and does not use reflection."
+        "Agent sleeps for 1 second then exits."
       ],
-      "prompt": "Add a metadata registry in internal/config describing the known options for the settings view; use explicit structs and defaults from DefaultResolvedConfig().",
-      "parentId": "config-settings-backend",
+      "prompt": "Sleep for 1 second then exit.",
+      "parentId": "parent-1",
       "childIds": [],
       "deps": [],
       "status": "done",
-      "createdAt": "2026-02-04T20:20:10.841379Z",
-      "updatedAt": "2026-02-04T20:24:54.561215Z"
+      "createdAt": "2026-02-05T04:11:45.633068Z",
+      "updatedAt": "2026-02-05T04:16:47.476382Z"
     },
-    "config-settings-backend": {
-      "id": "config-settings-backend",
-      "title": "Config Settings Backend",
-      "description": "Add config option metadata, layer load/save helpers, and applied-value resolution for the TUI settings page.",
+    "child-1b": {
+      "id": "child-1b",
+      "title": "Sleep 1s A2",
+      "description": "Sleep for 1 second then exit.",
       "acceptanceCriteria": [
-        "Config option registry exists with display names, types, defaults, bounds, and descriptions for the three keys in the spec.",
-        "Local/global config layer load/save helpers support atomic writes and remove empty files.",
-        "Applied values resolve with local \u003e global \u003e default precedence and clamping matches existing config resolution.",
-        "Backend tests cover save/clear, applied source selection, and invalid config handling."
+        "Agent sleeps for 1 second then exits."
       ],
-      "prompt": "Implement backend helpers in internal/config to support the TUI settings table (option registry, load/save helpers, applied resolution). Keep dependencies minimal and add Go tests.",
+      "prompt": "Sleep for 1 second then exit.",
+      "parentId": "parent-1",
+      "childIds": [],
+      "deps": [
+        "child-1a"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-05T04:11:45.633068Z",
+      "updatedAt": "2026-02-05T04:17:05.737182Z"
+    },
+    "child-1c": {
+      "id": "child-1c",
+      "title": "Sleep 1s A3",
+      "description": "Sleep for 1 second then exit.",
+      "acceptanceCriteria": [
+        "Agent sleeps for 1 second then exits."
+      ],
+      "prompt": "Sleep for 1 second then exit.",
+      "parentId": "parent-1",
+      "childIds": [],
+      "deps": [
+        "child-1b"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-05T04:11:45.633068Z",
+      "updatedAt": "2026-02-05T04:17:22.298615Z"
+    },
+    "child-2a": {
+      "id": "child-2a",
+      "title": "Sleep 1s B1",
+      "description": "Sleep for 1 second then exit.",
+      "acceptanceCriteria": [
+        "Agent sleeps for 1 second then exits."
+      ],
+      "prompt": "Sleep for 1 second then exit.",
+      "parentId": "parent-2",
+      "childIds": [],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-02-05T04:11:45.633068Z",
+      "updatedAt": "2026-02-05T04:17:28.271269Z"
+    },
+    "child-2b": {
+      "id": "child-2b",
+      "title": "Sleep 1s B2",
+      "description": "Sleep for 1 second then exit.",
+      "acceptanceCriteria": [
+        "Agent sleeps for 1 second then exits."
+      ],
+      "prompt": "Sleep for 1 second then exit.",
+      "parentId": "parent-2",
+      "childIds": [],
+      "deps": [
+        "child-2a"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-05T04:11:45.633068Z",
+      "updatedAt": "2026-02-05T04:17:33.882723Z"
+    },
+    "child-2c": {
+      "id": "child-2c",
+      "title": "Sleep 1s B3",
+      "description": "Sleep for 1 second then exit.",
+      "acceptanceCriteria": [
+        "Agent sleeps for 1 second then exits."
+      ],
+      "prompt": "Sleep for 1 second then exit.",
+      "parentId": "parent-2",
+      "childIds": [],
+      "deps": [
+        "child-2b"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-05T04:11:45.633068Z",
+      "updatedAt": "2026-02-05T04:17:54.366438Z"
+    },
+    "parent-1": {
+      "id": "parent-1",
+      "title": "Sleep Task Group A",
+      "description": "Parent task for three 1-second sleep tasks.",
+      "acceptanceCriteria": [
+        "All three child tasks are defined and reference this parent.",
+        "Each child task instructs the agent to sleep for 1 second then exit."
+      ],
+      "prompt": "Group A tasks: each child should sleep for 1 second then exit.",
       "parentId": null,
       "childIds": [
-        "config-option-registry",
-        "config-settings-store",
-        "config-settings-resolution",
-        "config-settings-backend-tests"
+        "child-1a",
+        "child-1b",
+        "child-1c"
       ],
       "deps": [],
       "status": "done",
-      "createdAt": "2026-02-04T20:20:10.841379Z",
-      "updatedAt": "2026-02-04T20:47:40.896365Z"
+      "createdAt": "2026-02-05T04:11:45.633068Z",
+      "updatedAt": "2026-02-05T04:17:22.298615Z"
     },
-    "config-settings-backend-tests": {
-      "id": "config-settings-backend-tests",
-      "title": "Config Settings Backend Tests",
-      "description": "Add unit tests for settings metadata, save/load helpers, and applied value resolution.",
+    "parent-2": {
+      "id": "parent-2",
+      "title": "Sleep Task Group B",
+      "description": "Parent task for three 1-second sleep tasks.",
       "acceptanceCriteria": [
-        "Tests cover save create/update and clear removing the config file.",
-        "Applied value source selection and clamping behavior is verified.",
-        "Invalid config JSON/unsupported schema handling is covered."
+        "All three child tasks are defined and reference this parent.",
+        "Each child task instructs the agent to sleep for 1 second then exit."
       ],
-      "prompt": "Write Go tests for the settings config helpers (registry, save/load, applied resolution) and keep them fast and deterministic.",
-      "parentId": "config-settings-backend",
-      "childIds": [],
-      "deps": [
-        "config-option-registry",
-        "config-settings-store",
-        "config-settings-resolution"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-04T20:20:10.841379Z",
-      "updatedAt": "2026-02-04T20:47:40.896365Z"
-    },
-    "config-settings-resolution": {
-      "id": "config-settings-resolution",
-      "title": "Applied Settings Resolution",
-      "description": "Compute applied values and source labels for the settings table, including clamping and warnings.",
-      "acceptanceCriteria": [
-        "Applied value uses local \u003e global \u003e default precedence with source label.",
-        "Out-of-range stored values surface warning metadata and applied values use the clamped result.",
-        "Invalid JSON or unsupported schema in a layer is surfaced as a warning and treated as unset.",
-        "Global-unavailable state is representable for the TUI header and disables the Global column."
-      ],
-      "prompt": "Add helpers in internal/config to compute applied settings with source labels and warning metadata, reusing ResolveConfig/clamping rules.",
-      "parentId": "config-settings-backend",
-      "childIds": [],
-      "deps": [
-        "config-option-registry",
-        "config-settings-store"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-04T20:20:10.841379Z",
-      "updatedAt": "2026-02-04T20:46:12.19033Z"
-    },
-    "config-settings-store": {
-      "id": "config-settings-store",
-      "title": "Config Layer Load/Save Helpers",
-      "description": "Expose raw local/global config values and provide atomic save helpers for settings edits.",
-      "acceptanceCriteria": [
-        "Helpers load local and global configs using existing loaders and surface per-option raw values.",
-        "Save helper writes schemaVersion plus only set keys, creating parent dirs if needed.",
-        "If all values are unset for a layer, the config file is removed.",
-        "Writes are atomic (temp file + rename) like plan writes."
-      ],
-      "prompt": "Implement internal/config helpers to read raw local/global settings and to save edited values atomically; remove empty files and keep schemaVersion.",
-      "parentId": "config-settings-backend",
-      "childIds": [],
-      "deps": [
-        "config-option-registry"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-04T20:20:10.841379Z",
-      "updatedAt": "2026-02-04T20:33:39.434898Z"
-    },
-    "settings-docs": {
-      "id": "settings-docs",
-      "title": "Settings Documentation",
-      "description": "Document the Settings view and config editing behavior.",
-      "acceptanceCriteria": [
-        "docs/TUI.md includes Settings view entry, keys, and edit behavior.",
-        "docs/CONFIGURATION.md mentions the Settings editor and precedence reminder."
-      ],
-      "prompt": "Update docs/TUI.md and docs/CONFIGURATION.md to describe the new Settings page and precedence rules.",
-      "parentId": null,
-      "childIds": [],
-      "deps": [
-        "tui-settings-editing",
-        "config-settings-store"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-04T20:20:10.841379Z",
-      "updatedAt": "2026-02-04T21:29:05.652382Z"
-    },
-    "tui-settings-editing": {
-      "id": "tui-settings-editing",
-      "title": "Settings Editing and Autosave",
-      "description": "Support row/column navigation, edit mode, validation, and autosave for local/global values.",
-      "acceptanceCriteria": [
-        "Up/Down changes row, Left/Right changes column; only Local/Global are editable.",
-        "Bool values toggle with space/enter; Delete clears; int edit enforces digits and min/max on commit.",
-        "Edits autosave to the correct config layer and refresh applied values plus model config.",
-        "Save failures show errors and keep the prior value."
-      ],
-      "prompt": "Implement editing interactions for the settings view, including autosave to config files, validation, and live applied-value updates.",
-      "parentId": "tui-settings-page",
-      "childIds": [],
-      "deps": [
-        "tui-settings-table-render",
-        "config-settings-store",
-        "config-settings-resolution"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-04T20:20:10.841379Z",
-      "updatedAt": "2026-02-04T21:26:52.497701Z"
-    },
-    "tui-settings-page": {
-      "id": "tui-settings-page",
-      "title": "TUI Settings Page",
-      "description": "Add a Settings view in the TUI with table layout, navigation, and inline editing with autosave.",
-      "acceptanceCriteria": [
-        "Settings view is accessible from Home via [s], with esc/h returning Home.",
-        "Table shows Option, Local, Global, Default, Applied with placeholders and source highlighting.",
-        "Local/global edits autosave, update applied values, and surface validation/save errors.",
-        "TUI tests cover navigation and edit flows."
-      ],
-      "prompt": "Implement the Settings page in internal/tui using the config helpers, keeping UI consistent with existing TUI patterns.",
+      "prompt": "Group B tasks: each child should sleep for 1 second then exit.",
       "parentId": null,
       "childIds": [
-        "tui-settings-view-shell",
-        "tui-settings-table-render",
-        "tui-settings-editing",
-        "tui-settings-tests"
+        "child-2a",
+        "child-2b",
+        "child-2c"
       ],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-02-04T20:20:10.841379Z",
-      "updatedAt": "2026-02-04T21:33:10.777898Z"
-    },
-    "tui-settings-table-render": {
-      "id": "tui-settings-table-render",
-      "title": "Settings Table Rendering",
-      "description": "Render the settings table with headers, placeholders, and footer description/error text.",
-      "acceptanceCriteria": [
-        "Table columns render Option, Local, Global, Default, Applied with centered '-' for empty values.",
-        "Header shows precedence reminder and local/global file paths (N/A when unavailable).",
-        "Applied column shows value plus source tag; source cell is highlighted.",
-        "Footer shows selected option description and any warnings/errors."
-      ],
-      "prompt": "Implement the settings table renderer in internal/tui with clear layout and styling; keep output stable for tests.",
-      "parentId": "tui-settings-page",
-      "childIds": [],
       "deps": [
-        "tui-settings-view-shell",
-        "config-settings-resolution"
+        "parent-1"
       ],
       "status": "done",
-      "createdAt": "2026-02-04T20:20:10.841379Z",
-      "updatedAt": "2026-02-04T21:11:12.175556Z"
-    },
-    "tui-settings-tests": {
-      "id": "tui-settings-tests",
-      "title": "TUI Settings Tests",
-      "description": "Add tests for Settings view navigation, editing, and global-disabled behavior.",
-      "acceptanceCriteria": [
-        "Home view renders [s] Settings and key routing enters the view.",
-        "Navigation changes row/column selection and edit mode works for bool/int.",
-        "Autosave updates applied values; clear/unset removes layer values.",
-        "Global unavailable state disables the column and shows N/A."
-      ],
-      "prompt": "Write TUI tests covering the settings view navigation and edit flows; follow existing test patterns.",
-      "parentId": "tui-settings-page",
-      "childIds": [],
-      "deps": [
-        "tui-settings-editing"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-04T20:20:10.841379Z",
-      "updatedAt": "2026-02-04T21:33:10.777898Z"
-    },
-    "tui-settings-view-shell": {
-      "id": "tui-settings-view-shell",
-      "title": "Settings View Mode and Navigation Shell",
-      "description": "Add the Settings view mode, entry/exit keys, and base state wiring.",
-      "acceptanceCriteria": [
-        "Home view shows [s] Settings and model handles `s` to enter settings.",
-        "Settings view mode is added to model update/view with esc or h returning Home.",
-        "Bottom bar shows Settings hint when on Home.",
-        "Settings model initializes using project root and config data."
-      ],
-      "prompt": "Add a settings view mode/state in internal/tui with Home entry, exit keys, and bottom bar hints; wire config data into the model.",
-      "parentId": "tui-settings-page",
-      "childIds": [],
-      "deps": [
-        "config-settings-resolution"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-04T20:20:10.841379Z",
-      "updatedAt": "2026-02-04T20:58:39.008828Z"
+      "createdAt": "2026-02-05T04:11:45.633068Z",
+      "updatedAt": "2026-02-05T04:17:54.366438Z"
     }
   }
 }

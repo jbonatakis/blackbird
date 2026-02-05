@@ -1,5 +1,7 @@
 # Blackbird
 
+[![CI](https://github.com/jbonatakis/blackbird/actions/workflows/ci.yml/badge.svg)](https://github.com/jbonatakis/blackbird/actions/workflows/ci.yml)
+
 The control plane for durable, dependency-aware planning and execution with AI agents.
 
 <img src="static/blackbird-execution.gif" width="600" />
