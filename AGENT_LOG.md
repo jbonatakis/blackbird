@@ -1,5 +1,11 @@
 # AGENT_LOG
 
+## 2026-02-05 — Release workflow: Homebrew update ordering
+
+- Moved Homebrew tap update into `Release` workflow as a dependent job (`needs: release`) so it waits for all matrix binaries and checksums.
+- Added a draft guard (`if: github.event.release.draft == false`) to avoid updating Homebrew for draft releases.
+- Removed standalone `update-homebrew.yml`; Homebrew updates now only run as part of the release workflow.
+
 ## 2026-02-01 — Release workflow (Go Release Binaries)
 
 - Added `.github/workflows/release.yml` using [Go Release Binaries](https://github.com/marketplace/actions/go-release-binaries) (wangyoucao577/go-release-action@v1).
