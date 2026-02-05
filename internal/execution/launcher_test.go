@@ -5,6 +5,8 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -189,6 +191,34 @@ func TestLaunchAgentKeepsExplicitProvider(t *testing.T) {
 	}
 }
 
+func TestLaunchAgentClaudeSetsSessionID(t *testing.T) {
+	script, argsPath, _ := writeLaunchCaptureScript(t)
+
+	runtime := agent.Runtime{
+		Provider: "claude",
+		Command:  script,
+		Timeout:  2 * time.Second,
+	}
+	ctx := ContextPack{
+		SchemaVersion: ContextPackSchemaVersion,
+		Task:          TaskContext{ID: "task-7-claude", Title: "Task"},
+	}
+
+	record, err := LaunchAgent(context.Background(), runtime, ctx)
+	if err != nil {
+		t.Fatalf("LaunchAgent: %v", err)
+	}
+	if record.ProviderSessionRef == "" {
+		t.Fatalf("expected provider session ref to be set")
+	}
+
+	args := readLinesFromFile(t, argsPath)
+	wantArgs := []string{"--permission-mode", "bypassPermissions", "--session-id", record.ProviderSessionRef}
+	if !reflect.DeepEqual(args, wantArgs) {
+		t.Fatalf("args mismatch: got %v want %v", args, wantArgs)
+	}
+}
+
 func TestLaunchAgentSetsProviderSessionRef(t *testing.T) {
 	runtime := agent.Runtime{
 		Provider: "codex",
@@ -211,4 +241,36 @@ func TestLaunchAgentSetsProviderSessionRef(t *testing.T) {
 	if record.ProviderSessionRef != record.ID {
 		t.Fatalf("expected provider session ref to match run id, got %q", record.ProviderSessionRef)
 	}
+}
+
+func writeLaunchCaptureScript(t *testing.T) (string, string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	argsPath := filepath.Join(dir, "args.txt")
+	stdinPath := filepath.Join(dir, "stdin.txt")
+	scriptPath := filepath.Join(dir, "capture.sh")
+
+	content := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"" + argsPath + "\"\ncat - > \"" + stdinPath + "\"\n"
+	if err := os.WriteFile(scriptPath, []byte(content), 0o755); err != nil {
+		t.Fatalf("write script: %v", err)
+	}
+	return scriptPath, argsPath, stdinPath
+}
+
+func readLinesFromFile(t *testing.T, path string) []string {
+	t.Helper()
+	data := readFileString(t, path)
+	if data == "" {
+		return []string{}
+	}
+	return strings.Split(strings.TrimSpace(data), "\n")
+}
+
+func readFileString(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read file: %v", err)
+	}
+	return string(data)
 }
