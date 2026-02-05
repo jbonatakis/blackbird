@@ -1,6 +1,6 @@
 # Blackbird
 
-[![CI](https://github.com/jbonatakis/blackbird/actions/workflows/ci.yml/badge.svg)](https://github.com/jbonatakis/blackbird/actions/workflows/ci.yml)
+[![CI](https://github.com/jbonatakis/blackbird/actions/workflows/ci.yml/badge.svg)](https://github.com/jbonatakis/blackbird/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/jbonatakis/blackbird)](https://github.com/jbonatakis/blackbird/releases)
 
 The control plane for durable, dependency-aware planning and execution with AI agents.
 
