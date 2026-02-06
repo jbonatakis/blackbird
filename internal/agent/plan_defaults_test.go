@@ -48,7 +48,11 @@ func TestDefaultPlanSystemPromptIncludesDirectives(t *testing.T) {
 	}
 	for _, needle := range []string{
 		"Return exactly one JSON object",
+		"How to use request inputs:",
+		"Granularity guidance:",
 		"Plan requirements:",
+		"Plan quality heuristics:",
+		"Task detail standards (especially for leaf tasks):",
 		"Patch requirements:",
 		"Questions:",
 	} {
