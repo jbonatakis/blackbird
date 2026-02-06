@@ -1,5 +1,10 @@
 # AGENT_LOG
 
+## 2026-02-06 — Parent review quality gate planning
+
+- Reviewed `specs/improvements/PARENT_REVIEW_QUALITY_GATE.md` against current execution/controller, resume-with-feedback, run storage, CLI, and TUI checkpoint flows.
+- Produced a balanced implementation work graph focused on: parent review trigger/idempotence, review run request/response handling, persistence of resume-target feedback, explicit resume UX, and coverage tests.
+
 ## 2026-02-05 — Release workflow: Homebrew update ordering
 
 - Moved Homebrew tap update into `Release` workflow as a dependent job (`needs: release`) so it waits for all matrix binaries and checksums.
@@ -1210,3 +1215,57 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 
 - Added a Claude-only `--session-id <uuid>` on execution launch, persisted as `provider_session_ref`.
 - Added execution test coverage to ensure the session id is passed and recorded.
+
+## 2026-02-06 — Workspace code review (status updates)
+
+- Reviewed uncommitted changes in `blackbird.plan.json`, `specs/improvements/TASK_REVIEW_CHECKPOINT.md`, and `specs/improvements/TUI_CONFIG_SETTINGS.md`.
+- Identified consistency risks: plan task statuses were reset from `done` to `todo`, and `TUI_CONFIG_SETTINGS` is marked `status: complete` while its embedded todo checklist remains `pending`.
+- Validation: ran `go test ./...` (all packages pass).
+
+## 2026-02-06 — Deep code review findings (runtime behavior)
+
+- Reproduced parent-status drift: setting a completed child back to `in_progress` leaves its parent as `done`, which can incorrectly satisfy deps on parent items.
+- Reproduced run-record path traversal: task IDs with `../` pass validation and cause run JSON writes outside `.blackbird/runs`.
+- Reproduced plan refine validation mismatch: patch `update` with status `failed` is rejected by agent response validation even though plan statuses allow `failed`/`waiting_user`.
+- Validation commands used during review:
+  - `go test ./...` (pass)
+  - `go vet ./...` (pass)
+
+## 2026-02-06 — Plan system prompt rewrite (granularity semantics)
+
+- Rewrote `internal/agent.DefaultPlanSystemPrompt` to explicitly define how to interpret `projectDescription`, `constraints`, and `granularity`.
+- Added a dedicated “Granularity guidance” section describing default/balanced behavior and coarse-vs-fine decomposition expectations.
+- Strengthened planning directives for status defaults, schema-valid status set, patch safety, and clarification-question conditions.
+- Updated `internal/agent/plan_defaults_test.go` to assert presence of request-input and granularity guidance sections.
+- Validation: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/agent/...` and `GOCACHE=/tmp/blackbird-go-cache go test ./...` (pass).
+
+## 2026-02-06 — Plan prompt quality heuristics
+
+- Extended `DefaultPlanSystemPrompt` with a new "Plan quality heuristics" section covering leaf-task scope, concrete artifact expectations, objective acceptance criteria, dependency minimization, and parent/child hierarchy intent.
+- Updated prompt directives test to assert the new heuristics section is present.
+- Validation: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/agent/...` and `GOCACHE=/tmp/blackbird-go-cache go test ./...` (pass).
+
+## 2026-02-06 — Plan prompt: richer leaf-task detail
+
+- Extended `DefaultPlanSystemPrompt` with a new "Task detail standards" section to reduce terse/placeholder tasks.
+- Added explicit guidance for detailed leaf descriptions, stronger and verifiable acceptance criteria, and execution-oriented task prompts (implementation target + constraints + validation).
+- Added directive to ask clarification questions when context is insufficient instead of inventing specifics.
+- Updated prompt directive tests to assert the new section is present.
+- Validation: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/agent/...` and `GOCACHE=/tmp/blackbird-go-cache go test ./...` (pass).
+
+## 2026-02-06 — Generated parent review quality-gate implementation plan
+
+- Reviewed `OVERVIEW.md`, `specs/improvements/PARENT_REVIEW_QUALITY_GATE.md`, and execution/CLI/TUI code paths to produce an actionable work graph for implementing parent-as-reviewer quality gates.
+- Planned deliverables cover trigger/idempotence, dedicated review-run execution, feedback persistence + resume injection, explicit CLI/TUI resume UX, and verification/docs updates.
+
+## 2026-02-06 — New spec: plan quality gate
+
+- Added `specs/improvements/PLAN_QUALITY_GATE.md` defining a hybrid post-generation quality flow: deterministic plan lint + bounded auto-refine.
+- Spec defines blocking vs warning findings, leaf-task quality rules, bounded refine loop (`maxAutoRefinePasses = 1`), and explicit user override semantics when blocking findings remain.
+- Included shared implementation shape (`internal/planquality`), CLI/TUI integration points, and test requirements for deterministic behavior.
+
+## 2026-02-06 — Plan quality gate spec update (config + TUI settings)
+
+- Reverted unintended implementation edits in `internal/config` to keep this effort spec-only.
+- Updated `specs/improvements/PLAN_QUALITY_GATE.md` to require `planning.maxPlanAutoRefinePasses` as a config key with default/bounds semantics and explicit TUI Settings integration.
+- Expanded done criteria to include config plumbing and settings-view coverage.

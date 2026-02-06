@@ -1,4 +1,4 @@
-status: draft
+status: complete
 ---
 name: tui-config-settings
 overview: Add a TUI settings page to view and edit local and global config values alongside defaults and resolved values, with autosave and clear precedence indicators.
