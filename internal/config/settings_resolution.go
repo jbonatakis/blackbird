@@ -153,6 +153,9 @@ func ResolvedOptionValues(cfg ResolvedConfig) map[string]RawOptionValue {
 		keyTuiPlanDataRefreshIntervalSeconds: {
 			Int: copyInt(cfg.TUI.PlanDataRefreshIntervalSeconds),
 		},
+		keyPlanningMaxPlanAutoRefinePasses: {
+			Int: copyInt(cfg.Planning.MaxPlanAutoRefinePasses),
+		},
 		keyExecutionStopAfterEachTask: {
 			Bool: copyBool(cfg.Execution.StopAfterEachTask),
 		},
@@ -191,6 +194,8 @@ func clampIntForKey(key string, value int) int {
 	switch key {
 	case keyTuiRunDataRefreshIntervalSeconds, keyTuiPlanDataRefreshIntervalSeconds:
 		return clampInterval(value)
+	case keyPlanningMaxPlanAutoRefinePasses:
+		return clampPlanAutoRefinePasses(value)
 	default:
 		return value
 	}

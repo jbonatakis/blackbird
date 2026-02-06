@@ -12,6 +12,8 @@ import (
 	"github.com/jbonatakis/blackbird/internal/agent"
 	"github.com/jbonatakis/blackbird/internal/execution"
 	"github.com/jbonatakis/blackbird/internal/plan"
+	"github.com/jbonatakis/blackbird/internal/plangen"
+	"github.com/jbonatakis/blackbird/internal/planquality"
 )
 
 type PlanActionComplete struct {
@@ -39,6 +41,7 @@ type DecisionActionComplete struct {
 type PlanGenerateInMemoryResult struct {
 	Success   bool
 	Plan      *plan.WorkGraph
+	Quality   *PlanReviewQualitySummary
 	Questions []agent.Question
 	Err       error
 }
@@ -253,52 +256,46 @@ func summarizeResumeRecord(record execution.RunRecord, taskID string) string {
 // GeneratePlanInMemoryWithAnswers to continue with answers.
 func GeneratePlanInMemory(ctx context.Context, description string, constraints []string, granularity string) tea.Cmd {
 	return func() tea.Msg {
-		// Create agent runtime from environment
 		runtime, err := agent.NewRuntimeFromEnv()
 		if err != nil {
 			return PlanGenerateInMemoryResult{Success: false, Err: err}
 		}
 
-		// Prepare request metadata with JSON schema
 		requestMeta := agent.RequestMetadata{
 			JSONSchema: agent.DefaultPlanJSONSchema(),
 		}
 		requestMeta = agent.ApplyRuntimeProvider(requestMeta, runtime)
 
-		// Build the agent request
-		req := agent.Request{
-			SchemaVersion:      agent.SchemaVersion,
-			Type:               agent.RequestPlanGenerate,
-			SystemPrompt:       agent.DefaultPlanSystemPrompt(),
-			ProjectDescription: strings.TrimSpace(description),
-			Constraints:        trimNonEmpty(constraints),
-			Granularity:        strings.TrimSpace(granularity),
-			Metadata:           requestMeta,
-		}
-
-		// Run the agent (without interactive question loop)
-		resp, _, err := runtime.Run(ctx, req)
+		generateResult, err := plangen.Generate(ctx, runtime.Run, plangen.GenerateInput{
+			Description: strings.TrimSpace(description),
+			Constraints: trimNonEmpty(constraints),
+			Granularity: strings.TrimSpace(granularity),
+			Metadata:    requestMeta,
+		})
 		if err != nil {
 			return PlanGenerateInMemoryResult{Success: false, Err: err}
 		}
-
-		// Check if agent is asking questions
-		if len(resp.Questions) > 0 {
+		if len(generateResult.Questions) > 0 {
 			return PlanGenerateInMemoryResult{
 				Success:   false,
-				Questions: resp.Questions,
+				Questions: generateResult.Questions,
 			}
 		}
+		if generateResult.Plan == nil {
+			return PlanGenerateInMemoryResult{Success: false, Err: errors.New("plan generation returned no plan")}
+		}
 
-		// Convert response to plan
-		resultPlan, err := agent.ResponseToPlan(plan.NewEmptyWorkGraph(), resp, time.Now().UTC())
+		resultPlan := plan.Clone(*generateResult.Plan)
+		qualityResult, err := runGeneratedPlanQualityGate(ctx, runtime, requestMeta, resultPlan)
 		if err != nil {
 			return PlanGenerateInMemoryResult{Success: false, Err: err}
 		}
+		qualitySummary := buildPlanReviewQualitySummary(qualityResult)
 
 		return PlanGenerateInMemoryResult{
 			Success: true,
-			Plan:    &resultPlan,
+			Plan:    &qualityResult.FinalPlan,
+			Quality: &qualitySummary,
 		}
 	}
 }
@@ -307,53 +304,47 @@ func GeneratePlanInMemory(ctx context.Context, description string, constraints [
 // It takes the original request parameters plus the answers to questions that were asked.
 func GeneratePlanInMemoryWithAnswers(ctx context.Context, description string, constraints []string, granularity string, answers []agent.Answer) tea.Cmd {
 	return func() tea.Msg {
-		// Create agent runtime from environment
 		runtime, err := agent.NewRuntimeFromEnv()
 		if err != nil {
 			return PlanGenerateInMemoryResult{Success: false, Err: err}
 		}
 
-		// Prepare request metadata with JSON schema
 		requestMeta := agent.RequestMetadata{
 			JSONSchema: agent.DefaultPlanJSONSchema(),
 		}
 		requestMeta = agent.ApplyRuntimeProvider(requestMeta, runtime)
 
-		// Build the agent request with answers
-		req := agent.Request{
-			SchemaVersion:      agent.SchemaVersion,
-			Type:               agent.RequestPlanGenerate,
-			SystemPrompt:       agent.DefaultPlanSystemPrompt(),
-			ProjectDescription: strings.TrimSpace(description),
-			Constraints:        trimNonEmpty(constraints),
-			Granularity:        strings.TrimSpace(granularity),
-			Answers:            answers,
-			Metadata:           requestMeta,
-		}
-
-		// Run the agent
-		resp, _, err := runtime.Run(ctx, req)
+		generateResult, err := plangen.Generate(ctx, runtime.Run, plangen.GenerateInput{
+			Description: strings.TrimSpace(description),
+			Constraints: trimNonEmpty(constraints),
+			Granularity: strings.TrimSpace(granularity),
+			Answers:     answers,
+			Metadata:    requestMeta,
+		})
 		if err != nil {
 			return PlanGenerateInMemoryResult{Success: false, Err: err}
 		}
-
-		// Check if agent is asking MORE questions (limit rounds to prevent infinite loop)
-		if len(resp.Questions) > 0 {
+		if len(generateResult.Questions) > 0 {
 			return PlanGenerateInMemoryResult{
 				Success:   false,
-				Questions: resp.Questions,
+				Questions: generateResult.Questions,
 			}
 		}
+		if generateResult.Plan == nil {
+			return PlanGenerateInMemoryResult{Success: false, Err: errors.New("plan generation returned no plan")}
+		}
 
-		// Convert response to plan
-		resultPlan, err := agent.ResponseToPlan(plan.NewEmptyWorkGraph(), resp, time.Now().UTC())
+		resultPlan := plan.Clone(*generateResult.Plan)
+		qualityResult, err := runGeneratedPlanQualityGate(ctx, runtime, requestMeta, resultPlan)
 		if err != nil {
 			return PlanGenerateInMemoryResult{Success: false, Err: err}
 		}
+		qualitySummary := buildPlanReviewQualitySummary(qualityResult)
 
 		return PlanGenerateInMemoryResult{
 			Success: true,
-			Plan:    &resultPlan,
+			Plan:    &qualityResult.FinalPlan,
+			Quality: &qualitySummary,
 		}
 	}
 }
@@ -361,51 +352,37 @@ func GeneratePlanInMemoryWithAnswers(ctx context.Context, description string, co
 // RefinePlanInMemory refines an existing plan with a change request
 func RefinePlanInMemory(ctx context.Context, changeRequest string, currentPlan plan.WorkGraph) tea.Cmd {
 	return func() tea.Msg {
-		// Create agent runtime from environment
 		runtime, err := agent.NewRuntimeFromEnv()
 		if err != nil {
 			return PlanGenerateInMemoryResult{Success: false, Err: err}
 		}
 
-		// Prepare request metadata with JSON schema
 		requestMeta := agent.RequestMetadata{
 			JSONSchema: agent.DefaultPlanJSONSchema(),
 		}
 		requestMeta = agent.ApplyRuntimeProvider(requestMeta, runtime)
 
-		// Build the agent request
-		req := agent.Request{
-			SchemaVersion: agent.SchemaVersion,
-			Type:          agent.RequestPlanRefine,
-			SystemPrompt:  agent.DefaultPlanSystemPrompt(),
+		refineResult, err := plangen.Refine(ctx, runtime.Run, plangen.RefineInput{
 			ChangeRequest: strings.TrimSpace(changeRequest),
-			Plan:          &currentPlan,
+			CurrentPlan:   currentPlan,
 			Metadata:      requestMeta,
-		}
-
-		// Run the agent
-		resp, _, err := runtime.Run(ctx, req)
+		})
 		if err != nil {
 			return PlanGenerateInMemoryResult{Success: false, Err: err}
 		}
-
-		// Check if agent is asking questions
-		if len(resp.Questions) > 0 {
+		if len(refineResult.Questions) > 0 {
 			return PlanGenerateInMemoryResult{
 				Success:   false,
-				Questions: resp.Questions,
+				Questions: refineResult.Questions,
 			}
 		}
-
-		// Convert response to plan
-		resultPlan, err := agent.ResponseToPlan(currentPlan, resp, time.Now().UTC())
-		if err != nil {
-			return PlanGenerateInMemoryResult{Success: false, Err: err}
+		if refineResult.Plan == nil {
+			return PlanGenerateInMemoryResult{Success: false, Err: errors.New("plan refine returned no plan")}
 		}
 
 		return PlanGenerateInMemoryResult{
 			Success: true,
-			Plan:    &resultPlan,
+			Plan:    refineResult.Plan,
 		}
 	}
 }
@@ -413,52 +390,38 @@ func RefinePlanInMemory(ctx context.Context, changeRequest string, currentPlan p
 // RefinePlanInMemoryWithAnswers continues plan refinement after answering questions.
 func RefinePlanInMemoryWithAnswers(ctx context.Context, changeRequest string, currentPlan plan.WorkGraph, answers []agent.Answer) tea.Cmd {
 	return func() tea.Msg {
-		// Create agent runtime from environment
 		runtime, err := agent.NewRuntimeFromEnv()
 		if err != nil {
 			return PlanGenerateInMemoryResult{Success: false, Err: err}
 		}
 
-		// Prepare request metadata with JSON schema
 		requestMeta := agent.RequestMetadata{
 			JSONSchema: agent.DefaultPlanJSONSchema(),
 		}
 		requestMeta = agent.ApplyRuntimeProvider(requestMeta, runtime)
 
-		// Build the agent request with answers
-		req := agent.Request{
-			SchemaVersion: agent.SchemaVersion,
-			Type:          agent.RequestPlanRefine,
-			SystemPrompt:  agent.DefaultPlanSystemPrompt(),
+		refineResult, err := plangen.Refine(ctx, runtime.Run, plangen.RefineInput{
 			ChangeRequest: strings.TrimSpace(changeRequest),
-			Plan:          &currentPlan,
+			CurrentPlan:   currentPlan,
 			Answers:       answers,
 			Metadata:      requestMeta,
-		}
-
-		// Run the agent
-		resp, _, err := runtime.Run(ctx, req)
+		})
 		if err != nil {
 			return PlanGenerateInMemoryResult{Success: false, Err: err}
 		}
-
-		// Check if agent is asking MORE questions
-		if len(resp.Questions) > 0 {
+		if len(refineResult.Questions) > 0 {
 			return PlanGenerateInMemoryResult{
 				Success:   false,
-				Questions: resp.Questions,
+				Questions: refineResult.Questions,
 			}
 		}
-
-		// Convert response to plan
-		resultPlan, err := agent.ResponseToPlan(currentPlan, resp, time.Now().UTC())
-		if err != nil {
-			return PlanGenerateInMemoryResult{Success: false, Err: err}
+		if refineResult.Plan == nil {
+			return PlanGenerateInMemoryResult{Success: false, Err: errors.New("plan refine returned no plan")}
 		}
 
 		return PlanGenerateInMemoryResult{
 			Success: true,
-			Plan:    &resultPlan,
+			Plan:    refineResult.Plan,
 		}
 	}
 }
@@ -501,4 +464,25 @@ func trimNonEmpty(in []string) []string {
 		}
 	}
 	return out
+}
+
+func runGeneratedPlanQualityGate(ctx context.Context, runtime agent.Runtime, requestMeta agent.RequestMetadata, generated plan.WorkGraph) (planquality.QualityGateResult, error) {
+	maxPasses := plangen.ResolveMaxAutoRefinePassesFromPlanPath(plan.PlanPath())
+	return plangen.RunQualityGate(ctx, generated, maxPasses, func(refineCtx context.Context, changeRequest string, currentPlan plan.WorkGraph) (plan.WorkGraph, error) {
+		refineResult, err := plangen.Refine(refineCtx, runtime.Run, plangen.RefineInput{
+			ChangeRequest: changeRequest,
+			CurrentPlan:   currentPlan,
+			Metadata:      requestMeta,
+		})
+		if err != nil {
+			return plan.WorkGraph{}, err
+		}
+		if len(refineResult.Questions) > 0 {
+			return plan.WorkGraph{}, errors.New("quality auto-refine requested clarification")
+		}
+		if refineResult.Plan == nil {
+			return plan.WorkGraph{}, errors.New("quality auto-refine returned no plan")
+		}
+		return plan.Clone(*refineResult.Plan), nil
+	})
 }

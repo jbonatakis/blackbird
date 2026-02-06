@@ -9,6 +9,20 @@
 - `blackbird show <id>` — Print task details and readiness explanations.
 - `blackbird set-status <id> <status>` — Update task status manually.
 
+## Plan quality gate (`blackbird plan generate`)
+
+`blackbird plan generate` runs deterministic plan-quality lint before save.
+
+- It prints `Quality summary (initial)` and `Quality summary (final)` counts (`blocking`, `warning`, `total`).
+- If blocking findings exist and auto-refine is enabled, it runs bounded auto-refine passes and prints progress as `quality auto-refine pass X/Y`.
+- Final blocking and warning findings are shown in deterministic order when present.
+- If blocking findings remain after bounded auto-refine, save is not implicit and you must choose one action:
+  - `revise` (manual revision request; quality gate reruns on the revised plan),
+  - `accept_anyway` (save with an override warning),
+  - `cancel` (abort without writing a plan).
+
+Auto-refine pass count is controlled by `planning.maxPlanAutoRefinePasses` (default `1`, bounds `0`..`3`, `0` disables auto-refine).
+
 ## Manual graph edits
 
 - `blackbird add --title "..." [--parent <parentId|root>]`

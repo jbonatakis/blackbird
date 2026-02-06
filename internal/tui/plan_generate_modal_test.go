@@ -437,7 +437,15 @@ func TestModel_HandlePlanGenerationSuccess(t *testing.T) {
 	msg := PlanGenerateInMemoryResult{
 		Success: true,
 		Plan:    &newPlan,
-		Err:     nil,
+		Quality: &PlanReviewQualitySummary{
+			InitialBlockingCount: 0,
+			InitialWarningCount:  0,
+			BlockingCount:        0,
+			WarningCount:         0,
+			KeyFindings:          nil,
+			AutoRefinePassesRun:  0,
+		},
+		Err: nil,
 	}
 
 	updated, _ := m.Update(msg)
@@ -465,10 +473,68 @@ func TestModel_HandlePlanGenerationSuccess(t *testing.T) {
 	if len(m.planReviewForm.plan.Items) != 1 {
 		t.Errorf("Expected review form plan to have 1 item, got %d", len(m.planReviewForm.plan.Items))
 	}
+	if m.planReviewForm.qualitySummary.WarningCount != 0 {
+		t.Errorf("Expected warning count 0, got %d", m.planReviewForm.qualitySummary.WarningCount)
+	}
+	if m.planReviewForm.qualitySummary.BlockingCount != 0 {
+		t.Errorf("Expected blocking count 0, got %d", m.planReviewForm.qualitySummary.BlockingCount)
+	}
+	if len(m.planReviewForm.qualitySummary.KeyFindings) != 0 {
+		t.Errorf("Expected no key findings, got %d", len(m.planReviewForm.qualitySummary.KeyFindings))
+	}
 
 	// Plan should NOT be applied to the model yet (only after accepting)
 	if len(m.plan.Items) != 0 {
 		t.Errorf("Expected model plan to still be empty until accepted, got %d items", len(m.plan.Items))
+	}
+}
+
+func TestModel_HandlePlanGenerationSuccess_WithBlockingQualitySummary(t *testing.T) {
+	m := NewModel(plan.NewEmptyWorkGraph())
+	m.windowWidth = 80
+	m.windowHeight = 24
+	m.actionInProgress = true
+	m.actionName = "Generating plan..."
+
+	newPlan := plan.NewEmptyWorkGraph()
+	newPlan.Items["task-block"] = plan.WorkItem{
+		ID:                 "task-block",
+		Title:              "Task with findings",
+		Description:        "Description",
+		AcceptanceCriteria: []string{"AC"},
+		Prompt:             "Prompt",
+		Status:             plan.StatusTodo,
+	}
+
+	msg := PlanGenerateInMemoryResult{
+		Success: true,
+		Plan:    &newPlan,
+		Quality: &PlanReviewQualitySummary{
+			InitialBlockingCount: 2,
+			InitialWarningCount:  1,
+			BlockingCount:        1,
+			WarningCount:         2,
+			KeyFindings: []string{
+				"task-block.description [blocking] Description must include concrete implementation scope.",
+			},
+			AutoRefinePassesRun: 1,
+		},
+	}
+
+	updated, _ := m.Update(msg)
+	m = updated.(Model)
+
+	if m.planReviewForm == nil {
+		t.Fatalf("expected plan review form to be set")
+	}
+	if m.planReviewForm.qualitySummary.BlockingCount != 1 {
+		t.Fatalf("expected blocking count 1, got %d", m.planReviewForm.qualitySummary.BlockingCount)
+	}
+	if m.planReviewForm.qualitySummary.AutoRefinePassesRun != 1 {
+		t.Fatalf("expected auto-refine pass count 1, got %d", m.planReviewForm.qualitySummary.AutoRefinePassesRun)
+	}
+	if len(m.planReviewForm.qualitySummary.KeyFindings) == 0 {
+		t.Fatalf("expected key findings to be populated")
 	}
 }
 

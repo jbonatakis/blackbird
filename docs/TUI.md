@@ -31,6 +31,8 @@ Running `blackbird` with no arguments launches the TUI. CLI commands like `black
 **Settings View**
 Open from Home with `s`. The Settings table shows `Option`, `Local`, `Global`, `Default`, and `Applied` columns. Local/global are editable; default/applied are read-only. Edits autosave to the selected layer and refresh applied values; save or load errors appear in the footer.
 
+The table includes `Planning Max Auto-Refine Passes` (`planning.maxPlanAutoRefinePasses`), which controls bounded auto-refine during plan generation (`0` disables; clamped to `0`..`3`; default `1`).
+
 Keys:
 - `up` / `down` or `j` / `k` — Move row selection
 - `left` / `right` — Move column selection
@@ -43,6 +45,18 @@ Keys:
 ## Plan generate/refine @path lookup
 
 The plan generate and plan refine modals support `@` file lookup inside their text areas (description/constraints/granularity and the refine change request). Type `@` to open the picker at the cursor, then keep typing to filter workspace paths. Use `up` / `down` to change selection, `enter` to insert the selected path (replacing the `@query` span), and `esc` to close without inserting. `tab` / `shift+tab` close the picker so focus can move between fields; `backspace` edits the query while the picker is open.
+
+## Plan quality review (generate)
+
+After plan generation, the review modal shows a quality summary derived from deterministic lint:
+- Initial and final blocking/warning counts.
+- Auto-refine pass outcome when at least one pass ran.
+- Key findings excerpt (or `none`).
+
+If blocking findings remain, the modal requires explicit override to save:
+- Action `1` is labeled `Accept anyway`.
+- Default selection is not accept (it defaults to `Revise`, or `Reject` if revisions are exhausted).
+- Saving through override shows a warning that blocking findings were overridden.
 
 **Review Checkpoints**
 When `execution.stopAfterEachTask` is enabled, execution pauses after each task finishes and requires a decision before continuing. The TUI shows an “ACTION REQUIRED” banner and opens a review checkpoint modal with task details and a review summary (changed files, diffstat, snippets).

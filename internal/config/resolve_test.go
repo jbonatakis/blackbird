@@ -8,6 +8,9 @@ func TestResolveConfigPrecedence(t *testing.T) {
 			RunDataRefreshIntervalSeconds:  intPtr(12),
 			PlanDataRefreshIntervalSeconds: nil,
 		},
+		Planning: &RawPlanning{
+			MaxPlanAutoRefinePasses: intPtr(0),
+		},
 		Execution: &RawExecution{
 			StopAfterEachTask: boolPtr(true),
 		},
@@ -16,6 +19,9 @@ func TestResolveConfigPrecedence(t *testing.T) {
 		TUI: &RawTUI{
 			RunDataRefreshIntervalSeconds:  intPtr(20),
 			PlanDataRefreshIntervalSeconds: intPtr(9),
+		},
+		Planning: &RawPlanning{
+			MaxPlanAutoRefinePasses: intPtr(2),
 		},
 		Execution: &RawExecution{
 			StopAfterEachTask: boolPtr(false),
@@ -29,6 +35,9 @@ func TestResolveConfigPrecedence(t *testing.T) {
 	if resolved.TUI.PlanDataRefreshIntervalSeconds != 9 {
 		t.Fatalf("plan interval = %d, want 9", resolved.TUI.PlanDataRefreshIntervalSeconds)
 	}
+	if resolved.Planning.MaxPlanAutoRefinePasses != 0 {
+		t.Fatalf("maxPlanAutoRefinePasses = %d, want 0", resolved.Planning.MaxPlanAutoRefinePasses)
+	}
 	if resolved.Execution.StopAfterEachTask != true {
 		t.Fatalf("stopAfterEachTask = %v, want true", resolved.Execution.StopAfterEachTask)
 	}
@@ -41,6 +50,9 @@ func TestResolveConfigDefaults(t *testing.T) {
 	}
 	if resolved.TUI.PlanDataRefreshIntervalSeconds != DefaultPlanDataRefreshIntervalSeconds {
 		t.Fatalf("plan interval = %d, want %d", resolved.TUI.PlanDataRefreshIntervalSeconds, DefaultPlanDataRefreshIntervalSeconds)
+	}
+	if resolved.Planning.MaxPlanAutoRefinePasses != DefaultMaxPlanAutoRefinePasses {
+		t.Fatalf("maxPlanAutoRefinePasses = %d, want %d", resolved.Planning.MaxPlanAutoRefinePasses, DefaultMaxPlanAutoRefinePasses)
 	}
 	if resolved.Execution.StopAfterEachTask != DefaultStopAfterEachTask {
 		t.Fatalf("stopAfterEachTask = %v, want %v", resolved.Execution.StopAfterEachTask, DefaultStopAfterEachTask)
@@ -60,11 +72,17 @@ func TestResolveConfigClampBounds(t *testing.T) {
 			RunDataRefreshIntervalSeconds:  intPtr(0),
 			PlanDataRefreshIntervalSeconds: intPtr(999),
 		},
+		Planning: &RawPlanning{
+			MaxPlanAutoRefinePasses: intPtr(99),
+		},
 	}
 	global := RawConfig{
 		TUI: &RawTUI{
 			RunDataRefreshIntervalSeconds:  intPtr(8),
 			PlanDataRefreshIntervalSeconds: intPtr(10),
+		},
+		Planning: &RawPlanning{
+			MaxPlanAutoRefinePasses: intPtr(2),
 		},
 	}
 
@@ -74,6 +92,9 @@ func TestResolveConfigClampBounds(t *testing.T) {
 	}
 	if resolved.TUI.PlanDataRefreshIntervalSeconds != MaxRefreshIntervalSeconds {
 		t.Fatalf("plan interval = %d, want %d", resolved.TUI.PlanDataRefreshIntervalSeconds, MaxRefreshIntervalSeconds)
+	}
+	if resolved.Planning.MaxPlanAutoRefinePasses != MaxPlanAutoRefinePasses {
+		t.Fatalf("maxPlanAutoRefinePasses = %d, want %d", resolved.Planning.MaxPlanAutoRefinePasses, MaxPlanAutoRefinePasses)
 	}
 }
 
@@ -84,6 +105,9 @@ func TestResolveConfigClampGlobalWhenProjectMissing(t *testing.T) {
 			RunDataRefreshIntervalSeconds:  intPtr(-5),
 			PlanDataRefreshIntervalSeconds: intPtr(5000),
 		},
+		Planning: &RawPlanning{
+			MaxPlanAutoRefinePasses: intPtr(-1),
+		},
 	}
 
 	resolved := ResolveConfig(project, global)
@@ -92,6 +116,9 @@ func TestResolveConfigClampGlobalWhenProjectMissing(t *testing.T) {
 	}
 	if resolved.TUI.PlanDataRefreshIntervalSeconds != MaxRefreshIntervalSeconds {
 		t.Fatalf("plan interval = %d, want %d", resolved.TUI.PlanDataRefreshIntervalSeconds, MaxRefreshIntervalSeconds)
+	}
+	if resolved.Planning.MaxPlanAutoRefinePasses != MinPlanAutoRefinePasses {
+		t.Fatalf("maxPlanAutoRefinePasses = %d, want %d", resolved.Planning.MaxPlanAutoRefinePasses, MinPlanAutoRefinePasses)
 	}
 }
 

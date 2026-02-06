@@ -2,6 +2,7 @@ package tui
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -144,6 +145,55 @@ func TestRenderSettingsViewFooter(t *testing.T) {
 	assertContains(t, out, "global config warning: invalid_json")
 	assertContains(t, out, "local Run Refresh warning: out_of_range")
 	assertContains(t, out, "clamped to 10")
+}
+
+func TestRenderSettingsPlanningOptionRowDescriptionAndWarnings(t *testing.T) {
+	options := config.OptionRegistry()
+	idx := optionIndex(options, "planning.maxPlanAutoRefinePasses")
+	if idx < 0 {
+		t.Fatalf("missing planning option")
+	}
+
+	min := config.MinPlanAutoRefinePasses
+	max := config.MaxPlanAutoRefinePasses
+	state := SettingsState{
+		Options:  options,
+		Selected: idx,
+		Resolution: config.SettingsResolution{
+			Project: config.SettingsLayer{
+				Values: map[string]config.RawOptionValue{},
+			},
+			Global: config.SettingsLayer{
+				Values: map[string]config.RawOptionValue{},
+			},
+			OptionWarnings: []config.OptionWarning{
+				{
+					Source:     config.ConfigSourceLocal,
+					KeyPath:    "planning.maxPlanAutoRefinePasses",
+					Kind:       config.OptionWarningOutOfRange,
+					ClampedInt: &min,
+				},
+				{
+					Source:     config.ConfigSourceGlobal,
+					KeyPath:    "planning.maxPlanAutoRefinePasses",
+					Kind:       config.OptionWarningOutOfRange,
+					ClampedInt: &max,
+				},
+			},
+		},
+	}
+
+	table := stripANSI(renderSettingsTable(state))
+	assertContains(t, table, "Planning Max Auto-Refine Passes")
+
+	footer := strings.Join(renderSettingsFooter(state), "\n")
+	assertContains(t, footer, "Selected:")
+	assertContains(t, footer, "Planning Max Auto-Refine Passes")
+	assertContains(t, footer, "Maximum automatic refine passes when planning")
+	assertContains(t, footer, "type: int")
+	assertContains(t, footer, fmt.Sprintf("bounds: %d-%d", min, max))
+	assertContains(t, footer, fmt.Sprintf("local Planning Max Auto-Refine Passes warning: out_of_range (clamped to %d)", min))
+	assertContains(t, footer, fmt.Sprintf("global Planning Max Auto-Refine Passes warning: out_of_range (clamped to %d)", max))
 }
 
 func findLineContaining(lines []string, needle string) string {

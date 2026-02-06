@@ -31,6 +31,9 @@ Supported keys:
     "runDataRefreshIntervalSeconds": 5,
     "planDataRefreshIntervalSeconds": 5
   },
+  "planning": {
+    "maxPlanAutoRefinePasses": 1
+  },
   "execution": {
     "stopAfterEachTask": false
   }
@@ -42,9 +45,17 @@ Defaults:
 - `schemaVersion`: `1`
 - `tui.runDataRefreshIntervalSeconds`: `5`
 - `tui.planDataRefreshIntervalSeconds`: `5`
+- `planning.maxPlanAutoRefinePasses`: `1`
 - `execution.stopAfterEachTask`: `false`
 
 Interval values are clamped to a minimum of `1` and a maximum of `300` seconds.
+
+`planning.maxPlanAutoRefinePasses` controls bounded auto-refine during `blackbird plan generate` (CLI and TUI):
+- `0` disables auto-refine passes.
+- `1` (default) allows one automatic pass.
+- Values are clamped to `0`..`3`.
+
+In TUI Settings, this appears as `Planning Max Auto-Refine Passes` and follows the same local/global/default/applied precedence and warning behavior as other integer options.
 
 `execution.stopAfterEachTask` uses the same per-key precedence rules (project config overrides global, which overrides defaults). When enabled, execution pauses after each completed run to request a review decision.
 

@@ -15,6 +15,11 @@ func ResolveConfig(project RawConfig, global RawConfig) ResolvedConfig {
 		valueFromRaw(global, func(tui RawTUI) *int { return tui.PlanDataRefreshIntervalSeconds }),
 		defaults.TUI.PlanDataRefreshIntervalSeconds,
 	)
+	maxPlanAutoRefinePasses := resolvePlanAutoRefinePasses(
+		valueFromRawPlanning(project, func(planning RawPlanning) *int { return planning.MaxPlanAutoRefinePasses }),
+		valueFromRawPlanning(global, func(planning RawPlanning) *int { return planning.MaxPlanAutoRefinePasses }),
+		defaults.Planning.MaxPlanAutoRefinePasses,
+	)
 	stopAfterEachTask := resolveBool(
 		valueFromRawExecution(project, func(exec RawExecution) *bool { return exec.StopAfterEachTask }),
 		valueFromRawExecution(global, func(exec RawExecution) *bool { return exec.StopAfterEachTask }),
@@ -26,6 +31,9 @@ func ResolveConfig(project RawConfig, global RawConfig) ResolvedConfig {
 		TUI: ResolvedTUI{
 			RunDataRefreshIntervalSeconds:  runInterval,
 			PlanDataRefreshIntervalSeconds: planInterval,
+		},
+		Planning: ResolvedPlanning{
+			MaxPlanAutoRefinePasses: maxPlanAutoRefinePasses,
 		},
 		Execution: ResolvedExecution{
 			StopAfterEachTask: stopAfterEachTask,
@@ -45,6 +53,13 @@ func valueFromRawExecution(cfg RawConfig, pick func(RawExecution) *bool) *bool {
 		return nil
 	}
 	return pick(*cfg.Execution)
+}
+
+func valueFromRawPlanning(cfg RawConfig, pick func(RawPlanning) *int) *int {
+	if cfg.Planning == nil {
+		return nil
+	}
+	return pick(*cfg.Planning)
 }
 
 func resolveInterval(projectVal *int, globalVal *int, defaultVal int) int {
@@ -67,12 +82,32 @@ func resolveBool(projectVal *bool, globalVal *bool, defaultVal bool) bool {
 	return defaultVal
 }
 
+func resolvePlanAutoRefinePasses(projectVal *int, globalVal *int, defaultVal int) int {
+	if projectVal != nil {
+		return clampPlanAutoRefinePasses(*projectVal)
+	}
+	if globalVal != nil {
+		return clampPlanAutoRefinePasses(*globalVal)
+	}
+	return clampPlanAutoRefinePasses(defaultVal)
+}
+
 func clampInterval(value int) int {
 	if value < MinRefreshIntervalSeconds {
 		return MinRefreshIntervalSeconds
 	}
 	if value > MaxRefreshIntervalSeconds {
 		return MaxRefreshIntervalSeconds
+	}
+	return value
+}
+
+func clampPlanAutoRefinePasses(value int) int {
+	if value < MinPlanAutoRefinePasses {
+		return MinPlanAutoRefinePasses
+	}
+	if value > MaxPlanAutoRefinePasses {
+		return MaxPlanAutoRefinePasses
 	}
 	return value
 }

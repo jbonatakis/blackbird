@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/jbonatakis/blackbird/internal/agent"
 	"github.com/jbonatakis/blackbird/internal/plan"
+	"github.com/jbonatakis/blackbird/internal/planquality"
 )
 
 // PlanReviewMode represents the current mode in the review flow
@@ -20,11 +21,30 @@ const (
 	ReviewModeRevisionPrompt
 )
 
+const planReviewKeyFindingsLimit = 3
+
+const (
+	planReviewActionAccept = iota
+	planReviewActionRevise
+	planReviewActionReject
+)
+
+// PlanReviewQualitySummary tracks quality-gate outcomes shown during review.
+type PlanReviewQualitySummary struct {
+	InitialBlockingCount int
+	InitialWarningCount  int
+	BlockingCount        int
+	WarningCount         int
+	KeyFindings          []string
+	AutoRefinePassesRun  int
+}
+
 // PlanReviewForm represents the state of the plan review modal
 type PlanReviewForm struct {
 	mode             PlanReviewMode
 	plan             plan.WorkGraph
-	selectedAction   int // 0=Accept, 1=Revise, 2=Reject
+	qualitySummary   PlanReviewQualitySummary
+	selectedAction   int // 0=Accept/Accept anyway, 1=Revise, 2=Reject
 	revisionTextarea textarea.Model
 	width            int
 	height           int
@@ -41,15 +61,18 @@ func NewPlanReviewForm(generatedPlan plan.WorkGraph, revisionCount int) PlanRevi
 	revisionTA.SetWidth(60)
 	revisionTA.SetHeight(4)
 
-	return PlanReviewForm{
+	form := PlanReviewForm{
 		mode:             ReviewModeChooseAction,
 		plan:             generatedPlan,
-		selectedAction:   0, // Default to Accept
+		qualitySummary:   defaultPlanReviewQualitySummary(generatedPlan),
+		selectedAction:   planReviewActionAccept,
 		revisionTextarea: revisionTA,
 		width:            80,
 		height:           30,
 		revisionCount:    revisionCount,
 	}
+	form.resetDefaultSelection()
+	return form
 }
 
 // SetSize updates the form dimensions
@@ -91,21 +114,21 @@ func (f PlanReviewForm) Update(msg tea.Msg) (PlanReviewForm, tea.Cmd) {
 				}
 				return f, nil
 			case "down", "j":
-				if f.selectedAction < 2 {
+				if f.selectedAction < planReviewActionReject {
 					f.selectedAction++
 				}
 				return f, nil
 			case "1":
-				f.selectedAction = 0
+				f.selectedAction = planReviewActionAccept
 				return f, nil
 			case "2":
 				// Only allow revise if not exceeded limit
 				if f.revisionCount < agent.MaxPlanGenerateRevisions {
-					f.selectedAction = 1
+					f.selectedAction = planReviewActionRevise
 				}
 				return f, nil
 			case "3":
-				f.selectedAction = 2
+				f.selectedAction = planReviewActionReject
 				return f, nil
 			case "enter":
 				// Handle action selection
@@ -132,7 +155,7 @@ func (f PlanReviewForm) Update(msg tea.Msg) (PlanReviewForm, tea.Cmd) {
 	return f, nil
 }
 
-// GetAction returns the currently selected action (0=Accept, 1=Revise, 2=Reject)
+// GetAction returns the selected action index (0=Accept/Accept anyway, 1=Revise, 2=Reject).
 func (f PlanReviewForm) GetAction() int {
 	return f.selectedAction
 }
@@ -145,6 +168,93 @@ func (f PlanReviewForm) GetRevisionRequest() string {
 // CanRevise returns true if another revision is allowed
 func (f PlanReviewForm) CanRevise() bool {
 	return f.revisionCount < agent.MaxPlanGenerateRevisions
+}
+
+func (f PlanReviewForm) HasBlockingFindings() bool {
+	return f.qualitySummary.BlockingCount > 0
+}
+
+func (f PlanReviewForm) acceptLabel() string {
+	if f.HasBlockingFindings() {
+		return "1. Accept anyway"
+	}
+	return "1. Accept"
+}
+
+func (f *PlanReviewForm) resetDefaultSelection() {
+	if f.HasBlockingFindings() {
+		if f.CanRevise() {
+			f.selectedAction = planReviewActionRevise
+			return
+		}
+		f.selectedAction = planReviewActionReject
+		return
+	}
+	f.selectedAction = planReviewActionAccept
+}
+
+func (f *PlanReviewForm) SetQualitySummary(summary PlanReviewQualitySummary) {
+	summary.KeyFindings = append([]string(nil), summary.KeyFindings...)
+	if summary.InitialBlockingCount < 0 {
+		summary.InitialBlockingCount = 0
+	}
+	if summary.InitialWarningCount < 0 {
+		summary.InitialWarningCount = 0
+	}
+	if summary.BlockingCount < 0 {
+		summary.BlockingCount = 0
+	}
+	if summary.WarningCount < 0 {
+		summary.WarningCount = 0
+	}
+	if summary.AutoRefinePassesRun < 0 {
+		summary.AutoRefinePassesRun = 0
+	}
+	f.qualitySummary = summary
+	f.resetDefaultSelection()
+}
+
+func defaultPlanReviewQualitySummary(generatedPlan plan.WorkGraph) PlanReviewQualitySummary {
+	findings := planquality.Lint(generatedPlan)
+	return planReviewQualitySummaryFromFindings(findings, findings, 0)
+}
+
+func buildPlanReviewQualitySummary(result planquality.QualityGateResult) PlanReviewQualitySummary {
+	return planReviewQualitySummaryFromFindings(result.InitialFindings, result.FinalFindings, result.AutoRefinePassesRun)
+}
+
+func planReviewQualitySummaryFromFindings(initialFindings []planquality.PlanQualityFinding, finalFindings []planquality.PlanQualityFinding, autoRefinePassesRun int) PlanReviewQualitySummary {
+	initialSummary := planquality.Summarize(initialFindings)
+	finalSummary := planquality.Summarize(finalFindings)
+	summary := PlanReviewQualitySummary{
+		InitialBlockingCount: initialSummary.Blocking,
+		InitialWarningCount:  initialSummary.Warning,
+		BlockingCount:        finalSummary.Blocking,
+		WarningCount:         finalSummary.Warning,
+		KeyFindings:          buildPlanReviewKeyFindings(finalFindings, planReviewKeyFindingsLimit),
+		AutoRefinePassesRun:  autoRefinePassesRun,
+	}
+	return summary
+}
+
+func buildPlanReviewKeyFindings(findings []planquality.PlanQualityFinding, limit int) []string {
+	if limit <= 0 || len(findings) == 0 {
+		return nil
+	}
+	ordered := planquality.Summarize(findings)
+	out := make([]string, 0, limit)
+	for _, task := range ordered.Tasks {
+		for _, field := range task.Fields {
+			for _, finding := range field.Findings {
+				label := fmt.Sprintf("%s.%s [%s] %s", task.TaskID, field.Field, finding.Severity, strings.TrimSpace(finding.Message))
+				out = append(out, strings.TrimSpace(label))
+				if len(out) >= limit {
+					return out
+				}
+			}
+		}
+	}
+	return out
 }
 
 // HandlePlanReviewKey handles key presses in plan-review mode
@@ -160,10 +270,12 @@ func HandlePlanReviewKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		case "enter":
 			action := m.planReviewForm.GetAction()
 			switch action {
-			case 0: // Accept
-				// Save plan and return to main view
+			case planReviewActionAccept:
+				if m.planReviewForm.HasBlockingFindings() {
+					return acceptPlanAnyway(m)
+				}
 				return acceptPlan(m)
-			case 1: // Revise
+			case planReviewActionRevise:
 				if !m.planReviewForm.CanRevise() {
 					// Show error - too many revisions
 					m.actionOutput = &ActionOutput{
@@ -180,7 +292,7 @@ func HandlePlanReviewKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 				updatedForm.revisionTextarea.Focus()
 				m.planReviewForm = &updatedForm
 				return m, nil
-			case 2: // Reject
+			case planReviewActionReject:
 				// Discard plan and return to main view
 				m.actionMode = ActionModeNone
 				m.planReviewForm = nil
@@ -271,6 +383,29 @@ func acceptPlan(m Model) (Model, tea.Cmd) {
 	return m, SavePlanCmd(m.plan)
 }
 
+func acceptPlanAnyway(m Model) (Model, tea.Cmd) {
+	if m.planReviewForm == nil {
+		m.actionMode = ActionModeNone
+		return m, nil
+	}
+
+	m.plan = m.planReviewForm.plan
+	m.ensureSelectionVisible()
+	m.actionMode = ActionModeNone
+	m.planReviewForm = nil
+	m.pendingPlanRequest = PendingPlanRequest{}
+	m.actionOutput = &ActionOutput{
+		Message: "WARNING: blocking findings were overridden; saving plan anyway",
+		IsError: false,
+	}
+
+	return m, SavePlanCmdWithAction(
+		m.plan,
+		"save plan override",
+		"WARNING: blocking findings were overridden; saved plan anyway",
+	)
+}
+
 // RenderPlanReviewModal renders the plan review modal
 func RenderPlanReviewModal(m Model, form PlanReviewForm) string {
 	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69"))
@@ -291,6 +426,23 @@ func RenderPlanReviewModal(m Model, form PlanReviewForm) string {
 		Background(lipgloss.Color("236")).
 		Foreground(lipgloss.Color("242"))
 
+	modalWidth := m.windowWidth - 4
+	if modalWidth < 50 {
+		modalWidth = 50
+	}
+	modalHeight := m.windowHeight - 3
+	if modalHeight < 10 {
+		modalHeight = 10
+	}
+	contentWidth := modalWidth - 8
+	if contentWidth < 24 {
+		contentWidth = 24
+	}
+	topLevelPreviewLimit := 5
+	if contentWidth < 40 {
+		topLevelPreviewLimit = 3
+	}
+
 	var lines []string
 
 	// Mode: Choose action
@@ -305,18 +457,50 @@ func RenderPlanReviewModal(m Model, form PlanReviewForm) string {
 		lines = append(lines, summary)
 		lines = append(lines, "")
 
+		// Quality summary
+		lines = append(lines, labelStyle.Render("Quality summary:"))
+		lines = append(lines, textStyle.Render(fmt.Sprintf("  Initial: blocking=%d warning=%d", form.qualitySummary.InitialBlockingCount, form.qualitySummary.InitialWarningCount)))
+		lines = append(lines, textStyle.Render(fmt.Sprintf("  Final: blocking=%d warning=%d", form.qualitySummary.BlockingCount, form.qualitySummary.WarningCount)))
+		if form.qualitySummary.AutoRefinePassesRun > 0 {
+			passLabel := "passes"
+			if form.qualitySummary.AutoRefinePassesRun == 1 {
+				passLabel = "pass"
+			}
+			outcome := "blocking findings remain"
+			if form.qualitySummary.BlockingCount == 0 {
+				outcome = "no blocking findings remain"
+			}
+			lines = append(lines, textStyle.Render(fmt.Sprintf("  Auto-refine: %d %s run, %s", form.qualitySummary.AutoRefinePassesRun, passLabel, outcome)))
+		}
+		if form.HasBlockingFindings() {
+			lines = append(lines, textStyle.Render("  Blocking findings remain: explicit override required to accept"))
+		}
+		if len(form.qualitySummary.KeyFindings) == 0 {
+			lines = append(lines, textStyle.Render("  Key findings: none"))
+		} else {
+			lines = append(lines, labelStyle.Render("  Key findings:"))
+			maxFindingWidth := contentWidth - 6
+			if maxFindingWidth < 10 {
+				maxFindingWidth = 10
+			}
+			for _, finding := range form.qualitySummary.KeyFindings {
+				lines = append(lines, textStyle.Render("    - "+truncateField(finding, maxFindingWidth)))
+			}
+		}
+		lines = append(lines, "")
+
 		// Top-level features preview
 		roots := plan.BuildTaskTree(form.plan).Roots
 		if len(roots) > 0 {
 			lines = append(lines, labelStyle.Render("Top-level features:"))
 			for i, rootID := range roots {
-				if i >= 5 {
-					lines = append(lines, labelStyle.Render(fmt.Sprintf("  ... and %d more", len(roots)-5)))
+				if i >= topLevelPreviewLimit {
+					lines = append(lines, labelStyle.Render(fmt.Sprintf("  ... and %d more", len(roots)-topLevelPreviewLimit)))
 					break
 				}
 				item, ok := form.plan.Items[rootID]
 				if ok {
-					lines = append(lines, textStyle.Render(fmt.Sprintf("  • %s", item.Title)))
+					lines = append(lines, textStyle.Render(fmt.Sprintf("  • %s", truncateField(item.Title, contentWidth-6))))
 				}
 			}
 			lines = append(lines, "")
@@ -327,8 +511,8 @@ func RenderPlanReviewModal(m Model, form PlanReviewForm) string {
 		lines = append(lines, "")
 
 		// Accept
-		acceptLabel := "1. Accept"
-		if form.selectedAction == 0 {
+		acceptLabel := form.acceptLabel()
+		if form.selectedAction == planReviewActionAccept {
 			lines = append(lines, selectedStyle.Render(acceptLabel))
 		} else {
 			lines = append(lines, unselectedStyle.Render(acceptLabel))
@@ -338,7 +522,7 @@ func RenderPlanReviewModal(m Model, form PlanReviewForm) string {
 		reviseLabel := "2. Revise"
 		if !form.CanRevise() {
 			lines = append(lines, disabledStyle.Render(reviseLabel+" (limit reached)"))
-		} else if form.selectedAction == 1 {
+		} else if form.selectedAction == planReviewActionRevise {
 			lines = append(lines, selectedStyle.Render(reviseLabel))
 		} else {
 			lines = append(lines, unselectedStyle.Render(reviseLabel))
@@ -346,7 +530,7 @@ func RenderPlanReviewModal(m Model, form PlanReviewForm) string {
 
 		// Reject
 		rejectLabel := "3. Reject"
-		if form.selectedAction == 2 {
+		if form.selectedAction == planReviewActionReject {
 			lines = append(lines, selectedStyle.Render(rejectLabel))
 		} else {
 			lines = append(lines, unselectedStyle.Render(rejectLabel))
@@ -377,16 +561,6 @@ func RenderPlanReviewModal(m Model, form PlanReviewForm) string {
 
 		helpText := helpStyle.Render("[ctrl+s or ctrl+enter]submit • Enter: new line • [esc]back")
 		lines = append(lines, helpText)
-	}
-
-	// Full-screen modal
-	modalWidth := m.windowWidth - 4
-	if modalWidth < 50 {
-		modalWidth = 50
-	}
-	modalHeight := m.windowHeight - 3
-	if modalHeight < 10 {
-		modalHeight = 10
 	}
 
 	modalStyle := lipgloss.NewStyle().

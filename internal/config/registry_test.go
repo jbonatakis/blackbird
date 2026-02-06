@@ -5,8 +5,8 @@ import "testing"
 func TestOptionRegistryIncludesKnownOptions(t *testing.T) {
 	defaults := DefaultResolvedConfig()
 	options := OptionRegistry()
-	if len(options) != 3 {
-		t.Fatalf("options count = %d, want 3", len(options))
+	if len(options) != 4 {
+		t.Fatalf("options count = %d, want 4", len(options))
 	}
 
 	byKey := map[string]OptionMetadata{}
@@ -58,6 +58,26 @@ func TestOptionRegistryIncludesKnownOptions(t *testing.T) {
 	}
 	if plan.Description != "Plan data refresh interval in seconds" {
 		t.Fatalf("plan description = %q, want %q", plan.Description, "Plan data refresh interval in seconds")
+	}
+
+	planning := requireOption(t, byKey, "planning.maxPlanAutoRefinePasses")
+	if planning.DisplayName != "Planning Max Auto-Refine Passes" {
+		t.Fatalf("planning display name = %q, want %q", planning.DisplayName, "Planning Max Auto-Refine Passes")
+	}
+	if planning.Type != OptionTypeInt {
+		t.Fatalf("planning type = %q, want %q", planning.Type, OptionTypeInt)
+	}
+	if planning.DefaultInt != defaults.Planning.MaxPlanAutoRefinePasses {
+		t.Fatalf("planning default = %d, want %d", planning.DefaultInt, defaults.Planning.MaxPlanAutoRefinePasses)
+	}
+	if planning.Bounds == nil {
+		t.Fatalf("planning bounds = nil, want bounds")
+	}
+	if planning.Bounds.Min != MinPlanAutoRefinePasses || planning.Bounds.Max != MaxPlanAutoRefinePasses {
+		t.Fatalf("planning bounds = %d-%d, want %d-%d", planning.Bounds.Min, planning.Bounds.Max, MinPlanAutoRefinePasses, MaxPlanAutoRefinePasses)
+	}
+	if planning.Description != "Maximum automatic refine passes when planning" {
+		t.Fatalf("planning description = %q, want %q", planning.Description, "Maximum automatic refine passes when planning")
 	}
 
 	stop := requireOption(t, byKey, "execution.stopAfterEachTask")

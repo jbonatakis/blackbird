@@ -210,6 +210,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			// Success - show plan review modal
 			form := NewPlanReviewForm(*typed.Plan, m.pendingPlanRequest.questionRound)
+			if typed.Quality != nil {
+				form.SetQualitySummary(*typed.Quality)
+			}
 			form.SetSize(m.windowWidth, m.windowHeight)
 			m.planReviewForm = &form
 			m.actionMode = ActionModePlanReview
@@ -229,7 +232,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Message: fmt.Sprintf("Action completed successfully\n\n%s", typed.Output),
 				IsError: false,
 			}
-			if typed.Action == "save plan" {
+			if typed.Action == "save plan" || typed.Action == "save plan override" {
 				m.planExists = true
 				m.viewMode = ViewModeMain
 			}

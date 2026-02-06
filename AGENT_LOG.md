@@ -1,5 +1,154 @@
 # AGENT_LOG
 
+## 2026-02-06 — Deterministic integration test expansion across planquality, CLI, and TUI
+
+- Expanded `internal/planquality/lint_test.go` with an integration-style deterministic fixture that:
+  - triggers every lint rule code across a stable multi-leaf graph,
+  - asserts exact ordered `task:code` output,
+  - verifies full rule-code coverage and repeat-run determinism.
+- Expanded `internal/planquality/gate_test.go` to cover bounded-loop edge behavior:
+  - negative `maxAutoRefinePasses` is clamped to `0` (no refine calls),
+  - blocking findings + enabled passes + nil refine callback returns `ErrRefineCallbackRequired`.
+- Expanded `internal/cli/agent_flows_generate_quality_test.go` with blocking-remains-after-auto-refine flow:
+  - confirms bounded auto-refine progress output (`1/1`),
+  - confirms explicit blocking decision prompt still appears when findings persist,
+  - asserts override-save branch persists blocking findings.
+- Expanded `internal/tui/plan_review_modal_test.go` with:
+  - deterministic `buildPlanReviewQualitySummary` assertions (counts, key-finding ordering, key-finding limit),
+  - plural auto-refine rendering branch (`2 passes`) with no-blocking outcome text,
+  - blocking default-action behavior when revision limit is reached (`Reject` default).
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/planquality/...`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/cli/...`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui/...`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-06 — TUI explicit override action for blocking plan-quality findings
+
+- Updated `internal/tui/plan_review_modal.go` to require explicit override semantics when blocking findings remain:
+  - action label becomes `Accept anyway` in blocking state (normal `Accept` remains for non-blocking state)
+  - default action in blocking state is non-accepting (`Revise`, or `Reject` when revision limit is reached)
+  - added explicit blocking-state guidance text in the modal quality summary
+- Updated plan-review action handling:
+  - choosing action `1` with blocking findings now routes through a dedicated override save path (`acceptPlanAnyway`)
+  - override path preserves save behavior, writes the plan, and surfaces explicit warning text in action output
+  - non-blocking accept path remains unchanged (`Accept` -> normal save flow)
+- Updated `internal/tui/model.go` plan-save completion handling so override saves (`save plan override`) set `planExists` and return to main view just like standard saves.
+- Expanded `internal/tui/plan_review_modal_test.go` coverage for:
+  - blocking-state default action and quick-select behavior
+  - rendering of `Accept anyway` + explicit blocking notice
+  - accept-anyway branch (including warning output and persisted save completion behavior)
+  - revise and reject branch behavior with updated action constants
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui/...`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-06 — TUI plan review quality summary metadata
+
+- Extended plan-review modal state in `internal/tui/plan_review_modal.go` with deterministic quality-gate metadata:
+  - initial counts (`blocking`, `warning`)
+  - final counts (`blocking`, `warning`)
+  - `keyFindings` preview lines
+  - `autoRefinePassesRun`
+- Added quality summary rendering above action choices in the review modal:
+  - always shows initial/final counts
+  - shows explicit auto-refine pass/outcome line when passes ran
+  - shows compact key findings (or `none`) with truncation for narrow widths
+- Threaded quality metadata through generation result handling:
+  - added `Quality *PlanReviewQualitySummary` to `PlanGenerateInMemoryResult`
+  - populated in `GeneratePlanInMemory` and `GeneratePlanInMemoryWithAnswers` from shared quality-gate result
+  - applied in `internal/tui/model.go` when opening plan review
+- Added tests for no-findings and blocking-findings review states:
+  - rendering checks in `internal/tui/plan_review_modal_test.go`
+  - model state propagation checks in `internal/tui/plan_generate_modal_test.go`
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui/...`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-06 — CLI explicit override decision for remaining blocking findings
+
+- Updated `internal/cli/agent_flows.go` `runPlanGenerate` to require an explicit three-way decision when blocking findings remain after bounded auto-refine:
+  - `revise`: prompts for a manual revision request, runs `plan_refine`, then reruns the quality gate (lint + bounded auto-refine) before returning to review.
+  - `accept_anyway`: saves the current plan and prints a clear warning that blocking findings were overridden.
+  - `cancel`: exits generation with `aborted; plan unchanged` and does not write plan changes.
+- Refactored manual revise handling into a shared local helper so both normal review (`Accept plan`) and blocking-override flows use identical refine + relint behavior and revision-limit enforcement.
+- Added branch coverage in `internal/cli/agent_flows_generate_quality_test.go`:
+  - revise path verifies manual prompt + rerun quality summaries + persisted non-blocking plan
+  - accept_anyway path verifies warning text and persisted blocking plan
+  - cancel path verifies no plan file write
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/cli/...`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-06 — Reusable plan quality-gate loop helper
+
+- Added shared bounded orchestration in `internal/planquality/gate.go`:
+  - `RunQualityGate(initialPlan, maxAutoRefinePasses, refine)` runs deterministic lint -> optional refine -> relint cycles.
+  - Added `AutoRefineInput` callback contract with pass metadata, current plan snapshot, findings, and deterministic `ChangeRequest` text.
+  - Added `QualityGateResult` with `FinalPlan`, `InitialFindings`, `FinalFindings`, and `AutoRefinePassesRun`.
+- Loop behavior details:
+  - Refine callback executes only when blocking findings exist and pass budget remains.
+  - Negative pass limits are clamped to `0`.
+  - Each refine output is validated via `plan.Validate` before continuing to the next pass.
+  - Callback errors and invalid refined plans return immediately with the latest known result snapshot.
+- Added `internal/planquality/gate_test.go` coverage for:
+  - no blocking findings (no refine call)
+  - max passes `0` (blocking remains, no refine call)
+  - blocking cleared after one pass
+  - blocking persists after max passes
+  - refine callback error propagation
+  - refined-plan validation guard
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/planquality/...`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-06 — Planning max auto-refine config plumbing
+
+- Added config schema support for `planning.maxPlanAutoRefinePasses` across raw/resolved models:
+  - `RawConfig.Planning.MaxPlanAutoRefinePasses`
+  - `ResolvedConfig.Planning.MaxPlanAutoRefinePasses`
+- Added defaults and bounds in `internal/config/types.go`:
+  - `DefaultMaxPlanAutoRefinePasses = 1`
+  - `MinPlanAutoRefinePasses = 0`
+  - `MaxPlanAutoRefinePasses = 3`
+- Extended config resolution in `internal/config/resolve.go`:
+  - Precedence per key remains `project > global > default`
+  - Added clamping helper for planning auto-refine passes (0..3)
+- Extended settings/options plumbing:
+  - Added key path constant `planning.maxPlanAutoRefinePasses`
+  - Added extraction/writes in `RawOptionValues` and `SaveConfigValues` (`buildRawConfig`)
+  - Added applied-value serialization in `ResolvedOptionValues`
+  - Added out-of-range warning clamping for the new key in `clampIntForKey`
+  - Added option metadata entry in `OptionRegistry`
+- Added/updated tests:
+  - `resolve_test.go`: precedence/defaults/clamping for planning key
+  - `settings_resolution_test.go`: source precedence + out-of-range warnings + defaults for planning key
+  - `settings_test.go`: raw extraction, layer loads, save behavior, and round-trip preservation with existing keys unchanged
+  - `registry_test.go`: option registry includes planning key and metadata
+  - `load_config_test.go`: integration assertions for planning key precedence/defaults
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config/...`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-06 — Plan quality summary and refine-request helpers
+
+- Added `internal/planquality` helper APIs:
+  - `HasBlocking(findings []PlanQualityFinding) bool`
+  - `Summarize(findings []PlanQualityFinding) FindingsSummary`
+  - `BuildRefineRequest(findings []PlanQualityFinding) string`
+- Added deterministic grouping/count types in `internal/planquality/types.go`:
+  - `FindingsSummary`, `TaskFindingSummary`, `FieldFindingSummary`
+- Implemented deterministic sorting/grouping by task and field with stable severity ordering (`blocking` before `warning`), independent of input order.
+- Implemented refine-request rendering with explicit hard constraints to preserve task IDs, hierarchy, and dependencies unless structural change is explicitly required by a finding.
+- Added snapshot-style tests in `internal/planquality/summary_test.go`:
+  - blocking detection behavior
+  - deterministic summary counts/grouping across permuted input
+  - deterministic refine-request output snapshot across permuted input
+  - empty-findings refine-request behavior
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/planquality/...`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
 ## 2026-02-06 — Parent review quality gate planning
 
 - Reviewed `specs/improvements/PARENT_REVIEW_QUALITY_GATE.md` against current execution/controller, resume-with-feedback, run storage, CLI, and TUI checkpoint flows.
@@ -1269,3 +1418,98 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 - Reverted unintended implementation edits in `internal/config` to keep this effort spec-only.
 - Updated `specs/improvements/PLAN_QUALITY_GATE.md` to require `planning.maxPlanAutoRefinePasses` as a config key with default/bounds semantics and explicit TUI Settings integration.
 - Expanded done criteria to include config plumbing and settings-view coverage.
+
+## 2026-02-06 — Plan quality gate planning
+
+- Reviewed `specs/improvements/PLAN_QUALITY_GATE.md` and generated a balanced implementation work graph focused on deterministic linting, bounded auto-refine orchestration, config/settings plumbing, and aligned CLI/TUI override UX.
+- Structured tasks with explicit acceptance criteria and minimal required dependencies to keep leaf tasks independently executable.
+
+## 2026-02-06 — Plan quality foundation: findings + deterministic leaf traversal
+
+- Added new `internal/planquality` package with core finding model (`PlanQualityFinding`) and typed severity constants (`blocking`, `warning`).
+- Implemented deterministic leaf-task traversal helper `LeafTaskIDs(g)` that sorts by task ID and excludes non-leaf/container tasks.
+- Added shared text normalization helpers (`NormalizeText`, `NormalizeTexts`, `ContainsAnyNormalizedPhrase`) for upcoming placeholder/vague-language lint checks.
+- Added focused tests for deterministic leaf ordering across repeated runs, non-leaf exclusion, and normalization phrase matching behavior.
+- Validation:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/planquality/...`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-06 — Plan quality lint rules (blocking + warning)
+
+- Added `internal/planquality/lint.go` implementing deterministic `Lint(g plan.WorkGraph) []PlanQualityFinding` evaluation over leaf tasks in stable order.
+- Implemented blocking rule codes:
+  - `leaf_description_missing_or_placeholder`
+  - `leaf_acceptance_criteria_missing`
+  - `leaf_acceptance_criteria_non_verifiable`
+  - `leaf_prompt_missing`
+  - `leaf_prompt_not_actionable`
+- Implemented warning rule codes:
+  - `leaf_description_too_thin`
+  - `leaf_acceptance_criteria_low_count`
+  - `leaf_prompt_missing_verification_hint`
+  - `vague_language_detected`
+- Each emitted finding now includes explicit, stable `field`, `message`, and `suggestion` values for downstream CLI/TUI rendering.
+- Added `internal/planquality/lint_test.go` with trigger + non-trigger fixtures for every rule code, plus guard tests for:
+  - `leaf_acceptance_criteria_non_verifiable` only firing when criteria are present and entirely non-verifiable.
+  - word-count heuristics producing warnings only (no blocking findings by themselves).
+  - leaf-only lint scope and deterministic finding order.
+- Validation:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/planquality/...`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-06 — Shared CLI/TUI quality-gate wiring for plan generation
+
+- Added new shared package `internal/plangen` for generation plumbing:
+  - `Generate`/`Refine` helpers centralize `plan_generate` and `plan_refine` request+response conversion (including question passthrough and `agent.ResponseToPlan` conversion).
+  - `RunQualityGate` wraps shared bounded orchestration (`internal/planquality.RunQualityGate`) so CLI and TUI call the same quality-gate entrypoint.
+  - `ResolveMaxAutoRefinePasses*` helpers load `planning.maxPlanAutoRefinePasses` from resolved config (with default fallback) for both interfaces.
+- Refactored CLI `runPlanGenerate` (`internal/cli/agent_flows.go`) to:
+  - use `plangen.Generate` for initial generation,
+  - run shared quality-gate orchestration on generated candidates,
+  - use `plangen.Refine` inside quality auto-refine callbacks,
+  - apply quality-gate passes to revised generation candidates before final accept/save.
+- Refactored TUI in-process wrappers (`internal/tui/action_wrappers.go`) to:
+  - use `plangen.Generate`/`plangen.Refine` shared conversion logic,
+  - run the same shared quality-gate orchestration on final generated plans,
+  - keep existing question-round continuation limits (`agent.MaxPlanQuestionRounds`) behavior intact.
+- Added parity-focused tests in `internal/plangen/quality_gate_test.go` verifying equivalent mocked refine responses produce matching pass counts/findings through CLI-style and TUI-style callbacks.
+- Added question-round limit tests in `internal/tui/action_wrappers_test.go`.
+- Preserved existing in-process action-wrapper test coverage and appended question-round boundary tests without removing prior fixtures/helpers.
+- Validation:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/plangen/... ./internal/cli/... ./internal/tui/...`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-06 — TUI settings coverage for planning auto-refine option
+
+- Verified `planning.maxPlanAutoRefinePasses` is surfaced through the existing generic TUI settings registry/render/edit path and preserved current navigation/edit semantics.
+- Added test coverage in `internal/tui/settings_edit_test.go` for editing `planning.maxPlanAutoRefinePasses` in Global then Local columns, asserting writes land in the correct config layer and that applied value/source refreshes correctly (including Local clear fallback to Global).
+- Added test coverage in `internal/tui/settings_view_test.go` to assert the planning row render, bounds-aware selected-option description, and clamped out-of-range warning line formatting for this option.
+- Validation:
+  - `GOCACHE=/tmp/go-build go test ./internal/tui/...`
+
+## 2026-02-06 — CLI quality summaries + auto-refine progress output
+
+- Updated `internal/cli/agent_flows.go` `runPlanGenerate` quality-gate reporting to print deterministic lint summaries before and after orchestration:
+  - `Quality summary (initial): blocking=..., warning=..., total=...`
+  - `Quality summary (final): blocking=..., warning=..., total=...`
+- Added in-flight auto-refine progress output in `current/total` format during quality-gate refine callbacks:
+  - `quality auto-refine pass X/Y`
+- Added deterministic finding rendering in CLI output:
+  - `Blocking findings:` section when blocking findings remain.
+  - `Warning findings (non-blocking):` section when warnings remain.
+- Added reusable rendering helpers in `internal/cli/agent_helpers.go` for quality summary counts and severity-filtered finding output.
+- Added focused CLI tests in `internal/cli/agent_flows_generate_quality_test.go` covering:
+  - no-findings scenario (initial/final summary lines, no auto-refine progress line),
+  - auto-refine-success scenario (initial blocking summary, `1/1` progress line, final warning summary, warning detail visibility, non-blocking save success).
+- Validation:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/cli/...`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-06 — Plan quality gate docs/spec alignment
+
+- Updated `specs/improvements/PLAN_QUALITY_GATE.md` to `status: complete` and refreshed done criteria to match shipped behavior: deterministic lint summaries, bounded auto-refine (`planning.maxPlanAutoRefinePasses`), and explicit override requirements in CLI/TUI.
+- Updated `docs/CONFIGURATION.md` with `planning.maxPlanAutoRefinePasses` in schema/defaults, documented bounds (`0`..`3`), default (`1`), and `0` disable semantics.
+- Updated `docs/COMMANDS.md` with `blackbird plan generate` quality-gate UX: initial/final summaries, auto-refine progress, deterministic findings output, and explicit `revise`/`accept_anyway`/`cancel` branch when blocking findings persist.
+- Updated `docs/TUI.md` with settings row details for planning auto-refine and plan-review modal quality summary/override behavior (`Accept anyway` when blocking findings remain).
+- Validation:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/planquality/... ./internal/plangen/... ./internal/cli/... ./internal/tui/... ./internal/config/...` (pass)

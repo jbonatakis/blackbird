@@ -11,6 +11,7 @@ import (
 const (
 	keyTuiRunDataRefreshIntervalSeconds  = "tui.runDataRefreshIntervalSeconds"
 	keyTuiPlanDataRefreshIntervalSeconds = "tui.planDataRefreshIntervalSeconds"
+	keyPlanningMaxPlanAutoRefinePasses   = "planning.maxPlanAutoRefinePasses"
 	keyExecutionStopAfterEachTask        = "execution.stopAfterEachTask"
 )
 
@@ -65,6 +66,14 @@ func RawOptionValues(cfg RawConfig) map[string]RawOptionValue {
 		}
 	}
 
+	if cfg.Planning != nil {
+		if cfg.Planning.MaxPlanAutoRefinePasses != nil {
+			values[keyPlanningMaxPlanAutoRefinePasses] = RawOptionValue{
+				Int: copyInt(*cfg.Planning.MaxPlanAutoRefinePasses),
+			}
+		}
+	}
+
 	if cfg.Execution != nil {
 		if cfg.Execution.StopAfterEachTask != nil {
 			values[keyExecutionStopAfterEachTask] = RawOptionValue{
@@ -113,8 +122,10 @@ func SaveConfigValues(path string, values map[string]RawOptionValue) error {
 func buildRawConfig(values map[string]RawOptionValue) (RawConfig, bool, error) {
 	var cfg RawConfig
 	var tui RawTUI
+	var planning RawPlanning
 	var exec RawExecution
 	var hasTUI bool
+	var hasPlanning bool
 	var hasExec bool
 
 	for key, value := range values {
@@ -140,6 +151,13 @@ func buildRawConfig(values map[string]RawOptionValue) (RawConfig, bool, error) {
 			v := *value.Int
 			tui.PlanDataRefreshIntervalSeconds = &v
 			hasTUI = true
+		case keyPlanningMaxPlanAutoRefinePasses:
+			if value.Int == nil {
+				return RawConfig{}, false, fmt.Errorf("config key %q expects int value", key)
+			}
+			v := *value.Int
+			planning.MaxPlanAutoRefinePasses = &v
+			hasPlanning = true
 		case keyExecutionStopAfterEachTask:
 			if value.Bool == nil {
 				return RawConfig{}, false, fmt.Errorf("config key %q expects bool value", key)
@@ -152,12 +170,15 @@ func buildRawConfig(values map[string]RawOptionValue) (RawConfig, bool, error) {
 		}
 	}
 
-	if !hasTUI && !hasExec {
+	if !hasTUI && !hasPlanning && !hasExec {
 		return RawConfig{}, false, nil
 	}
 
 	if hasTUI {
 		cfg.TUI = &tui
+	}
+	if hasPlanning {
+		cfg.Planning = &planning
 	}
 	if hasExec {
 		cfg.Execution = &exec

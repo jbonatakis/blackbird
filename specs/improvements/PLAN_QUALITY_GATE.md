@@ -1,5 +1,5 @@
 # Plan Quality Gate (Deterministic Lint + Bounded Auto-Refine)
-status: incomplete
+status: complete
 
 ## Purpose
 
@@ -35,8 +35,8 @@ For `plan generate` (CLI and TUI):
 3. If no blocking findings:
    - proceed with existing accept/save flow.
 4. If blocking findings:
-   - run a single auto-refine request using lint findings as a structured change request.
-   - re-run lint on refined plan.
+   - run bounded auto-refine requests (up to configured max) using lint findings as a structured change request.
+   - re-run lint after each refined plan.
 5. If blocking findings remain after max auto-refine passes:
    - do not silently accept.
    - show findings and let user explicitly choose next step (revise manually, accept anyway, or cancel).
@@ -126,7 +126,7 @@ Semantics:
 
 1. Number of automatic `plan_refine` passes attempted after lint reports blocking findings.
 2. `0` means no automatic refinement; findings are shown immediately to the user.
-3. Value is clamped to safe bounds (proposed: min `0`, max `3`).
+3. Value is clamped to bounds `0`..`3`.
 
 Config behavior:
 
@@ -143,10 +143,10 @@ TUI Settings integration:
 
 `blackbird plan generate`:
 
-1. Print quality summary after initial proposal.
-2. If auto-refine runs, print “quality auto-refine pass 1/1”.
-3. Print final counts: blocking/warning.
-4. On remaining blocking findings, offer explicit choice:
+1. Print deterministic quality summary for both initial and final findings.
+2. If auto-refine runs, print pass progress (`quality auto-refine pass X/Y`).
+3. Print blocking and warning finding details for the final plan when present.
+4. On remaining blocking findings, require explicit choice:
    - `revise` (manual refine prompt),
    - `accept_anyway`,
    - `cancel`.
@@ -155,9 +155,9 @@ TUI Settings integration:
 
 In the plan review modal flow:
 
-1. Show quality summary panel (blocking + warnings).
-2. If auto-refine ran, indicate that and show post-refine summary.
-3. If blocking findings remain, disable “accept” as default action and require explicit override action.
+1. Show quality summary panel with initial/final blocking+warning counts and key findings.
+2. If auto-refine ran, indicate pass count and whether blocking findings remain.
+3. If blocking findings remain, require explicit override via `Accept anyway`; default selection shifts away from accept (to `Revise`, or `Reject` when revision limit is reached).
 
 ## Shared Implementation Shape
 
@@ -195,10 +195,9 @@ Initial rollout can enable lint + reporting first, then enforce blocking behavio
 
 ## Done Criteria
 
-1. Plan generation runs deterministic quality lint before save/accept.
-2. Blocking findings trigger one bounded auto-refine pass.
-3. Blocking findings remaining after auto-refine require explicit user override to save.
-4. `planning.maxPlanAutoRefinePasses` is supported in config loading/resolution with documented default and bounds.
-5. TUI Settings view exposes `planning.maxPlanAutoRefinePasses` in local/global editing and applied-source display.
-6. CLI and TUI use the same shared lint and refine-request logic.
-7. Tests cover lint rules, bounded loop behavior, config plumbing, and UX decision paths.
+1. `plan generate` runs deterministic lint before acceptance and reports initial/final quality summaries.
+2. Blocking findings trigger bounded auto-refine controlled by `planning.maxPlanAutoRefinePasses` (default `1`, clamped `0`..`3`, `0` disables auto-refine).
+3. Remaining blocking findings require explicit override to save in both interfaces (`accept_anyway` in CLI, `Accept anyway` in TUI).
+4. Config loading/resolution and TUI Settings support `planning.maxPlanAutoRefinePasses` with local/global/default/applied behavior and clamp warnings.
+5. CLI and TUI share quality-gate orchestration (`internal/plangen` + `internal/planquality`) and deterministic refine-request construction.
+6. Tests cover deterministic lint/summary output, bounded loop behavior, config plumbing, and CLI/TUI decision paths for override and revision.
