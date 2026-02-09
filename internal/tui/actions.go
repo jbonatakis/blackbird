@@ -5,6 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/jbonatakis/blackbird/internal/execution"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
@@ -147,7 +148,8 @@ func HandleSetStatusKey(m Model, key string) (Model, tea.Cmd) {
 	return m, tea.Batch(SetStatusCmd(taskID, string(status)), spinnerTickCmd())
 }
 
-// CanResume returns true if the selected task has a waiting run that can be resumed
+// CanResume returns true if the selected task can be resumed via either pending
+// parent-review feedback or a waiting_user run.
 func CanResume(m Model) bool {
 	if m.selectedID == "" {
 		return false
@@ -158,6 +160,10 @@ func CanResume(m Model) bool {
 		return false
 	}
 
+	if hasPendingParentFeedbackForTask(m, m.selectedID) {
+		return true
+	}
+
 	// Check if task is in waiting_user status
 	if item.Status != plan.StatusWaitingUser {
 		return false
@@ -165,10 +171,15 @@ func CanResume(m Model) bool {
 
 	// Check if there are any waiting runs for this task
 	for _, run := range m.runData {
-		if run.TaskID == m.selectedID && run.Status == "waiting_user" {
+		if run.TaskID == m.selectedID && run.Status == execution.RunStatusWaitingUser {
 			return true
 		}
 	}
 
 	return false
+}
+
+func hasPendingParentFeedbackForTask(m Model, taskID string) bool {
+	_, ok := m.pendingParentFeedback[taskID]
+	return ok
 }

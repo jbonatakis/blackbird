@@ -130,6 +130,9 @@ func actionHints(model Model, readyCount int) []string {
 			return []string{"[ctrl+s]submit", "[esc]back", "[ctrl+c]quit"}
 		}
 	}
+	if model.actionMode == ActionModeParentReview {
+		return []string{"[↑/↓]target", "[1/enter]resume-target", "[2]resume-all", "[3/esc]dismiss", "[ctrl+c]quit"}
+	}
 	if model.actionMode == ActionModeSelectAgent {
 		return []string{"[↑/↓]move", "[enter]select", "[esc]cancel", "[ctrl+c]quit"}
 	}

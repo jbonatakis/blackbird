@@ -9,18 +9,20 @@ import (
 
 func TestCanResume(t *testing.T) {
 	tests := []struct {
-		name       string
-		selectedID string
-		plan       plan.WorkGraph
-		runData    map[string]execution.RunRecord
-		want       bool
+		name                  string
+		selectedID            string
+		plan                  plan.WorkGraph
+		runData               map[string]execution.RunRecord
+		pendingParentFeedback map[string]execution.PendingParentReviewFeedback
+		want                  bool
 	}{
 		{
-			name:       "no selected ID",
-			selectedID: "",
-			plan:       plan.NewEmptyWorkGraph(),
-			runData:    map[string]execution.RunRecord{},
-			want:       false,
+			name:                  "no selected ID",
+			selectedID:            "",
+			plan:                  plan.NewEmptyWorkGraph(),
+			runData:               map[string]execution.RunRecord{},
+			pendingParentFeedback: map[string]execution.PendingParentReviewFeedback{},
+			want:                  false,
 		},
 		{
 			name:       "task not in waiting_user status",
@@ -34,8 +36,9 @@ func TestCanResume(t *testing.T) {
 					},
 				},
 			},
-			runData: map[string]execution.RunRecord{},
-			want:    false,
+			runData:               map[string]execution.RunRecord{},
+			pendingParentFeedback: map[string]execution.PendingParentReviewFeedback{},
+			want:                  false,
 		},
 		{
 			name:       "task in waiting_user status but no waiting runs",
@@ -49,8 +52,9 @@ func TestCanResume(t *testing.T) {
 					},
 				},
 			},
-			runData: map[string]execution.RunRecord{},
-			want:    false,
+			runData:               map[string]execution.RunRecord{},
+			pendingParentFeedback: map[string]execution.PendingParentReviewFeedback{},
+			want:                  false,
 		},
 		{
 			name:       "task in waiting_user status with waiting run",
@@ -70,7 +74,8 @@ func TestCanResume(t *testing.T) {
 					Status: "waiting_user",
 				},
 			},
-			want: true,
+			pendingParentFeedback: map[string]execution.PendingParentReviewFeedback{},
+			want:                  true,
 		},
 		{
 			name:       "task in waiting_user status with completed run",
@@ -90,16 +95,40 @@ func TestCanResume(t *testing.T) {
 					Status: "completed",
 				},
 			},
-			want: false,
+			pendingParentFeedback: map[string]execution.PendingParentReviewFeedback{},
+			want:                  false,
+		},
+		{
+			name:       "task with pending parent review feedback can resume without waiting run",
+			selectedID: "task-1",
+			plan: plan.WorkGraph{
+				Items: map[string]plan.WorkItem{
+					"task-1": {
+						ID:     "task-1",
+						Title:  "Task 1",
+						Status: plan.StatusDone,
+					},
+				},
+			},
+			runData: map[string]execution.RunRecord{},
+			pendingParentFeedback: map[string]execution.PendingParentReviewFeedback{
+				"task-1": {
+					ParentTaskID: "parent-1",
+					ReviewRunID:  "review-1",
+					Feedback:     "update task",
+				},
+			},
+			want: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := Model{
-				selectedID: tt.selectedID,
-				plan:       tt.plan,
-				runData:    tt.runData,
+				selectedID:            tt.selectedID,
+				plan:                  tt.plan,
+				runData:               tt.runData,
+				pendingParentFeedback: tt.pendingParentFeedback,
 			}
 			got := CanResume(m)
 			if got != tt.want {

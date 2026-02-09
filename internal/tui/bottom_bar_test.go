@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jbonatakis/blackbird/internal/agent"
+	"github.com/jbonatakis/blackbird/internal/execution"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
@@ -143,6 +144,62 @@ func TestBottomBarMainShowsSelectedAgentLabel(t *testing.T) {
 	out := RenderBottomBar(model)
 	if !strings.Contains(out, "agent:Codex") {
 		t.Fatalf("expected selected agent label in main bottom bar, got %q", out)
+	}
+}
+
+func TestBottomBarMainShowsResumeHintForPendingParentFeedback(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
+	now := time.Date(2026, 2, 9, 4, 0, 0, 0, time.UTC)
+	model := Model{
+		plan: plan.WorkGraph{
+			SchemaVersion: plan.SchemaVersion,
+			Items: map[string]plan.WorkItem{
+				"task-1": {
+					ID:        "task-1",
+					Title:     "Needs review fixes",
+					Status:    plan.StatusDone,
+					CreatedAt: now,
+					UpdatedAt: now,
+				},
+			},
+		},
+		selectedID: "task-1",
+		viewMode:   ViewModeMain,
+		planExists: true,
+		pendingParentFeedback: map[string]execution.PendingParentReviewFeedback{
+			"task-1": {
+				ParentTaskID: "parent-1",
+				ReviewRunID:  "review-1",
+				Feedback:     "address review comments",
+				CreatedAt:    now,
+				UpdatedAt:    now,
+			},
+		},
+		windowWidth:  160,
+		windowHeight: 10,
+	}
+
+	out := RenderBottomBar(model)
+	if !strings.Contains(out, "[u]resume") {
+		t.Fatalf("expected resume hint when pending parent feedback exists, got %q", out)
+	}
+}
+
+func TestBottomBarParentReviewHintsShowResumeTargetActions(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
+	model := Model{
+		viewMode:     ViewModeMain,
+		planExists:   true,
+		actionMode:   ActionModeParentReview,
+		windowWidth:  160,
+		windowHeight: 10,
+	}
+
+	out := RenderBottomBar(model)
+	for _, hint := range []string{"[1/enter]resume-target", "[2]resume-all", "[3/esc]dismiss"} {
+		if !strings.Contains(out, hint) {
+			t.Fatalf("expected parent-review hint %q, got %q", hint, out)
+		}
 	}
 }
 

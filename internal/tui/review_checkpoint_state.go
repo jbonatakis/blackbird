@@ -53,6 +53,7 @@ func openReviewCheckpointModal(m Model, run execution.RunRecord) Model {
 	form := NewReviewCheckpointForm(run, m.plan)
 	form.SetSize(m.windowWidth, m.windowHeight)
 	m.reviewCheckpointForm = &form
+	m.parentReviewForm = nil
 	m.actionMode = ActionModeReviewCheckpoint
 	return m
 }

@@ -99,6 +99,9 @@ func handleExecuteResult(ctx context.Context, controller execution.ExecutionCont
 			}
 			result = *next
 			continue
+		case execution.ExecuteReasonParentReviewRequired:
+			printParentReviewRequired(os.Stdout, result.TaskID, result.Run)
+			return nil
 		case execution.ExecuteReasonCanceled:
 			fmt.Fprintln(os.Stdout, "execution interrupted")
 			return nil

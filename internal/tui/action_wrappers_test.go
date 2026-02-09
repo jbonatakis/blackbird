@@ -122,6 +122,173 @@ func TestResumeCmdWithContextRunsInProcess(t *testing.T) {
 	}
 }
 
+func TestResumeCmdWithContextRejectsAnswersWhenPendingFeedbackExists(t *testing.T) {
+	tempDir := t.TempDir()
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("chdir temp: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldWD) })
+
+	t.Setenv("BLACKBIRD_AGENT_CMD", "cat")
+
+	planPath := plan.PlanPath()
+	g := plan.WorkGraph{
+		SchemaVersion: plan.SchemaVersion,
+		Items: map[string]plan.WorkItem{
+			"task": makeTestItem("task", plan.StatusWaitingUser),
+		},
+	}
+	if err := plan.SaveAtomic(planPath, g); err != nil {
+		t.Fatalf("save plan: %v", err)
+	}
+
+	if _, err := execution.UpsertPendingParentReviewFeedback(
+		tempDir,
+		"task",
+		"parent-1",
+		"review-1",
+		"apply requested changes",
+	); err != nil {
+		t.Fatalf("UpsertPendingParentReviewFeedback: %v", err)
+	}
+
+	cmd := ResumeCmdWithContext(context.Background(), "task", []agent.Answer{{
+		ID:    "q1",
+		Value: "answer",
+	}})
+	msg := cmd()
+	complete, ok := msg.(ExecuteActionComplete)
+	if !ok {
+		t.Fatalf("expected ExecuteActionComplete, got %T", msg)
+	}
+	if complete.Err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(complete.Err.Error(), "cannot be combined with pending parent-review feedback") {
+		t.Fatalf("error = %q", complete.Err.Error())
+	}
+}
+
+func TestResumePendingParentFeedbackCmdWithContextRunsInProcess(t *testing.T) {
+	tempDir := t.TempDir()
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("chdir temp: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldWD) })
+
+	t.Setenv("BLACKBIRD_AGENT_CMD", "true")
+	t.Setenv("BLACKBIRD_AGENT_PROVIDER", "codex")
+
+	planPath := plan.PlanPath()
+	g := plan.WorkGraph{
+		SchemaVersion: plan.SchemaVersion,
+		Items: map[string]plan.WorkItem{
+			"task": makeTestItem("task", plan.StatusDone),
+		},
+	}
+	if err := plan.SaveAtomic(planPath, g); err != nil {
+		t.Fatalf("save plan: %v", err)
+	}
+
+	now := time.Date(2026, 2, 9, 9, 0, 0, 0, time.UTC)
+	saveResumeFeedbackFixture(t, tempDir, "task", now)
+
+	cmd := ResumePendingParentFeedbackCmdWithContext(context.Background(), "task")
+	msg := cmd()
+	complete, ok := msg.(ExecuteActionComplete)
+	if !ok {
+		t.Fatalf("expected ExecuteActionComplete, got %T", msg)
+	}
+	if complete.Action != "resume" || !complete.Success {
+		t.Fatalf("expected resume success, got action=%s success=%v err=%v", complete.Action, complete.Success, complete.Err)
+	}
+	if complete.Output != "completed task" {
+		t.Fatalf("output = %q, want %q", complete.Output, "completed task")
+	}
+
+	pending, err := execution.LoadPendingParentReviewFeedback(tempDir, "task")
+	if err != nil {
+		t.Fatalf("LoadPendingParentReviewFeedback: %v", err)
+	}
+	if pending != nil {
+		t.Fatalf("expected pending feedback to clear after successful resume, got %#v", pending)
+	}
+}
+
+func TestResumePendingParentFeedbackTargetsCmdWithContextReportsPerTaskResults(t *testing.T) {
+	tempDir := t.TempDir()
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("chdir temp: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldWD) })
+
+	t.Setenv("BLACKBIRD_AGENT_CMD", "true")
+	t.Setenv("BLACKBIRD_AGENT_PROVIDER", "codex")
+
+	planPath := plan.PlanPath()
+	g := plan.WorkGraph{
+		SchemaVersion: plan.SchemaVersion,
+		Items: map[string]plan.WorkItem{
+			"task-a": makeTestItem("task-a", plan.StatusDone),
+			"task-b": makeTestItem("task-b", plan.StatusDone),
+		},
+	}
+	if err := plan.SaveAtomic(planPath, g); err != nil {
+		t.Fatalf("save plan: %v", err)
+	}
+
+	now := time.Date(2026, 2, 9, 9, 5, 0, 0, time.UTC)
+	saveResumeFeedbackFixture(t, tempDir, "task-a", now)
+	if _, err := execution.UpsertPendingParentReviewFeedback(
+		tempDir,
+		"task-b",
+		"parent-1",
+		"review-2",
+		"retry child-b",
+	); err != nil {
+		t.Fatalf("UpsertPendingParentReviewFeedback(task-b): %v", err)
+	}
+
+	cmd := ResumePendingParentFeedbackTargetsCmdWithContext(
+		context.Background(),
+		[]string{" task-a ", "task-b", "task-a"},
+	)
+	msg := cmd()
+	complete, ok := msg.(ExecuteActionComplete)
+	if !ok {
+		t.Fatalf("expected ExecuteActionComplete, got %T", msg)
+	}
+	if complete.Action != "resume" || !complete.Success {
+		t.Fatalf("expected resume success output, got action=%s success=%v err=%v", complete.Action, complete.Success, complete.Err)
+	}
+	if complete.Err != nil {
+		t.Fatalf("expected nil error, got %v", complete.Err)
+	}
+
+	lines := strings.Split(complete.Output, "\n")
+	if len(lines) != 2 {
+		t.Fatalf("expected 2 per-task output lines, got %d (%q)", len(lines), complete.Output)
+	}
+	if lines[0] != "completed task-a" {
+		t.Fatalf("first output line = %q, want %q", lines[0], "completed task-a")
+	}
+	if !strings.Contains(lines[1], "failed task-b: no runs found for task-b") {
+		t.Fatalf("second output line = %q", lines[1])
+	}
+}
+
 func TestResponseToPlanNormalizesFullPlanTimestamps(t *testing.T) {
 	now := time.Date(2026, 1, 31, 10, 0, 0, 0, time.UTC)
 	agentTime := time.Date(2026, 1, 31, 9, 0, 0, 0, time.UTC)
@@ -218,5 +385,38 @@ func makeTestItem(id string, status plan.Status) plan.WorkItem {
 		Status:             status,
 		CreatedAt:          now,
 		UpdatedAt:          now,
+	}
+}
+
+func saveResumeFeedbackFixture(t *testing.T, baseDir string, taskID string, now time.Time) {
+	t.Helper()
+
+	previousRun := execution.RunRecord{
+		ID:                 "run-previous-" + taskID,
+		TaskID:             taskID,
+		Provider:           "codex",
+		ProviderSessionRef: "session-" + taskID,
+		StartedAt:          now,
+		Status:             execution.RunStatusSuccess,
+		Context: execution.ContextPack{
+			SchemaVersion: execution.ContextPackSchemaVersion,
+			Task: execution.TaskContext{
+				ID:    taskID,
+				Title: "Task " + taskID,
+			},
+		},
+	}
+	if err := execution.SaveRun(baseDir, previousRun); err != nil {
+		t.Fatalf("SaveRun(%s): %v", taskID, err)
+	}
+
+	if _, err := execution.UpsertPendingParentReviewFeedback(
+		baseDir,
+		taskID,
+		"parent-1",
+		"review-"+taskID,
+		"retry "+taskID,
+	); err != nil {
+		t.Fatalf("UpsertPendingParentReviewFeedback(%s): %v", taskID, err)
 	}
 }

@@ -1,415 +1,761 @@
 {
   "schemaVersion": 1,
   "items": {
-    "plqg_01": {
-      "id": "plqg_01",
-      "title": "Deterministic Plan Quality Lint Package",
-      "description": "Implement a shared `internal/planquality` package that scores generated plans for execution readiness using deterministic, rule-based checks instead of subjective scoring. Scope is linting and finding construction only; execution/UX behavior is handled by downstream deliverables.",
+    "prqg_01": {
+      "id": "prqg_01",
+      "title": "Execution Data Contracts for Parent Review",
+      "description": "Establish the execution-layer data model needed for parent review runs and review-driven resume feedback. This deliverable defines durable contracts before trigger, orchestration, and UI wiring are added.",
       "acceptanceCriteria": [
-        "`internal/planquality` exists with lint entrypoints that operate on `plan.WorkGraph`.",
-        "Findings are deterministic in content and order for the same input graph.",
-        "The package distinguishes blocking vs warning findings with stable rule codes.",
-        "Unit tests cover rule behavior, leaf-only scope, and deterministic ordering."
+        "Run records can represent both normal execution runs and parent review runs without breaking existing decode paths.",
+        "Execution query helpers can deterministically retrieve review runs and child run context needed by reviewer inputs.",
+        "Pending parent-review feedback can be persisted, loaded, overwritten, and cleared per child task.",
+        "Unit tests cover JSON compatibility, deterministic ordering, and persistence round-trips for the new contracts."
       ],
-      "prompt": "Create the plan quality lint foundation in `internal/planquality` for use by both CLI and TUI plan generation paths. Keep implementation deterministic, dependency-light, and test-first. Do not add runtime-specific behavior in this deliverable.",
+      "prompt": "Implement the parent-review execution contracts in internal/execution first: update run-record types, add query helpers for review flows, and add durable pending-feedback storage primitives with tests. Keep APIs small, deterministic, and dependency-light.",
       "parentId": null,
       "childIds": [
-        "plqg_01a",
-        "plqg_01b",
-        "plqg_01c"
+        "prqg_01a",
+        "prqg_01b",
+        "prqg_01c",
+        "prqg_01d"
       ],
       "deps": [],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:24:08.368977Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T05:38:31.277955Z"
     },
-    "plqg_01a": {
-      "id": "plqg_01a",
-      "title": "Define Finding Schema and Deterministic Traversal",
-      "description": "Define the core finding model and stable traversal helpers that normalize task text and iterate leaf tasks in a deterministic order. This task sets the foundation for all lint rules and must avoid map-order nondeterminism.",
+    "prqg_01a": {
+      "id": "prqg_01a",
+      "title": "Add RunType and Parent Review Outcome Fields",
+      "description": "Extend execution run records so parent review runs are first-class persisted artifacts instead of overloaded task runs. Include explicit review outcome fields required for downstream trigger/idempotence and resume routing.",
       "acceptanceCriteria": [
-        "`PlanQualityFinding` is defined with fields `Severity`, `Code`, `TaskID`, `Field`, `Message`, and `Suggestion`.",
-        "Severity constants are constrained to `blocking` and `warning` and used consistently in emitted findings.",
-        "Leaf-task traversal is deterministic (stable ordering by task ID) and excludes non-leaf tasks.",
-        "Shared text-normalization helpers are added for placeholder and vague-language detection.",
-        "Tests verify leaf-only traversal and deterministic ordering across repeated runs."
+        "internal/execution/types.go defines a run type enum with at least execute and review values.",
+        "RunRecord includes run-type and parent-review outcome fields (passed, resume task IDs, feedback text, completion signature) with stable JSON keys.",
+        "Existing run records without the new fields still decode successfully and preserve prior behavior.",
+        "internal/execution/types_test.go covers marshal/unmarshal for old and new record shapes."
       ],
-      "prompt": "Implement `internal/planquality` core types and deterministic traversal helpers (e.g., `types.go`, `helpers.go`). Keep APIs small and pure so lint and orchestration code can reuse them. Add focused tests proving stable ordering and non-leaf exclusion.",
-      "parentId": "plqg_01",
+      "prompt": "Modify internal/execution/types.go and internal/execution/types_test.go to add explicit parent-review run modeling. Preserve backward compatibility and keep JSON tags/omitempty behavior deterministic so existing persisted runs continue to load.",
+      "parentId": "prqg_01",
       "childIds": [],
       "deps": [],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:12:42.657078Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T05:26:26.155124Z"
     },
-    "plqg_01b": {
-      "id": "plqg_01b",
-      "title": "Implement Blocking and Warning Lint Rules",
-      "description": "Implement the deterministic quality rules from the spec for leaf tasks, including both blocking and warning findings. Rules must prioritize objective checks and use word-count only as a weak warning signal.",
+    "prqg_01b": {
+      "id": "prqg_01b",
+      "title": "Add Review-Run Query Helpers",
+      "description": "Add deterministic query helpers for review runs so orchestration can fetch latest review attempts and perform signature-based idempotence checks without duplicating file-scanning logic.",
       "acceptanceCriteria": [
-        "Blocking rules are implemented with exact codes: `leaf_description_missing_or_placeholder`, `leaf_acceptance_criteria_missing`, `leaf_acceptance_criteria_non_verifiable`, `leaf_prompt_missing`, and `leaf_prompt_not_actionable`.",
-        "Warning rules are implemented with exact codes: `leaf_description_too_thin`, `leaf_acceptance_criteria_low_count`, `leaf_prompt_missing_verification_hint`, and `vague_language_detected`.",
-        "`leaf_acceptance_criteria_non_verifiable` only triggers when criteria are present but entirely vague/non-testable.",
-        "Word-count heuristics never produce blocking findings by themselves.",
-        "Rule tests include both triggering and non-triggering fixtures for each rule code."
+        "internal/execution/query_test.go creates mixed execute/review run fixtures and asserts review lookup helpers exclude execute runs.",
+        "Tests verify latest-review selection returns the expected review run ID for a parent when multiple review runs exist.",
+        "Tests verify signature-filtered latest-review selection returns the expected run for a matching signature and a not-found result when no match exists.",
+        "Tests verify deterministic ordering for tied timestamps by asserting a stable secondary key (for example lexical run ID ordering)."
       ],
-      "prompt": "Add lint rule evaluation in `internal/planquality/lint.go` (or equivalent) and comprehensive tests in `internal/planquality/lint_test.go`. Make each rule code explicit and stable; include field/message/suggestion values so downstream UX can render actionable output.",
-      "parentId": "plqg_01",
+      "prompt": "Implement review-specific lookup helpers in internal/execution/query.go (or a nearby execution query file) and add tests in internal/execution/query_test.go. Keep behavior deterministic and avoid re-reading/parsing the same runs at multiple call sites.",
+      "parentId": "prqg_01",
       "childIds": [],
       "deps": [
-        "plqg_01a"
+        "prqg_01a"
       ],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:18:27.576536Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T05:30:01.931229Z"
     },
-    "plqg_01c": {
-      "id": "plqg_01c",
-      "title": "Add Finding Summaries and Refine-Request Builder",
-      "description": "Provide shared helpers that summarize findings and build a deterministic `plan_refine` change request from lint failures. This output is the contract consumed by bounded auto-refine orchestration.",
+    "prqg_01c": {
+      "id": "prqg_01c",
+      "title": "Implement Pending Parent-Feedback Store",
+      "description": "Create a dedicated persistence layer for pending parent-review feedback assigned to child tasks. This storage should support explicit resume-by-child flows without mutating historical run records.",
       "acceptanceCriteria": [
-        "`HasBlocking(findings)` returns true only when at least one finding has `Severity=blocking`.",
-        "`Summarize(findings)` returns deterministic counts by severity and stable grouping suitable for CLI/TUI rendering.",
-        "`BuildRefineRequest(findings)` groups requested edits by task ID and field in deterministic order.",
-        "Refine request text includes explicit constraints to preserve IDs, hierarchy, and dependencies unless a finding requires structural change.",
-        "Tests snapshot/verify deterministic summary and refine-request output for fixed findings input."
+        "A storage API exists to upsert, load, and clear pending parent-review feedback by child task ID.",
+        "Stored data includes parentTaskID, reviewRunID, feedback text, and created/updated timestamps.",
+        "Writes are atomic and constrained to the workspace run-data root (no traversal outside expected directories).",
+        "Unit tests cover round-trip persistence, overwrite behavior, clear behavior, and missing-file reads."
       ],
-      "prompt": "Implement `HasBlocking`, `Summarize`, and `BuildRefineRequest` helpers in `internal/planquality`. Keep formatting deterministic and concise so identical findings always produce identical refine prompts. Add tests for grouping and output stability.",
-      "parentId": "plqg_01",
+      "prompt": "Add a new execution storage module (for example internal/execution/parent_review_feedback_store.go) and tests. Persist pending review feedback under .blackbird with deterministic file layout and reuse existing atomic write patterns where possible.",
+      "parentId": "prqg_01",
       "childIds": [],
       "deps": [
-        "plqg_01b"
+        "prqg_01a"
       ],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:24:08.368977Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T05:33:23.393669Z"
     },
-    "plqg_02": {
-      "id": "plqg_02",
-      "title": "Shared Bounded Auto-Refine Quality-Gate Orchestration",
-      "description": "Add shared orchestration that always lints generated plans, optionally runs bounded auto-refine passes, and returns structured quality-gate results. The loop must be finite, deterministic, and reusable by CLI and TUI.",
+    "prqg_01d": {
+      "id": "prqg_01d",
+      "title": "Add Deterministic Child-Run Context Retrieval",
+      "description": "Provide a shared helper that retrieves each child task's latest completed run in stable child order for parent-review context construction. This prevents duplicated run-selection logic across review components.",
       "acceptanceCriteria": [
-        "Generation flow always runs lint on the initial proposed plan before save/review decisions.",
-        "When blocking findings exist and passes remain, plan_refine is called with deterministic refine request text and lint is rerun.",
-        "Auto-refine attempts never exceed configured max passes and `0` disables auto-refine.",
-        "Shared result payload exposes initial/final findings and passes-run metadata for downstream UX."
+        "A helper returns child run context for a parent task in deterministic child ID order.",
+        "The helper validates that each referenced child has a completed run record before review execution.",
+        "Missing or non-terminal child runs return actionable errors that include child IDs.",
+        "Tests cover deterministic ordering, missing-run handling, and mixed child status edge cases."
       ],
-      "prompt": "Implement shared quality-gate orchestration for generated plans. Reuse `plan_refine` path for semantic fixes, keep the loop bounded, and return structured results consumable by both CLI and TUI flows.",
+      "prompt": "Implement reusable child-run retrieval helpers in internal/execution using plan childIds and execution run queries. Add focused tests that make downstream parent-review context assembly predictable and easy to verify.",
+      "parentId": "prqg_01",
+      "childIds": [],
+      "deps": [
+        "prqg_01b"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T05:38:31.277955Z"
+    },
+    "prqg_02": {
+      "id": "prqg_02",
+      "title": "Trigger and Idempotence Engine for Parent Reviews",
+      "description": "Implement the deterministic engine that decides when a parent review should run and guarantees at-most-once execution per all-children-done event signature.",
+      "acceptanceCriteria": [
+        "Parent-review candidates are detected only for non-leaf tasks whose children are all done.",
+        "A deterministic child-completion signature is computed and used for idempotence checks.",
+        "Execution hooks can ask the trigger engine whether a review should run without UI coupling.",
+        "Tests prove no duplicate reviews for unchanged signatures and re-triggering after child rework."
+      ],
+      "prompt": "Build parent-review trigger/idempotence logic in internal/execution as reusable pure helpers plus a small orchestration hook callable from RunExecute and RunResume. Keep trigger math deterministic and side-effect boundaries explicit.",
       "parentId": null,
       "childIds": [
-        "plqg_02a",
-        "plqg_02b"
+        "prqg_02a",
+        "prqg_02b",
+        "prqg_02c",
+        "prqg_02d"
       ],
       "deps": [
-        "plqg_01",
-        "plqg_03"
+        "prqg_01"
       ],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:47:16.773096Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T05:58:14.530922Z"
     },
-    "plqg_02a": {
-      "id": "plqg_02a",
-      "title": "Implement Reusable Quality-Gate Loop Helper",
-      "description": "Create a reusable orchestration helper that executes lint -\u003e optional refine -\u003e relint cycles and returns a final plan plus pass metadata. This helper should be pure orchestration and not perform direct UI I/O.",
+    "prqg_02a": {
+      "id": "prqg_02a",
+      "title": "Implement Parent Candidate Discovery",
+      "description": "Detect which parents become review candidates when a child transitions to done, including nested parent chains. Candidates must be container tasks only and must have all children done.",
       "acceptanceCriteria": [
-        "Helper accepts initial plan, max pass count, and refine callback contract.",
-        "Refine callback is invoked only when blocking findings exist and attempts remain.",
-        "Each refined plan is validated before continuing to the next pass.",
-        "Returned result includes final plan, initial findings, final findings, and auto-refine passes run.",
-        "Unit tests cover: no blocking, max passes zero, clears after one pass, remains blocking after max, and callback error handling."
+        "Candidate discovery ignores leaf tasks and parents with empty childIds.",
+        "Only parents whose full child sets are done are returned as candidates.",
+        "Ancestor traversal supports multi-level hierarchies and returns deterministic order.",
+        "Unit tests cover single parent, nested parents, and partially done child sets."
       ],
-      "prompt": "Add a reusable quality-gate loop helper in a shared package (e.g., `internal/planquality` or a shared plan-action helper) that can be called by CLI and TUI generation flows. Keep the API deterministic and test with mocked refine callbacks.",
-      "parentId": "plqg_02",
+      "prompt": "Add parent-candidate discovery helpers in internal/execution (new file is fine) that accept a graph plus changed child ID and return candidate parent IDs for review. Keep the function deterministic and side-effect free. Verify by adding table-driven tests for single-parent, nested-parent, and partially-done scenarios, then run `go test ./internal/execution -run ParentCandidate` (or the new test file) successfully.",
+      "parentId": "prqg_02",
       "childIds": [],
       "deps": [
-        "plqg_01c",
-        "plqg_03a"
+        "prqg_01a"
       ],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:33:15.253611Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T05:41:36.110042Z"
     },
-    "plqg_02b": {
-      "id": "plqg_02b",
-      "title": "Wire Quality-Gate Orchestration into Shared Plan Generation Paths",
-      "description": "Integrate the loop helper into both CLI and in-process TUI generation plumbing so both interfaces share identical auto-refine behavior. Keep question-round handling intact and avoid duplicate orchestration code.",
+    "prqg_02b": {
+      "id": "prqg_02b",
+      "title": "Add Child-Completion Signature and Idempotence Check",
+      "description": "Create a stable signature representing the all-children-done event for a parent so repeated execute loops do not rerun the same review without new child completion changes.",
       "acceptanceCriteria": [
-        "CLI and TUI generation paths invoke the same quality-gate orchestration function.",
-        "Refine callbacks reuse existing `plan_refine` request/response conversion logic.",
-        "Question rounds still respect `agent.MaxPlanQuestionRounds` and resume correctly after answers.",
-        "Config-resolved `planning.maxPlanAutoRefinePasses` controls pass limits for both interfaces.",
-        "Tests verify parity of pass counts/findings for equivalent mocked agent responses."
+        "Unit tests show signature generation returns the same value for identical child-completion inputs across repeated invocations.",
+        "Unit tests with shuffled child input ordering (map iteration and slice order) produce identical signatures for equivalent completion state.",
+        "Unit tests show signature output changes when any child completion timestamp changes or when the completed-child set changes.",
+        "Idempotence helper tests show review is skipped when the latest stored review signature matches and required when signature is missing or different."
       ],
-      "prompt": "Refactor generation plumbing in `internal/cli` and `internal/tui/action_wrappers.go` to share quality-gate orchestration, not duplicated loops. Ensure agent question handling still works and quality gating runs on the final generated plan.",
-      "parentId": "plqg_02",
+      "prompt": "Implement signature/idempotence helpers in internal/execution that pair with review-run query APIs. Add tests that assert stability and changed-state detection, including edge cases with reordered maps.",
+      "parentId": "prqg_02",
       "childIds": [],
       "deps": [
-        "plqg_02a"
+        "prqg_01b"
       ],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:47:16.773096Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T05:46:59.779492Z"
     },
-    "plqg_03": {
-      "id": "plqg_03",
-      "title": "Planning Config and Settings Integration",
-      "description": "Add and surface `planning.maxPlanAutoRefinePasses` so auto-refine behavior is controllable with the same precedence and warning model as existing settings. Keep bounds strict (`0`-`3`) with default `1`.",
+    "prqg_02c": {
+      "id": "prqg_02c",
+      "title": "Build Parent Review Gate Orchestration Hook",
+      "description": "Create a small orchestration hook that integrates candidate discovery and idempotence checks, then delegates actual review execution through a callback boundary used by RunExecute/RunResume.",
       "acceptanceCriteria": [
-        "`planning.maxPlanAutoRefinePasses` is supported in raw and resolved config models.",
-        "Config precedence remains project \u003e global \u003e default with clamping to 0-3.",
-        "Out-of-range warnings surface through existing settings warning mechanisms.",
-        "TUI Settings view can display and edit the option in local/global columns."
+        "Hook accepts plan path/graph context and returns a typed result indicating pass, pause-required, or no-op.",
+        "The hook invokes review execution only for candidates that pass idempotence checks.",
+        "The hook supports deterministic processing order when multiple parent candidates are ready.",
+        "Unit tests use mocked review callbacks to verify invocation count and ordering behavior."
       ],
-      "prompt": "Implement config plumbing for `planning.maxPlanAutoRefinePasses` across `internal/config` and TUI settings state/render/key handling. Follow existing patterns for option metadata, resolution, clamping, and warning display.",
+      "prompt": "Add a reusable orchestration function in internal/execution that composes candidate discovery + signature idempotence and calls a supplied review-run executor callback. Keep it decoupled from CLI/TUI output concerns. Verify with mocked-callback tests that assert invocation ordering, invocation count, and no-op behavior, then run `go test ./internal/execution -run ParentReviewGate` (or equivalent).",
+      "parentId": "prqg_02",
+      "childIds": [],
+      "deps": [
+        "prqg_02a",
+        "prqg_02b"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T05:53:32.181994Z"
+    },
+    "prqg_02d": {
+      "id": "prqg_02d",
+      "title": "Add Trigger/Idempotence Regression Tests",
+      "description": "Add focused execution-level regression tests that validate parent-review trigger semantics across repeated loops and child rework cycles.",
+      "acceptanceCriteria": [
+        "Tests show a parent review runs once when the final child becomes done.",
+        "Tests show no duplicate review for repeated loads/execution loops with unchanged signatures.",
+        "Tests show a new review is triggered after child status leaves done and later returns to done.",
+        "Tests are deterministic and do not depend on wall-clock sleeps."
+      ],
+      "prompt": "Write tests in internal/execution (new *_test.go file is fine) to validate trigger/idempotence behavior end-to-end at the orchestration layer. Prefer explicit timestamps and deterministic fixtures.",
+      "parentId": "prqg_02",
+      "childIds": [],
+      "deps": [
+        "prqg_02c"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T05:58:14.530922Z"
+    },
+    "prqg_03": {
+      "id": "prqg_03",
+      "title": "Parent Review Run Execution and Structured Outcome Parsing",
+      "description": "Implement the dedicated parent review run path: build reviewer input context, execute a review run for the parent task, parse structured pass/fail output, and persist review outcomes.",
+      "acceptanceCriteria": [
+        "Parent review runs use a dedicated run type and reviewer-specific system prompt.",
+        "Review context includes parent acceptance criteria plus bounded context from completed child runs.",
+        "Structured review responses are validated, including child-ID mapping and feedback requirements on failure.",
+        "Failed reviews persist resume targets and feedback linkage for downstream resume actions."
+      ],
+      "prompt": "Create the dedicated parent-review execution path in internal/execution, including context building, run launch, response parsing, and persistence of review outcome/linkage data for resume flows.",
       "parentId": null,
       "childIds": [
-        "plqg_03a",
-        "plqg_03b"
+        "prqg_03a",
+        "prqg_03b",
+        "prqg_03c",
+        "prqg_03d"
       ],
-      "deps": [],
+      "deps": [
+        "prqg_01"
+      ],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:50:28.911558Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T06:18:28.274553Z"
     },
-    "plqg_03a": {
-      "id": "plqg_03a",
-      "title": "Plumb Planning Auto-Refine Option Through Config Resolution",
-      "description": "Extend config schemas, defaults, resolution, and option-value serialization to include `planning.maxPlanAutoRefinePasses`. This task should keep backward compatibility for existing config files.",
+    "prqg_03a": {
+      "id": "prqg_03a",
+      "title": "Build Parent Review Context Composer",
+      "description": "Compose deterministic reviewer input from parent task data and completed child run artifacts/summaries. Keep context bounded and explicit so the reviewer evaluates rather than implements.",
       "acceptanceCriteria": [
-        "`RawConfig`/`ResolvedConfig` include planning fields for max auto-refine passes.",
-        "Defaults include `planning.maxPlanAutoRefinePasses=1`.",
-        "Resolution clamps values to min `0` and max `3` and preserves precedence project \u003e global \u003e default.",
-        "`OptionRegistry`, `RawOptionValues`, `ResolvedOptionValues`, and `SaveConfigValues` support the new key path.",
-        "Tests cover defaults, precedence, clamping warnings, and read/write round trips with existing keys unchanged."
+        "`internal/execution` context-composer tests assert the generated review payload contains the parent task ID, title, full acceptance criteria list, and reviewer instruction text with exact fixture values.",
+        "Tests with intentionally unsorted child IDs assert emitted child context entries are ordered by child ID and each entry contains the expected child ID plus latest-run summary/artifact references from fixtures.",
+        "Tests with oversized child summaries assert bounding is enforced by checking output summary length is at or below the configured limit and truncation behavior is deterministic for the same input.",
+        "Tests with missing optional child summaries assert payload generation still succeeds and produces deterministic fallback fields (for example empty summary values) without dropping required child metadata.",
+        "`go test ./internal/execution -run ParentReviewContext` passes."
       ],
-      "prompt": "Update `internal/config/types.go`, `internal/config/resolve.go`, `internal/config/settings.go`, `internal/config/settings_resolution.go`, and `internal/config/registry.go` to add `planning.maxPlanAutoRefinePasses`. Add/extend tests in config test files for precedence and clamp behavior.",
-      "parentId": "plqg_03",
-      "childIds": [],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:28:44.188813Z"
-    },
-    "plqg_03b": {
-      "id": "plqg_03b",
-      "title": "Expose Planning Auto-Refine Option in TUI Settings",
-      "description": "Expose the new planning option in the settings table and editing workflow so users can set local/global values and see applied source plus clamp warnings. Preserve existing navigation/edit semantics.",
-      "acceptanceCriteria": [
-        "Settings table renders a row for `planning.maxPlanAutoRefinePasses` with clear display name and bounds-aware description.",
-        "Editing local/global columns writes to the correct config layer and refreshes applied value/source.",
-        "Out-of-range values produce warning lines consistent with current settings warning format.",
-        "Keyboard navigation/editing behavior remains unchanged for existing options.",
-        "Tests cover rendering, editing, and warning behavior for the new option."
-      ],
-      "prompt": "Update TUI settings integration (`internal/tui/settings_state.go`, `internal/tui/settings_view.go`, key/edit handlers and tests) so `planning.maxPlanAutoRefinePasses` is visible/editable in Local and Global columns with applied-source highlighting.",
-      "parentId": "plqg_03",
+      "prompt": "Implement a parent-review context builder in internal/execution (new file recommended) that consumes plan + child run data and returns a deterministic context pack tailored for review runs. Add/extend tests to validate payload shape, ordering, bounded-size behavior, and missing-summary fallback; verify by running `go test ./internal/execution -run ParentReviewContext` (or equivalent).",
+      "parentId": "prqg_03",
       "childIds": [],
       "deps": [
-        "plqg_03a"
+        "prqg_01d"
       ],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:50:28.911558Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T06:03:43.313478Z"
     },
-    "plqg_04": {
-      "id": "plqg_04",
-      "title": "CLI Quality-Gate UX and Override Decisions",
-      "description": "Update `blackbird plan generate` CLI UX to surface lint outcomes, report auto-refine progress, and require explicit user intent when blocking findings remain. Preserve current manual revise flow semantics.",
+    "prqg_03b": {
+      "id": "prqg_03b",
+      "title": "Add Dedicated Parent Review Runner",
+      "description": "Add an execution helper that launches parent review runs with RunType=review and reviewer constraints, while reusing existing launch/stream/run-record infrastructure.",
       "acceptanceCriteria": [
-        "CLI prints quality summaries (blocking/warning counts) before plan acceptance.",
-        "Auto-refine passes are surfaced as progress lines (e.g., pass `1/1`).",
-        "When blocking findings remain, save is not implicit and user must choose revise, accept_anyway, or cancel.",
-        "CLI tests validate behavior for success, remaining-blocking, and explicit override paths."
+        "Review runner launches through existing agent runtime infrastructure with run type set to review.",
+        "System prompt clearly restricts behavior to review/assessment and no implementation changes.",
+        "Run records preserve provider/session metadata and capture stdout/stderr like normal execution runs.",
+        "Tests assert run type, prompt content presence, and successful persistence of review runs."
       ],
-      "prompt": "Implement CLI output and decision flow changes in plan-generate command handling so quality-gate behavior is explicit. Keep prompts concise and deterministic, and verify file-save side effects in tests.",
+      "prompt": "Implement a dedicated parent review run helper in internal/execution (for example RunParentReview) that reuses LaunchAgentWithStream but marks run type and reviewer semantics explicitly. Add targeted tests.",
+      "parentId": "prqg_03",
+      "childIds": [],
+      "deps": [
+        "prqg_03a",
+        "prqg_01a"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T06:08:27.909797Z"
+    },
+    "prqg_03c": {
+      "id": "prqg_03c",
+      "title": "Parse and Validate Review Response Schema",
+      "description": "Implement strict parsing/validation for parent review responses so downstream behavior is deterministic and safe. Invalid responses should fail clearly instead of silently continuing.",
+      "acceptanceCriteria": [
+        "Parser accepts structured responses containing passed plus failure fields when passed=false.",
+        "Validation enforces unique non-empty resume task IDs and that IDs are a subset of the parent's child IDs.",
+        "Validation requires non-empty feedback text when review fails.",
+        "Tests cover valid pass, valid fail, malformed JSON, unknown child IDs, and missing required fields."
+      ],
+      "prompt": "Add response parsing/validation utilities in internal/execution for parent review outputs, reusing existing JSON extraction patterns where practical. Return actionable errors with enough context for CLI/TUI messaging.",
+      "parentId": "prqg_03",
+      "childIds": [],
+      "deps": [
+        "prqg_03b"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T06:12:22.064218Z"
+    },
+    "prqg_03d": {
+      "id": "prqg_03d",
+      "title": "Persist Review Outcome and Link Resume Targets",
+      "description": "Persist parsed parent review outcomes in review run records and create pending feedback linkage for each child selected for rework.",
+      "acceptanceCriteria": [
+        "On failed review, persisted review run records include pass/fail outcome fields, sorted resume task IDs, feedback text, and the child-completion signature.",
+        "For each resume target child, pending-feedback storage contains an entry with the expected parentTaskID, reviewRunID, and feedback text.",
+        "On passed review, persistence writes the review outcome and leaves pending-feedback storage unchanged for all child tasks.",
+        "internal/execution tests cover pass and fail paths and assert linkage entries are only present when the corresponding review run record exists."
+      ],
+      "prompt": "Wire parent-review parse results into persistence in internal/execution: enrich review run records and upsert per-child pending feedback entries. Keep write order safe (run saved before linkage) and add focused tests.",
+      "parentId": "prqg_03",
+      "childIds": [],
+      "deps": [
+        "prqg_03c",
+        "prqg_01c",
+        "prqg_02b"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T06:18:28.274553Z"
+    },
+    "prqg_04": {
+      "id": "prqg_04",
+      "title": "Resume-With-Parent-Feedback Execution Plumbing",
+      "description": "Extend resume execution so pending parent-review feedback is injected into resumed task context and consumed with explicit, deterministic semantics.",
+      "acceptanceCriteria": [
+        "Resume context composition can include a parent-review feedback section without breaking existing waiting-user resume behavior.",
+        "RunResume can resolve feedback from explicit input or pending parent-review storage with clear precedence.",
+        "Pending feedback is cleared only after a resume run is successfully launched/persisted.",
+        "Regression tests cover happy path, conflict path, and failure retention semantics."
+      ],
+      "prompt": "Implement the shared execution plumbing that injects parent-review feedback into resumes and manages pending-feedback lifecycle. Keep behavior explicit, deterministic, and fully covered by execution tests.",
       "parentId": null,
       "childIds": [
-        "plqg_04a",
-        "plqg_04b"
+        "prqg_04a",
+        "prqg_04b",
+        "prqg_04c",
+        "prqg_04d"
       ],
       "deps": [
-        "plqg_02"
+        "prqg_01",
+        "prqg_03"
       ],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T06:02:20.168355Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T06:46:39.614145Z"
     },
-    "plqg_04a": {
-      "id": "plqg_04a",
-      "title": "Render CLI Quality Summaries and Auto-Refine Progress",
-      "description": "Add CLI reporting for lint findings and auto-refine pass execution so users can see why a plan is or is not auto-acceptable. Warnings should be visible but non-blocking.",
+    "prqg_04a": {
+      "id": "prqg_04a",
+      "title": "Extend ContextPack With Parent Review Feedback Section",
+      "description": "Add explicit context-pack fields for parent-review feedback so resumed sessions receive the original task context plus reviewer findings in a machine-readable section.",
       "acceptanceCriteria": [
-        "Initial lint summary is printed after proposal generation with blocking and warning counts.",
-        "Auto-refine execution prints pass progress in `current/total` format.",
-        "Final lint summary is printed after orchestration completes.",
-        "Warning findings are displayed without blocking save when no blocking findings remain.",
-        "Tests assert expected summary/progress output for no-findings and auto-refine-success scenarios."
+        "ContextPack includes an optional parent-review feedback section with parent ID, review run ID, and feedback text.",
+        "Field is omitted from JSON when empty to preserve prior payload compatibility.",
+        "Helper utilities can append feedback to context without mutating unrelated fields/slices.",
+        "types/context tests verify serialization and merge behavior."
       ],
-      "prompt": "Update CLI generation output formatting in `internal/cli/agent_flows.go` (and related helpers/tests) to include quality summaries and pass progress. Keep output stable so tests can assert exact lines.",
-      "parentId": "plqg_04",
+      "prompt": "Update internal/execution/types.go and context-related helpers/tests so resumed contexts can carry parent-review feedback as structured data. Keep schema additive and backward compatible.",
+      "parentId": "prqg_04",
       "childIds": [],
       "deps": [
-        "plqg_02b"
+        "prqg_01a"
       ],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:58:34.20073Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T06:25:31.369735Z"
     },
-    "plqg_04b": {
-      "id": "plqg_04b",
-      "title": "Require Explicit CLI Decision When Blocking Findings Persist",
-      "description": "Implement the explicit user choice branch when blocking findings remain after bounded auto-refine: revise, accept_anyway, or cancel. This prevents silent acceptance of execution-weak plans.",
+    "prqg_04b": {
+      "id": "prqg_04b",
+      "title": "Add Pending Feedback Resolution and Precedence Helper",
+      "description": "Centralize how RunResume resolves feedback source: explicit CLI/TUI feedback, pending parent feedback, or none. This avoids diverging rules between interfaces.",
       "acceptanceCriteria": [
-        "Remaining blocking findings trigger a three-way decision prompt: `revise`, `accept_anyway`, `cancel`.",
-        "`revise` asks for a manual change request and then reruns refine plus lint before save.",
-        "`accept_anyway` persists the current plan and prints a clear warning that blocking findings were overridden.",
-        "`cancel` exits without writing plan changes.",
-        "Tests cover all three branches and verify resulting plan-file write behavior."
+        "A helper resolves resume feedback source with deterministic precedence rules.",
+        "Combining answers with feedback-triggered resume is rejected with a clear error.",
+        "Resolved helper output includes source metadata (explicit vs pending parent review).",
+        "Unit tests cover no-feedback, explicit-feedback, pending-feedback, and invalid mixed-input cases."
       ],
-      "prompt": "Add explicit override decision handling in CLI plan generate flow, including manual revise integration and safe cancel behavior. Extend tests to verify prompts, branch outcomes, and persistence side effects.",
-      "parentId": "plqg_04",
+      "prompt": "Implement feedback-source resolution in internal/execution and wire it for reuse by RunResume and interface wrappers. Keep validation strict and error text actionable.",
+      "parentId": "prqg_04",
       "childIds": [],
       "deps": [
-        "plqg_04a"
+        "prqg_04a",
+        "prqg_01c"
       ],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T06:02:20.168355Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T06:36:58.959663Z"
     },
-    "plqg_05": {
-      "id": "plqg_05",
-      "title": "TUI Plan Review Quality-Gate UX",
-      "description": "Extend the plan review modal flow to surface quality findings, indicate auto-refine activity, and require explicit override when blocking findings remain. Keep existing revision/question flows intact.",
+    "prqg_04c": {
+      "id": "prqg_04c",
+      "title": "Wire RunResume to Consume/Clear Pending Parent Feedback",
+      "description": "Integrate pending parent feedback into the core RunResume flow so CLI and TUI automatically get consistent behavior through shared execution APIs.",
       "acceptanceCriteria": [
-        "Plan review modal displays quality summary data (blocking/warning and pass metadata).",
-        "Blocking findings change default action semantics so plain accept is not the default path.",
-        "Users can still revise, reject, or explicitly accept-anyway from the modal flow.",
-        "TUI model/render tests cover gating behavior and action outcomes."
+        "RunResume can launch feedback-based resume when pending parent feedback exists for the target child task.",
+        "RunResume clears pending feedback only after a run record is successfully produced and persisted.",
+        "If resume fails before a run is created, pending feedback remains available for retry.",
+        "Waiting-user question resume path remains unchanged when no feedback applies."
       ],
-      "prompt": "Implement TUI quality-gate UX updates across plan generation result handling, plan review form state, and modal rendering/actions. Maintain keyboard-driven workflow and existing revision limits.",
+      "prompt": "Update internal/execution/runner.go to resolve pending parent feedback, inject it into resume context/input, and manage clear-on-success semantics. Add/extend runner tests for lifecycle behavior.",
+      "parentId": "prqg_04",
+      "childIds": [],
+      "deps": [
+        "prqg_04b"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T06:41:41.472533Z"
+    },
+    "prqg_04d": {
+      "id": "prqg_04d",
+      "title": "Add Resume Feedback Injection Regression Tests",
+      "description": "Add detailed tests for resume-with-parent-feedback behavior, including provider constraints and failure handling, to prevent regressions in critical resume semantics.",
+      "acceptanceCriteria": [
+        "`internal/execution/resume_feedback_test.go` includes cases that assert resumed context payloads contain parent-review feedback fields (`parentTaskID`, `reviewRunID`, `feedback`) matching fixture values exactly.",
+        "Failure-path tests simulate provider/session-ref launch errors and assert `RunResume` returns an error, writes no new run record, and leaves pending parent feedback persisted with unchanged content.",
+        "Conflict-path tests assert mixed answers+feedback inputs return a deterministic validation error and verify the resume launcher mock is not invoked (zero run-start attempts).",
+        "Success-path tests assert pending parent feedback is cleared only after successful run creation/persistence by verifying the new run record exists before/with feedback removal and feedback lookup returns not found afterward.",
+        "`go test ./internal/execution -run ResumeFeedback` and `go test ./internal/execution -run RunResume` both pass, and existing waiting-user resume tests in the same package remain green."
+      ],
+      "prompt": "Expand internal/execution/resume_feedback_test.go and internal/execution/runner_test.go (or add dedicated tests) to validate pending feedback injection and retention semantics under success and error conditions.",
+      "parentId": "prqg_04",
+      "childIds": [],
+      "deps": [
+        "prqg_04c"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T06:46:39.614145Z"
+    },
+    "prqg_05": {
+      "id": "prqg_05",
+      "title": "CLI Parent Review Pause-and-Resume UX",
+      "description": "Add explicit CLI behavior for parent review failures: pause execution, show review findings/resume targets, and require explicit child resume commands with injected feedback.",
+      "acceptanceCriteria": [
+        "blackbird execute reports parent review progress and pauses when review fails with resume targets.",
+        "CLI output clearly shows parent ID, child IDs requiring rework, and feedback summary text.",
+        "blackbird resume \u003ctaskId\u003e can resume from pending parent feedback without waiting-question prompts.",
+        "CLI tests cover pass-through behavior, fail-and-pause behavior, and resume-from-pending behavior."
+      ],
+      "prompt": "Implement CLI integration in internal/cli so parent review failures become explicit user-facing checkpoints and resume flows consume stored parent feedback. Keep output deterministic for tests.",
       "parentId": null,
       "childIds": [
-        "plqg_05a",
-        "plqg_05b"
+        "prqg_05a",
+        "prqg_05b",
+        "prqg_05c",
+        "prqg_05d"
       ],
       "deps": [
-        "plqg_02",
-        "plqg_03"
+        "prqg_02",
+        "prqg_03",
+        "prqg_04"
       ],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T06:16:51.248809Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T07:07:29.583526Z"
     },
-    "plqg_05a": {
-      "id": "plqg_05a",
-      "title": "Show Quality Summary and Pass Metadata in Plan Review Modal",
-      "description": "Augment plan review form state with quality-gate summary data and render it prominently so users understand plan readiness at review time. This includes both initial and post-auto-refine outcomes.",
+    "prqg_05a": {
+      "id": "prqg_05a",
+      "title": "Add Execute Stop Reason for Parent Review Required",
+      "description": "Extend execution stop semantics so RunExecute can signal that parent review failed and execution is intentionally paused for user action.",
       "acceptanceCriteria": [
-        "Plan review state includes fields for blocking count, warning count, key findings, and auto-refine passes run.",
-        "Modal rendering shows a quality summary section above action choices.",
-        "When auto-refine ran, modal explicitly indicates pass count executed and final outcome.",
-        "When no blocking findings remain, existing Accept action remains enabled and selectable.",
-        "Rendering/model tests cover no-findings and blocking-findings states."
+        "ExecuteStopReason includes a distinct parent_review_required value.",
+        "RunExecute returns this reason when a parent review fails and identifies child resume targets.",
+        "Execution loop does not automatically continue to other ready tasks after this stop reason.",
+        "Tests validate stop reason propagation and halted loop behavior."
       ],
-      "prompt": "Update `internal/tui/plan_review_modal.go`, relevant model state, and tests to render quality-gate summaries alongside plan overview content. Keep output concise and readable in narrow terminal widths.",
-      "parentId": "plqg_05",
+      "prompt": "Update internal/execution/runner.go and related tests to propagate a dedicated parent-review-required stop reason through ExecuteResult when review outcomes require explicit user rework decisions.",
+      "parentId": "prqg_05",
       "childIds": [],
       "deps": [
-        "plqg_02b"
+        "prqg_02c",
+        "prqg_03d"
       ],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T06:09:22.373055Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T06:53:43.231384Z"
     },
-    "plqg_05b": {
-      "id": "plqg_05b",
-      "title": "Add Explicit TUI Override Action for Remaining Blocking Findings",
-      "description": "Enforce explicit user intent in TUI when blocking findings remain by separating standard accept from override acceptance. Prevent accidental acceptance as the default action in blocking states.",
+    "prqg_05b": {
+      "id": "prqg_05b",
+      "title": "Render CLI Parent Review Failure Summary",
+      "description": "Add deterministic CLI rendering for parent review outcomes so users can see exactly which child tasks need resume and what feedback will be injected.",
       "acceptanceCriteria": [
-        "If blocking findings remain, modal offers an explicit `Accept anyway` action distinct from normal `Accept`.",
-        "Default selected action in blocking state is non-accepting (e.g., Revise), and plain accept is disabled or guarded.",
-        "Choosing `Accept anyway` saves the plan and emits an explicit override warning in action output.",
-        "Choosing Revise returns to refine flow and re-evaluates quality on the updated plan.",
-        "Model tests verify keyboard navigation and outcomes for accept-anyway, revise, and reject branches."
+        "CLI prints a parent review start/progress line when review runs.",
+        "On review failure, output includes parent task ID, sorted resume task IDs, and feedback text/excerpt.",
+        "Output includes explicit next-step instructions using blackbird resume \u003ctaskId\u003e.",
+        "Tests assert expected lines and deterministic ordering of resume targets."
       ],
-      "prompt": "Implement explicit override behavior in TUI plan review action handling (`internal/tui/model.go`, `internal/tui/plan_review_modal.go`, and tests). Ensure save behavior is unchanged when blocking findings are absent.",
-      "parentId": "plqg_05",
+      "prompt": "Update internal/cli/execute.go and helper formatting code to render parent-review outcomes. Keep messages concise, deterministic, and test-friendly.",
+      "parentId": "prqg_05",
       "childIds": [],
       "deps": [
-        "plqg_05a",
-        "plqg_03b"
+        "prqg_05a"
       ],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T06:16:51.248809Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T07:00:34.160907Z"
     },
-    "plqg_06": {
-      "id": "plqg_06",
-      "title": "End-to-End Verification and Documentation",
-      "description": "Close the quality-gate improvement with deterministic cross-package tests and documentation updates so behavior is reproducible and user-facing controls are discoverable. This deliverable validates parity between CLI and TUI.",
+    "prqg_05c": {
+      "id": "prqg_05c",
+      "title": "Extend CLI Resume Command for Pending Parent Feedback",
+      "description": "Teach blackbird resume to first resolve pending parent-review feedback and run feedback-based resume when present, then fall back to waiting-user question flow.",
       "acceptanceCriteria": [
-        "Automated tests cover lint determinism, bounded refine loop behavior, config plumbing, and CLI/TUI decision paths.",
-        "`go test ./...` passes with the new quality-gate functionality enabled.",
-        "Documentation reflects new config key, CLI/TUI behavior, and explicit override semantics.",
-        "Project logs/spec status are updated to record implementation outcomes."
+        "`internal/cli/resume.go` resolves pending parent feedback before waiting-user question discovery.",
+        "CLI resume tests verify that when pending feedback exists, resume runs without prompting for question answers.",
+        "CLI resume tests verify pending feedback is cleared after a successful feedback-based resume launch.",
+        "CLI resume tests verify existing waiting-user prompt behavior is unchanged when no pending feedback exists."
       ],
-      "prompt": "Complete verification and docs for Plan Quality Gate. Prioritize deterministic tests over manual checks, then update specs/docs/log artifacts to match actual implemented behavior.",
+      "prompt": "Modify internal/cli/resume.go to integrate the new execution pending-feedback path from RunResume. Preserve current question/answer UX when pending feedback is absent. Verify by extending resume tests and running `go test ./internal/cli -run Resume` (or equivalent targeted tests).",
+      "parentId": "prqg_05",
+      "childIds": [],
+      "deps": [
+        "prqg_04c"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T07:03:45.495992Z"
+    },
+    "prqg_05d": {
+      "id": "prqg_05d",
+      "title": "Add CLI Parent Review Flow Tests",
+      "description": "Add CLI-focused tests that exercise execute pause behavior and explicit resume behavior for parent-review-driven rework.",
+      "acceptanceCriteria": [
+        "CLI execute tests cover parent review pass (no pause) and fail (pause with guidance).",
+        "CLI resume tests cover pending parent-feedback branch and legacy waiting-user branch.",
+        "Tests verify pending feedback is cleared after successful feedback-based resume.",
+        "go test ./internal/cli/... passes with deterministic output assertions."
+      ],
+      "prompt": "Add/extend tests in internal/cli/execute_test.go and internal/cli/resume_test.go (or new focused test files) to validate the parent review CLI flow end-to-end using deterministic fixtures.",
+      "parentId": "prqg_05",
+      "childIds": [],
+      "deps": [
+        "prqg_05b",
+        "prqg_05c"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T07:07:29.583526Z"
+    },
+    "prqg_06": {
+      "id": "prqg_06",
+      "title": "TUI Parent Review Failure Modal and Resume Actions",
+      "description": "Add explicit TUI handling for parent review failures, including a dedicated modal and explicit resume actions for identified child tasks with injected feedback.",
+      "acceptanceCriteria": [
+        "TUI can detect parent review required outcomes and surface them as an explicit action-required modal.",
+        "Modal shows parent review result details, resume-target child list, and feedback text.",
+        "Users can explicitly resume selected/all identified child tasks with feedback; no auto-resume by default.",
+        "TUI tests cover modal rendering, key handling, action dispatch, and compatibility with existing review checkpoint UX."
+      ],
+      "prompt": "Implement the parent-review failure UX in internal/tui with minimal duplication from existing review checkpoint patterns. Reuse shared execution commands and keep state transitions deterministic.",
       "parentId": null,
       "childIds": [
-        "plqg_06a",
-        "plqg_06b"
+        "prqg_06a",
+        "prqg_06b",
+        "prqg_06c",
+        "prqg_06d",
+        "prqg_06e"
       ],
       "deps": [
-        "plqg_04",
-        "plqg_05"
+        "prqg_02",
+        "prqg_04"
       ],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T06:25:06.931921Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T07:37:11.706983Z"
     },
-    "plqg_06a": {
-      "id": "plqg_06a",
-      "title": "Add Deterministic Integration Tests Across Lint, Loop, CLI, and TUI",
-      "description": "Add and expand tests that validate deterministic findings, bounded auto-refine behavior, and user-decision paths across CLI and TUI. This task is test-heavy and should catch regressions in shared orchestration.",
+    "prqg_06a": {
+      "id": "prqg_06a",
+      "title": "Add TUI State for Pending Parent Feedback and Review Alerts",
+      "description": "Extend the TUI model/loaders with parent-review pending-feedback awareness so action hints and resume affordances can include tasks flagged by parent reviews.",
       "acceptanceCriteria": [
-        "`internal/planquality` tests cover every lint rule code and deterministic output ordering.",
-        "Quality-gate orchestration tests verify max-pass bounds and disabled (`0`) behavior.",
-        "CLI tests cover no-blocking, auto-refine-clears-blocking, and blocking-remains decision branches.",
-        "TUI tests cover quality summary rendering and explicit override action handling.",
-        "Test suite execution includes `go test ./...` with all new tests passing."
+        "Model state includes pending parent-feedback data keyed by child task ID.",
+        "Run/feedback data loading refreshes pending feedback on timer and after execute/resume actions.",
+        "State updates do not regress existing runData loading and review-checkpoint detection behavior.",
+        "Tests cover loader behavior and state merge/update semantics."
       ],
-      "prompt": "Implement comprehensive tests in `internal/planquality`, `internal/cli`, and `internal/tui` for deterministic lint and bounded auto-refine UX flows. Use stable fixtures/mocks and assert concrete branch outcomes.",
-      "parentId": "plqg_06",
+      "prompt": "Update internal/tui/model.go and internal/tui/run_loader.go (or companion loaders) to ingest pending parent-feedback state from execution storage. Keep refresh cadence and failure handling aligned with current patterns. Verify by adding loader/state tests and running `go test ./internal/tui -run Loader` (or equivalent targeted tests).",
+      "parentId": "prqg_06",
       "childIds": [],
       "deps": [
-        "plqg_04b",
-        "plqg_05b"
+        "prqg_02c",
+        "prqg_04c"
       ],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T06:21:30.053916Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T07:13:34.023383Z"
     },
-    "plqg_06b": {
-      "id": "plqg_06b",
-      "title": "Update Specs and User Docs for Plan Quality Gate",
-      "description": "Update improvement specs and user docs to describe deterministic linting, bounded auto-refine passes, and explicit override behavior in CLI/TUI. Keep documentation aligned with tested behavior and default values.",
+    "prqg_06b": {
+      "id": "prqg_06b",
+      "title": "Implement Parent Review Result Modal",
+      "description": "Add a dedicated modal for parent review failures that presents parent context, resume targets, and feedback details with explicit user actions.",
       "acceptanceCriteria": [
-        "`specs/improvements/PLAN_QUALITY_GATE.md` status and done criteria are updated to reflect implemented behavior.",
-        "User-facing docs include `planning.maxPlanAutoRefinePasses` default (`1`), bounds (`0-3`), and semantics (`0` disables auto-refine).",
-        "CLI and TUI docs describe quality summaries and explicit override requirements when blocking findings persist.",
-        "`AGENT_LOG.md` includes an implementation summary with test command/results.",
-        "Documentation changes do not contradict current command names or settings UI behavior."
+        "A new modal form/component exists for parent review failures with deterministic rendering.",
+        "Modal displays parent task details, failing review outcome, child resume target list, and feedback content.",
+        "Key handling supports target navigation and explicit actions (resume selected, resume all, dismiss).",
+        "Component tests verify render output and key-state transitions."
       ],
-      "prompt": "Update docs/spec files (`specs/improvements/PLAN_QUALITY_GATE.md`, `docs/CONFIGURATION.md`, `docs/COMMANDS.md`, `docs/TUI.md`, and `AGENT_LOG.md` as applicable) to match final implementation and test results.",
-      "parentId": "plqg_06",
+      "prompt": "Create a parent review modal in internal/tui (new file and tests) using existing modal patterns. Keep visual structure and key mapping consistent with established TUI interaction conventions.",
+      "parentId": "prqg_06",
       "childIds": [],
       "deps": [
-        "plqg_06a"
+        "prqg_06a"
       ],
       "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T06:25:06.931921Z"
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T07:18:40.840004Z"
+    },
+    "prqg_06c": {
+      "id": "prqg_06c",
+      "title": "Wire Execute Result Handling to Open Parent Review Modal",
+      "description": "Hook the new execution stop reason into model update flow so parent-review-required outcomes open the dedicated modal and pause normal execution UX.",
+      "acceptanceCriteria": [
+        "Model update handling for `ExecuteActionComplete` opens the parent review modal when stop reason is `parent_review_required`.",
+        "Action-progress state is reset before modal state is set, and this transition is covered by tests.",
+        "Regression tests verify existing `waiting_user` and `decision_required` stop-reason handling remains unchanged.",
+        "Tests verify modal dismissal returns to normal view state without stale parent-review modal data."
+      ],
+      "prompt": "Update internal/tui/model.go execution result handling to route `parent_review_required` outcomes into the new modal/action mode. Preserve existing handling for `waiting_user` and `decision_required` reasons. Verify with model-state tests covering modal open, dismiss, and non-parent stop reasons; run `go test ./internal/tui -run ExecuteActionComplete` (or equivalent).",
+      "parentId": "prqg_06",
+      "childIds": [],
+      "deps": [
+        "prqg_06b",
+        "prqg_05a"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T07:25:31.504305Z"
+    },
+    "prqg_06d": {
+      "id": "prqg_06d",
+      "title": "Add TUI Resume Commands for Parent-Review Targets",
+      "description": "Wire modal actions and main-view resume shortcuts to execute feedback-based resumes for pending parent-review targets.",
+      "acceptanceCriteria": [
+        "TUI command wrappers expose resume-with-pending-feedback operations for one child and multiple children.",
+        "Main-view resume eligibility includes tasks with pending parent feedback, not only waiting_user tasks.",
+        "Bottom bar/help text reflects the expanded resume behavior.",
+        "Action outputs report per-task success/failure consistently with existing resume messaging."
+      ],
+      "prompt": "Update internal/tui/action_wrappers.go, internal/tui/actions.go, internal/tui/model.go, and internal/tui/bottom_bar.go to support explicit resume of parent-review targets using shared execution plumbing. Verify by adding/adjusting tests for single-target resume, multi-target resume, eligibility updates, and help text, then run `go test ./internal/tui -run Resume` (or equivalent targeted tests).",
+      "parentId": "prqg_06",
+      "childIds": [],
+      "deps": [
+        "prqg_06b",
+        "prqg_04c"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T07:33:17.508595Z"
+    },
+    "prqg_06e": {
+      "id": "prqg_06e",
+      "title": "Add TUI Parent Review Flow Regression Tests",
+      "description": "Add focused tests ensuring parent review failure handling, modal interactions, and resume actions remain stable across future TUI changes.",
+      "acceptanceCriteria": [
+        "Tests cover opening the parent review modal from execute results and dismiss/resume actions.",
+        "Tests cover [u] resume behavior when pending parent feedback exists.",
+        "Tests cover no-regression behavior for existing waiting_user resume and review checkpoint modals.",
+        "go test ./internal/tui/... passes with deterministic fixtures."
+      ],
+      "prompt": "Implement regression tests across internal/tui/model*_test.go, modal tests, and wrapper tests to validate the full parent-review-required UX path and resume command behavior.",
+      "parentId": "prqg_06",
+      "childIds": [],
+      "deps": [
+        "prqg_06c",
+        "prqg_06d"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T07:37:11.706983Z"
+    },
+    "prqg_07": {
+      "id": "prqg_07",
+      "title": "End-to-End Validation and Documentation Sync",
+      "description": "Finalize implementation quality by adding cross-layer integration coverage, running full validation, and updating user/developer documentation to reflect shipped parent-review behavior.",
+      "acceptanceCriteria": [
+        "Execution integration tests validate trigger, idempotence, review fail linkage, and resume-with-feedback behavior.",
+        "CLI and TUI regression suites pass with new parent-review flows enabled.",
+        "docs and spec files are updated to describe default pause-and-explicit-resume behavior accurately.",
+        "AGENT_LOG includes a concise summary of implementation decisions and validation commands."
+      ],
+      "prompt": "Complete final verification and documentation alignment for parent review quality gate. Prioritize deterministic integration tests, then update specs/docs/log artifacts to match the delivered behavior.",
+      "parentId": null,
+      "childIds": [
+        "prqg_07a",
+        "prqg_07b",
+        "prqg_07c"
+      ],
+      "deps": [
+        "prqg_03",
+        "prqg_04",
+        "prqg_05",
+        "prqg_06"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T07:52:15.642992Z"
+    },
+    "prqg_07a": {
+      "id": "prqg_07a",
+      "title": "Add Execution Integration Tests for Parent Review Cycle",
+      "description": "Add high-value integration tests in internal/execution that cover full parent review lifecycle across trigger, review outcome, pending feedback persistence, and resume consumption.",
+      "acceptanceCriteria": [
+        "Tests simulate child completion leading to exactly one parent review run for a signature.",
+        "Tests simulate failed parent review creating pending feedback for targeted children.",
+        "Tests simulate child resume with feedback and subsequent re-review after new completion signature.",
+        "Tests avoid flakes by using deterministic timestamps and scripted command fixtures."
+      ],
+      "prompt": "Create integration-style tests in internal/execution (new test file recommended) that exercise the complete parent review cycle from completion trigger to resume-with-feedback and idempotence re-check.",
+      "parentId": "prqg_07",
+      "childIds": [],
+      "deps": [
+        "prqg_02d",
+        "prqg_03d",
+        "prqg_04d"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T07:45:47.324509Z"
+    },
+    "prqg_07b": {
+      "id": "prqg_07b",
+      "title": "Run Cross-Package Regression Validation",
+      "description": "Consolidate regression confidence across execution, CLI, and TUI by ensuring new tests and existing suites pass together and no behavior regressions remain.",
+      "acceptanceCriteria": [
+        "Targeted package suites for execution, cli, and tui pass after parent-review changes.",
+        "Any nondeterministic assertions are stabilized before completion.",
+        "Full go test ./... passes in the repository.",
+        "Residual risks (if any) are captured in task notes or AGENT_LOG."
+      ],
+      "prompt": "Run regression validation in this order: `go test ./internal/execution/...`, `go test ./internal/cli/...`, `go test ./internal/tui/...`, then `go test ./...`. If any suite fails, fix deterministic issues (especially time/order-dependent assertions), rerun the failing suite, and repeat until targeted suites pass. Capture executed commands and remaining risks in `AGENT_LOG.md`. Mark the task done only when targeted suites and full-repo tests pass, or when unrelated pre-existing failures are documented with exact repro commands.",
+      "parentId": "prqg_07",
+      "childIds": [],
+      "deps": [
+        "prqg_05d",
+        "prqg_06e",
+        "prqg_07a"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T07:46:37Z"
+    },
+    "prqg_07c": {
+      "id": "prqg_07c",
+      "title": "Update Spec/Docs and Log Completion",
+      "description": "Synchronize documentation and spec status with implemented behavior, including explicit pause-and-resume semantics and the separation of parent review from normal ready-task execution.",
+      "acceptanceCriteria": [
+        "`specs/improvements/PARENT_REVIEW_QUALITY_GATE.md` is updated to reflect shipped behavior, including explicit pause-on-fail and manual child resume flow.",
+        "`docs/COMMANDS.md` documents CLI execute/review pause output and `blackbird resume \u003ctaskId\u003e` behavior when pending parent feedback exists.",
+        "`docs/TUI.md` documents parent-review failure modal behavior and resume actions for selected/all child targets.",
+        "`internal/execution/README.md` documents review run type fields and pending feedback storage/consumption integration points.",
+        "`AGENT_LOG.md` includes a dated completion entry summarizing implementation decisions and listing validation commands from prqg_07b."
+      ],
+      "prompt": "Update the listed spec/docs files to match shipped parent-review quality gate behavior, then append `AGENT_LOG.md` with a completion summary and verification commands/results from prqg_07b. Verify completion by checking diffs for each documentation file and running `go test ./...` to confirm no regressions accompany the documentation sync.",
+      "parentId": "prqg_07",
+      "childIds": [],
+      "deps": [
+        "prqg_07b"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-09T05:17:08.214276Z",
+      "updatedAt": "2026-02-09T07:52:15.642992Z"
     }
   }
 }

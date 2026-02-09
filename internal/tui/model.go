@@ -27,6 +27,7 @@ const (
 	ActionModePlanRefine
 	ActionModeSelectAgent
 	ActionModeReviewCheckpoint
+	ActionModeParentReview
 )
 
 type ActivePane int
@@ -86,6 +87,7 @@ type Model struct {
 	actionCancel            context.CancelFunc
 	spinnerIndex            int
 	runData                 map[string]execution.RunRecord
+	pendingParentFeedback   map[string]execution.PendingParentReviewFeedback
 	timerActive             bool
 	liveStdout              string
 	liveStderr              string
@@ -99,6 +101,7 @@ type Model struct {
 	agentQuestionForm       *AgentQuestionForm
 	planReviewForm          *PlanReviewForm
 	reviewCheckpointForm    *ReviewCheckpointForm
+	parentReviewForm        *ParentReviewForm
 	pendingPlanRequest      PendingPlanRequest
 	pendingResumeTask       string
 	agentSelection          agent.AgentSelection
@@ -111,15 +114,16 @@ type Model struct {
 
 func NewModel(g plan.WorkGraph) Model {
 	m := Model{
-		plan:          g,
-		actionMode:    ActionModeNone,
-		activePane:    PaneTree,
-		tabMode:       TabDetails,
-		viewMode:      ViewModeHome,
-		planExists:    true,
-		runData:       map[string]execution.RunRecord{},
-		expandedItems: map[string]bool{},
-		filterMode:    FilterModeAll,
+		plan:                  g,
+		actionMode:            ActionModeNone,
+		activePane:            PaneTree,
+		tabMode:               TabDetails,
+		viewMode:              ViewModeHome,
+		planExists:            true,
+		runData:               map[string]execution.RunRecord{},
+		pendingParentFeedback: map[string]execution.PendingParentReviewFeedback{},
+		expandedItems:         map[string]bool{},
+		filterMode:            FilterModeAll,
 		agentSelection: agent.AgentSelection{
 			Agent:         agent.DefaultAgent(),
 			ConfigPresent: false,
@@ -173,6 +177,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.reviewCheckpointForm != nil {
 			m.reviewCheckpointForm.SetSize(typed.Width, typed.Height)
+		}
+		if m.parentReviewForm != nil {
+			m.parentReviewForm.SetSize(typed.Width, typed.Height)
 		}
 
 		return m, nil
@@ -245,11 +252,17 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if typed.Action == "execute" || typed.Action == "resume" {
 			m.clearLiveOutput()
 		}
+		parentReviewRequired := typed.Result != nil && typed.Result.Reason == execution.ExecuteReasonParentReviewRequired
 		decisionRequired := typed.Result != nil && typed.Result.Reason == execution.ExecuteReasonDecisionRequired
 		if typed.Err != nil {
 			m.actionOutput = &ActionOutput{
 				Message: fmt.Sprintf("Action failed: %v\n\n%s", typed.Err, typed.Output),
 				IsError: true,
+			}
+		} else if parentReviewRequired {
+			m.actionOutput = nil
+			if typed.Result != nil && typed.Result.Run != nil {
+				m = openParentReviewModal(m, *typed.Result.Run)
 			}
 		} else if decisionRequired {
 			m.actionOutput = nil
@@ -387,6 +400,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.runData = typed.Data
+		m.pendingParentFeedback = typed.PendingParentFeedback
 		if pending := pendingDecisionRunFromData(m.runData); pending != nil {
 			if m.actionMode == ActionModeNone && m.reviewCheckpointForm == nil && !m.actionInProgress {
 				m = openReviewCheckpointModal(m, *pending)
@@ -528,6 +542,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Quit
 			default:
 				return HandleReviewCheckpointKey(m, typed)
+			}
+		}
+		if m.actionMode == ActionModeParentReview {
+			switch typed.String() {
+			case "ctrl+c":
+				m = cancelRunningAction(m)
+				return m, tea.Quit
+			default:
+				return HandleParentReviewKey(m, typed)
 			}
 		}
 		if m.actionMode == ActionModeSelectAgent {
@@ -753,6 +776,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !CanResume(m) {
 				return m, nil
 			}
+			if hasPendingParentFeedbackForTask(m, m.selectedID) {
+				return m.startFeedbackResumeAction([]string{m.selectedID})
+			}
 			questions, err := execution.ParseQuestionsFromLatestWaitingRun(plan.PlanPath(), m.plan, m.selectedID)
 			if err != nil {
 				m.actionOutput = &ActionOutput{
@@ -812,6 +838,38 @@ func (m Model) startPlanRefine() (Model, tea.Cmd) {
 	m.planRefineForm = &form
 	m.actionMode = ActionModePlanRefine
 	return m, nil
+}
+
+func (m Model) startFeedbackResumeAction(taskIDs []string) (Model, tea.Cmd) {
+	normalizedTaskIDs := normalizeResumeTaskIDs(taskIDs)
+	if len(normalizedTaskIDs) == 0 {
+		m.actionOutput = &ActionOutput{
+			Message: "Resume failed: no resume targets selected",
+			IsError: true,
+		}
+		return m, nil
+	}
+
+	m.actionMode = ActionModeNone
+	m.parentReviewForm = nil
+	m.actionInProgress = true
+	m.actionName = "Resuming..."
+	ctx, cancel := context.WithCancel(context.Background())
+	m.actionCancel = cancel
+	streamCh, stdout, stderr := m.startLiveOutput()
+
+	var resumeCmd tea.Cmd
+	if len(normalizedTaskIDs) == 1 {
+		resumeCmd = ResumePendingParentFeedbackCmdWithContextAndStream(ctx, normalizedTaskIDs[0], stdout, stderr, streamCh)
+	} else {
+		resumeCmd = ResumePendingParentFeedbackTargetsCmdWithContextAndStream(ctx, normalizedTaskIDs, stdout, stderr, streamCh)
+	}
+
+	return m, tea.Batch(
+		resumeCmd,
+		listenLiveOutputCmd(streamCh),
+		spinnerTickCmd(),
+	)
 }
 
 func cancelRunningAction(m Model) Model {
@@ -944,6 +1002,17 @@ func (m Model) View() string {
 	// Overlay review checkpoint modal if active
 	if m.actionMode == ActionModeReviewCheckpoint && m.reviewCheckpointForm != nil {
 		modal := RenderReviewCheckpointModal(modalModel, *m.reviewCheckpointForm)
+		if modal != "" {
+			content = modal
+			if banner != "" {
+				content = banner + "\n" + content
+			}
+		}
+	}
+
+	// Overlay parent review modal if active
+	if m.actionMode == ActionModeParentReview && m.parentReviewForm != nil {
+		modal := RenderParentReviewModal(modalModel, *m.parentReviewForm)
 		if modal != "" {
 			content = modal
 			if banner != "" {
