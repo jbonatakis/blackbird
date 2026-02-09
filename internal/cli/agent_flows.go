@@ -12,6 +12,8 @@ import (
 
 	"github.com/jbonatakis/blackbird/internal/agent"
 	"github.com/jbonatakis/blackbird/internal/plan"
+	"github.com/jbonatakis/blackbird/internal/plangen"
+	"github.com/jbonatakis/blackbird/internal/planquality"
 )
 
 func runPlan(args []string) error {
@@ -90,35 +92,149 @@ func runPlanGenerate(args []string) error {
 	requestMeta := buildAgentMetadata(meta)
 	requestMeta.JSONSchema = agent.DefaultPlanJSONSchema()
 	requestMeta = agent.ApplyRuntimeProvider(requestMeta, runtime)
-	req := agent.Request{
-		SchemaVersion:      agent.SchemaVersion,
-		Type:               agent.RequestPlanGenerate,
-		SystemPrompt:       agent.DefaultPlanSystemPrompt(),
-		ProjectDescription: strings.TrimSpace(*description),
-		Constraints:        trimNonEmpty(constraints),
-		Granularity:        strings.TrimSpace(*granularity),
-		Metadata:           requestMeta,
+	runRequest := func(ctx context.Context, req agent.Request) (agent.Response, agent.Diagnostics, error) {
+		return runAgentWithQuestions(ctx, runtime, req, agent.MaxPlanQuestionRounds)
+	}
+	qualityGatePassLimit := plangen.ResolveMaxAutoRefinePassesFromPlanPath(path)
+	refineViaPlanRequest := func(ctx context.Context, changeRequest string, currentPlan plan.WorkGraph) (plan.WorkGraph, error) {
+		refineReqMeta := buildAgentMetadata(meta)
+		refineReqMeta.JSONSchema = agent.DefaultPlanJSONSchema()
+		refineReqMeta = agent.ApplyRuntimeProvider(refineReqMeta, runtime)
+
+		refineResult, err := plangen.Refine(ctx, runRequest, plangen.RefineInput{
+			ChangeRequest: strings.TrimSpace(changeRequest),
+			CurrentPlan:   currentPlan,
+			Metadata:      refineReqMeta,
+		})
+		if err != nil {
+			return plan.WorkGraph{}, formatAgentRunError(err, refineResult.Diagnostics)
+		}
+		if len(refineResult.Questions) > 0 {
+			return plan.WorkGraph{}, errors.New("unexpected clarification request during quality auto-refine")
+		}
+		if refineResult.Plan == nil {
+			return plan.WorkGraph{}, errors.New("plan refine returned no plan")
+		}
+		return plan.Clone(*refineResult.Plan), nil
+	}
+	applyQualityGate := func(candidate plan.WorkGraph) (planquality.QualityGateResult, error) {
+		initialFindings := planquality.Lint(candidate)
+		printQualitySummary(os.Stdout, "initial", initialFindings)
+
+		autoRefinePass := 0
+		result, err := plangen.RunQualityGate(context.Background(), candidate, qualityGatePassLimit, func(ctx context.Context, changeRequest string, currentPlan plan.WorkGraph) (plan.WorkGraph, error) {
+			autoRefinePass++
+			fmt.Fprintf(os.Stdout, "quality auto-refine pass %d/%d\n", autoRefinePass, qualityGatePassLimit)
+			return refineViaPlanRequest(ctx, changeRequest, currentPlan)
+		})
+		if err != nil {
+			return planquality.QualityGateResult{}, err
+		}
+
+		finalSummary := printQualitySummary(os.Stdout, "final", result.FinalFindings)
+		if finalSummary.Blocking > 0 {
+			printQualityFindings(os.Stdout, "Blocking findings:", result.FinalFindings, planquality.SeverityBlocking)
+		}
+		if finalSummary.Warning > 0 {
+			printQualityFindings(os.Stdout, "Warning findings (non-blocking):", result.FinalFindings, planquality.SeverityWarning)
+		}
+
+		return result, nil
 	}
 
 	var proposed plan.WorkGraph
-	diag := agent.Diagnostics{}
-	resp, diag, err := runAgentWithQuestions(context.Background(), runtime, req, agent.MaxPlanQuestionRounds)
+	generateResult, err := plangen.Generate(context.Background(), runRequest, plangen.GenerateInput{
+		Description: strings.TrimSpace(*description),
+		Constraints: trimNonEmpty(constraints),
+		Granularity: strings.TrimSpace(*granularity),
+		Metadata:    requestMeta,
+	})
 	if err != nil {
-		return formatAgentRunError(err, diag)
+		return formatAgentRunError(err, generateResult.Diagnostics)
 	}
-	next, err := agent.ResponseToPlan(plan.NewEmptyWorkGraph(), resp, time.Now().UTC())
+	if len(generateResult.Questions) > 0 {
+		return errors.New("unexpected clarification request during plan generation")
+	}
+	if generateResult.Plan == nil {
+		return errors.New("plan generation returned no plan")
+	}
+	proposed = plan.Clone(*generateResult.Plan)
+
+	qualityResult, err := applyQualityGate(proposed)
 	if err != nil {
 		return err
 	}
-	proposed = next
+	proposed = plan.Clone(qualityResult.FinalPlan)
 
 	revisions := 0
+	applyManualRevision := func(current plan.WorkGraph) (plan.WorkGraph, planquality.QualityGateResult, error) {
+		if revisions >= agent.MaxPlanGenerateRevisions {
+			return plan.WorkGraph{}, planquality.QualityGateResult{}, errors.New("revision limit reached")
+		}
+		revisions++
+		change, err := promptLine("Revision request")
+		if err != nil {
+			return plan.WorkGraph{}, planquality.QualityGateResult{}, err
+		}
+		if strings.TrimSpace(change) == "" {
+			return plan.WorkGraph{}, planquality.QualityGateResult{}, UsageError{Message: "revision request cannot be empty"}
+		}
+		revisionMeta := buildAgentMetadata(meta)
+		revisionMeta.JSONSchema = agent.DefaultPlanJSONSchema()
+		revisionMeta = agent.ApplyRuntimeProvider(revisionMeta, runtime)
+		refineResult, err := plangen.Refine(context.Background(), runRequest, plangen.RefineInput{
+			ChangeRequest: strings.TrimSpace(change),
+			CurrentPlan:   current,
+			Metadata:      revisionMeta,
+		})
+		if err != nil {
+			return plan.WorkGraph{}, planquality.QualityGateResult{}, formatAgentRunError(err, refineResult.Diagnostics)
+		}
+		if len(refineResult.Questions) > 0 {
+			return plan.WorkGraph{}, planquality.QualityGateResult{}, errors.New("unexpected clarification request during plan revision")
+		}
+		if refineResult.Plan == nil {
+			return plan.WorkGraph{}, planquality.QualityGateResult{}, errors.New("plan revision returned no plan")
+		}
+		next := plan.Clone(*refineResult.Plan)
+		result, err := applyQualityGate(next)
+		if err != nil {
+			return plan.WorkGraph{}, planquality.QualityGateResult{}, err
+		}
+		return plan.Clone(result.FinalPlan), result, nil
+	}
+
 	for {
 		fmt.Fprintln(os.Stdout, "")
-		printProviderSummary(os.Stdout, runtime, req.Metadata)
+		printProviderSummary(os.Stdout, runtime, requestMeta)
 		printPlanSummary(os.Stdout, proposed)
 		fmt.Fprintln(os.Stdout, "Plan tree:")
 		printTree(os.Stdout, proposed)
+
+		if planquality.HasBlocking(qualityResult.FinalFindings) {
+			choice, err := promptChoice("Blocking findings remain. Choose action", []string{"revise", "accept_anyway", "cancel"})
+			if err != nil {
+				return err
+			}
+			switch choice {
+			case "revise":
+				proposed, qualityResult, err = applyManualRevision(proposed)
+				if err != nil {
+					return err
+				}
+			case "accept_anyway":
+				fmt.Fprintln(os.Stdout, "WARNING: blocking findings were overridden; saving plan anyway")
+				if err := plan.SaveAtomic(path, proposed); err != nil {
+					return fmt.Errorf("write plan file: %w", err)
+				}
+				fmt.Fprintf(os.Stdout, "saved plan: %s\n", path)
+				return nil
+			default:
+				fmt.Fprintln(os.Stdout, "aborted; plan unchanged")
+				return nil
+			}
+			continue
+		}
 
 		choice, err := promptChoice("Accept plan", []string{"yes", "revise", "no"})
 		if err != nil {
@@ -132,37 +248,10 @@ func runPlanGenerate(args []string) error {
 			fmt.Fprintf(os.Stdout, "saved plan: %s\n", path)
 			return nil
 		case "revise":
-			if revisions >= agent.MaxPlanGenerateRevisions {
-				return errors.New("revision limit reached")
-			}
-			revisions++
-			change, err := promptLine("Revision request")
+			proposed, qualityResult, err = applyManualRevision(proposed)
 			if err != nil {
 				return err
 			}
-			if strings.TrimSpace(change) == "" {
-				return UsageError{Message: "revision request cannot be empty"}
-			}
-			revisionMeta := buildAgentMetadata(meta)
-			revisionMeta.JSONSchema = agent.DefaultPlanJSONSchema()
-			revisionMeta = agent.ApplyRuntimeProvider(revisionMeta, runtime)
-			refineReq := agent.Request{
-				SchemaVersion: agent.SchemaVersion,
-				Type:          agent.RequestPlanRefine,
-				SystemPrompt:  agent.DefaultPlanSystemPrompt(),
-				ChangeRequest: strings.TrimSpace(change),
-				Plan:          &proposed,
-				Metadata:      revisionMeta,
-			}
-			resp, diag, err = runAgentWithQuestions(context.Background(), runtime, refineReq, agent.MaxPlanQuestionRounds)
-			if err != nil {
-				return formatAgentRunError(err, diag)
-			}
-			next, err := agent.ResponseToPlan(proposed, resp, time.Now().UTC())
-			if err != nil {
-				return err
-			}
-			proposed = next
 		default:
 			fmt.Fprintln(os.Stdout, "aborted; plan unchanged")
 			return nil

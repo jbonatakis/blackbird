@@ -176,6 +176,93 @@ func TestSettingsIntEditValidationAndAutosave(t *testing.T) {
 	}
 }
 
+func TestSettingsPlanningIntEditAcrossGlobalAndLocalLayers(t *testing.T) {
+	projectRoot := t.TempDir()
+	home := t.TempDir()
+	restoreHome := config.SetUserHomeDirForTest(func() (string, error) {
+		return home, nil
+	})
+	defer restoreHome()
+
+	model := Model{
+		viewMode:    ViewModeSettings,
+		projectRoot: projectRoot,
+		config:      config.DefaultResolvedConfig(),
+	}
+	model.settings = NewSettingsState(projectRoot, model.config)
+
+	idx := optionIndex(model.settings.Options, "planning.maxPlanAutoRefinePasses")
+	if idx < 0 {
+		t.Fatalf("missing planning int option")
+	}
+	model.settings.Selected = idx
+	model.settings.Column = SettingsColumnGlobal
+
+	updated, _ := HandleSettingsKey(model, tea.KeyMsg{Type: tea.KeyEnter})
+	if !updated.settings.Editing {
+		t.Fatalf("expected global edit mode to start")
+	}
+	updated, _ = HandleSettingsKey(updated, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+	updated, _ = HandleSettingsKey(updated, tea.KeyMsg{Type: tea.KeyEnter})
+	if updated.settings.Editing {
+		t.Fatalf("expected global edit mode to end after commit")
+	}
+
+	globalCfg, present, err := config.LoadGlobalConfig()
+	if err != nil {
+		t.Fatalf("load global config: %v", err)
+	}
+	if !present || globalCfg.Planning == nil || globalCfg.Planning.MaxPlanAutoRefinePasses == nil || *globalCfg.Planning.MaxPlanAutoRefinePasses != 2 {
+		t.Fatalf("expected global planning value 2, got %#v", globalCfg.Planning)
+	}
+	applied := updated.settings.Resolution.Applied["planning.maxPlanAutoRefinePasses"]
+	if applied.Source != config.ConfigSourceGlobal || applied.Value.Int == nil || *applied.Value.Int != 2 {
+		t.Fatalf("expected applied value 2 from global source, got %+v", applied)
+	}
+	if updated.config.Planning.MaxPlanAutoRefinePasses != 2 {
+		t.Fatalf("expected model planning value 2 after global save")
+	}
+
+	updated.settings.Column = SettingsColumnLocal
+	updated, _ = HandleSettingsKey(updated, tea.KeyMsg{Type: tea.KeyEnter})
+	if !updated.settings.Editing {
+		t.Fatalf("expected local edit mode to start")
+	}
+	updated, _ = HandleSettingsKey(updated, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}})
+	updated, _ = HandleSettingsKey(updated, tea.KeyMsg{Type: tea.KeyEnter})
+	if updated.settings.Editing {
+		t.Fatalf("expected local edit mode to end after commit")
+	}
+
+	localCfg, present, err := config.LoadProjectConfig(projectRoot)
+	if err != nil {
+		t.Fatalf("load local config: %v", err)
+	}
+	if !present || localCfg.Planning == nil || localCfg.Planning.MaxPlanAutoRefinePasses == nil || *localCfg.Planning.MaxPlanAutoRefinePasses != 3 {
+		t.Fatalf("expected local planning value 3, got %#v", localCfg.Planning)
+	}
+	applied = updated.settings.Resolution.Applied["planning.maxPlanAutoRefinePasses"]
+	if applied.Source != config.ConfigSourceLocal || applied.Value.Int == nil || *applied.Value.Int != 3 {
+		t.Fatalf("expected applied value 3 from local source, got %+v", applied)
+	}
+	if updated.config.Planning.MaxPlanAutoRefinePasses != 3 {
+		t.Fatalf("expected model planning value 3 after local save")
+	}
+
+	updated, _ = HandleSettingsKey(updated, tea.KeyMsg{Type: tea.KeyDelete})
+	_, present, err = config.LoadProjectConfig(projectRoot)
+	if err != nil {
+		t.Fatalf("load local config after clear: %v", err)
+	}
+	if present {
+		t.Fatalf("expected local config removed after clearing planning value")
+	}
+	applied = updated.settings.Resolution.Applied["planning.maxPlanAutoRefinePasses"]
+	if applied.Source != config.ConfigSourceGlobal || applied.Value.Int == nil || *applied.Value.Int != 2 {
+		t.Fatalf("expected applied value to fall back to global 2, got %+v", applied)
+	}
+}
+
 func TestSettingsSaveFailureKeepsPriorValue(t *testing.T) {
 	projectRoot := t.TempDir()
 	home := t.TempDir()

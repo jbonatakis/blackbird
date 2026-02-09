@@ -19,7 +19,7 @@ func TestResolveSettingsPrecedenceAndSource(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
 		t.Fatalf("mkdir global: %v", err)
 	}
-	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":12}}`), 0o644); err != nil {
+	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":12},"planning":{"maxPlanAutoRefinePasses":2}}`), 0o644); err != nil {
 		t.Fatalf("write global config: %v", err)
 	}
 
@@ -27,7 +27,7 @@ func TestResolveSettingsPrecedenceAndSource(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(projectPath), 0o755); err != nil {
 		t.Fatalf("mkdir project: %v", err)
 	}
-	if err := os.WriteFile(projectPath, []byte(`{"schemaVersion":1,"tui":{"planDataRefreshIntervalSeconds":21}}`), 0o644); err != nil {
+	if err := os.WriteFile(projectPath, []byte(`{"schemaVersion":1,"tui":{"planDataRefreshIntervalSeconds":21},"planning":{"maxPlanAutoRefinePasses":3}}`), 0o644); err != nil {
 		t.Fatalf("write project config: %v", err)
 	}
 
@@ -38,6 +38,7 @@ func TestResolveSettingsPrecedenceAndSource(t *testing.T) {
 
 	assertAppliedInt(t, resolution, keyTuiRunDataRefreshIntervalSeconds, 12, ConfigSourceGlobal)
 	assertAppliedInt(t, resolution, keyTuiPlanDataRefreshIntervalSeconds, 21, ConfigSourceLocal)
+	assertAppliedInt(t, resolution, keyPlanningMaxPlanAutoRefinePasses, 3, ConfigSourceLocal)
 	assertAppliedBool(t, resolution, keyExecutionStopAfterEachTask, DefaultStopAfterEachTask, ConfigSourceDefault)
 }
 
@@ -53,7 +54,7 @@ func TestResolveSettingsOutOfRangeWarnings(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
 		t.Fatalf("mkdir global: %v", err)
 	}
-	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"planDataRefreshIntervalSeconds":0}}`), 0o644); err != nil {
+	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"planDataRefreshIntervalSeconds":0},"planning":{"maxPlanAutoRefinePasses":5}}`), 0o644); err != nil {
 		t.Fatalf("write global config: %v", err)
 	}
 
@@ -61,7 +62,7 @@ func TestResolveSettingsOutOfRangeWarnings(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(projectPath), 0o755); err != nil {
 		t.Fatalf("mkdir project: %v", err)
 	}
-	if err := os.WriteFile(projectPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":400}}`), 0o644); err != nil {
+	if err := os.WriteFile(projectPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":400},"planning":{"maxPlanAutoRefinePasses":-1}}`), 0o644); err != nil {
 		t.Fatalf("write project config: %v", err)
 	}
 
@@ -72,6 +73,7 @@ func TestResolveSettingsOutOfRangeWarnings(t *testing.T) {
 
 	assertAppliedInt(t, resolution, keyTuiRunDataRefreshIntervalSeconds, MaxRefreshIntervalSeconds, ConfigSourceLocal)
 	assertAppliedInt(t, resolution, keyTuiPlanDataRefreshIntervalSeconds, MinRefreshIntervalSeconds, ConfigSourceGlobal)
+	assertAppliedInt(t, resolution, keyPlanningMaxPlanAutoRefinePasses, MinPlanAutoRefinePasses, ConfigSourceLocal)
 
 	runWarning, ok := findOptionWarning(resolution.OptionWarnings, ConfigSourceLocal, keyTuiRunDataRefreshIntervalSeconds)
 	if !ok {
@@ -87,6 +89,22 @@ func TestResolveSettingsOutOfRangeWarnings(t *testing.T) {
 	}
 	if planWarning.ClampedInt == nil || *planWarning.ClampedInt != MinRefreshIntervalSeconds {
 		t.Fatalf("plan warning clamped = %#v, want %d", planWarning.ClampedInt, MinRefreshIntervalSeconds)
+	}
+
+	planningLocalWarning, ok := findOptionWarning(resolution.OptionWarnings, ConfigSourceLocal, keyPlanningMaxPlanAutoRefinePasses)
+	if !ok {
+		t.Fatalf("expected warning for local planning max auto-refine passes")
+	}
+	if planningLocalWarning.ClampedInt == nil || *planningLocalWarning.ClampedInt != MinPlanAutoRefinePasses {
+		t.Fatalf("planning local warning clamped = %#v, want %d", planningLocalWarning.ClampedInt, MinPlanAutoRefinePasses)
+	}
+
+	planningGlobalWarning, ok := findOptionWarning(resolution.OptionWarnings, ConfigSourceGlobal, keyPlanningMaxPlanAutoRefinePasses)
+	if !ok {
+		t.Fatalf("expected warning for global planning max auto-refine passes")
+	}
+	if planningGlobalWarning.ClampedInt == nil || *planningGlobalWarning.ClampedInt != MaxPlanAutoRefinePasses {
+		t.Fatalf("planning global warning clamped = %#v, want %d", planningGlobalWarning.ClampedInt, MaxPlanAutoRefinePasses)
 	}
 }
 
@@ -135,6 +153,7 @@ func TestResolveSettingsLayerWarnings(t *testing.T) {
 
 	assertAppliedInt(t, resolution, keyTuiRunDataRefreshIntervalSeconds, DefaultRunDataRefreshIntervalSeconds, ConfigSourceDefault)
 	assertAppliedInt(t, resolution, keyTuiPlanDataRefreshIntervalSeconds, DefaultPlanDataRefreshIntervalSeconds, ConfigSourceDefault)
+	assertAppliedInt(t, resolution, keyPlanningMaxPlanAutoRefinePasses, DefaultMaxPlanAutoRefinePasses, ConfigSourceDefault)
 	assertAppliedBool(t, resolution, keyExecutionStopAfterEachTask, DefaultStopAfterEachTask, ConfigSourceDefault)
 }
 

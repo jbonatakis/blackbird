@@ -43,6 +43,14 @@ func OptionRegistry() []OptionMetadata {
 			MaxRefreshIntervalSeconds,
 			"Plan data refresh interval in seconds",
 		),
+		newIntOption(
+			"planning.maxPlanAutoRefinePasses",
+			"Planning Max Auto-Refine Passes",
+			defaults.Planning.MaxPlanAutoRefinePasses,
+			MinPlanAutoRefinePasses,
+			MaxPlanAutoRefinePasses,
+			"Maximum automatic refine passes when planning",
+		),
 		newBoolOption(
 			"execution.stopAfterEachTask",
 			"Execution Stop After Each Task",

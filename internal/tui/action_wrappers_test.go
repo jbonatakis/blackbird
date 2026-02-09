@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -157,6 +158,49 @@ func TestResponseToPlanNormalizesFullPlanTimestamps(t *testing.T) {
 	item := result.Items["task"]
 	if !item.CreatedAt.Equal(now) || !item.UpdatedAt.Equal(now) {
 		t.Fatalf("timestamps not normalized: got %s/%s want %s", item.CreatedAt, item.UpdatedAt, now)
+	}
+}
+
+func TestContinuePlanGenerationWithAnswersTooManyRounds(t *testing.T) {
+	cmd := ContinuePlanGenerationWithAnswers(
+		"project",
+		nil,
+		"",
+		[]agent.Answer{{ID: "q1", Value: "answer"}},
+		agent.MaxPlanQuestionRounds,
+	)
+
+	msg := cmd()
+	result, ok := msg.(PlanGenerateInMemoryResult)
+	if !ok {
+		t.Fatalf("expected PlanGenerateInMemoryResult, got %T", msg)
+	}
+	if result.Err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(result.Err.Error(), "too many clarification rounds") {
+		t.Fatalf("error = %q, want clarification-rounds message", result.Err.Error())
+	}
+}
+
+func TestContinuePlanRefineWithAnswersTooManyRounds(t *testing.T) {
+	cmd := ContinuePlanRefineWithAnswers(
+		"update plan",
+		plan.NewEmptyWorkGraph(),
+		[]agent.Answer{{ID: "q1", Value: "answer"}},
+		agent.MaxPlanQuestionRounds,
+	)
+
+	msg := cmd()
+	result, ok := msg.(PlanGenerateInMemoryResult)
+	if !ok {
+		t.Fatalf("expected PlanGenerateInMemoryResult, got %T", msg)
+	}
+	if result.Err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(result.Err.Error(), "too many clarification rounds") {
+		t.Fatalf("error = %q, want clarification-rounds message", result.Err.Error())
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 
 func TestRawOptionValues(t *testing.T) {
 	run := 12
+	refinePasses := 2
 	stop := false
 	version := SchemaVersion
 	cfg := RawConfig{
@@ -18,14 +19,17 @@ func TestRawOptionValues(t *testing.T) {
 		TUI: &RawTUI{
 			RunDataRefreshIntervalSeconds: &run,
 		},
+		Planning: &RawPlanning{
+			MaxPlanAutoRefinePasses: &refinePasses,
+		},
 		Execution: &RawExecution{
 			StopAfterEachTask: &stop,
 		},
 	}
 
 	values := RawOptionValues(cfg)
-	if len(values) != 2 {
-		t.Fatalf("values len = %d, want 2", len(values))
+	if len(values) != 3 {
+		t.Fatalf("values len = %d, want 3", len(values))
 	}
 
 	runValue, ok := values[keyTuiRunDataRefreshIntervalSeconds]
@@ -42,6 +46,14 @@ func TestRawOptionValues(t *testing.T) {
 	}
 	if stopValue.Int != nil {
 		t.Fatalf("stop value int = %v, want nil", stopValue.Int)
+	}
+
+	planningValue, ok := values[keyPlanningMaxPlanAutoRefinePasses]
+	if !ok || planningValue.Int == nil || *planningValue.Int != 2 {
+		t.Fatalf("planning value = %#v, want 2", planningValue)
+	}
+	if planningValue.Bool != nil {
+		t.Fatalf("planning value bool = %v, want nil", planningValue.Bool)
 	}
 
 	if _, ok := values[keyTuiPlanDataRefreshIntervalSeconds]; ok {
@@ -61,7 +73,7 @@ func TestLoadLayerOptionValues(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
 		t.Fatalf("mkdir global: %v", err)
 	}
-	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":20}}`), 0o644); err != nil {
+	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":20},"planning":{"maxPlanAutoRefinePasses":3}}`), 0o644); err != nil {
 		t.Fatalf("write global config: %v", err)
 	}
 
@@ -96,6 +108,11 @@ func TestLoadLayerOptionValues(t *testing.T) {
 	if !ok || runValue.Int == nil || *runValue.Int != 20 {
 		t.Fatalf("global run value = %#v, want 20", runValue)
 	}
+
+	planningValue, ok := global.Values[keyPlanningMaxPlanAutoRefinePasses]
+	if !ok || planningValue.Int == nil || *planningValue.Int != 3 {
+		t.Fatalf("global planning value = %#v, want 3", planningValue)
+	}
 	if _, ok := global.Values[keyExecutionStopAfterEachTask]; ok {
 		t.Fatalf("expected global stop after each task to be unset")
 	}
@@ -106,9 +123,11 @@ func TestSaveConfigValuesWritesFile(t *testing.T) {
 	path := filepath.Join(tempDir, ".blackbird", "config.json")
 
 	run := 8
+	maxRefinePasses := 2
 	stop := false
 	values := map[string]RawOptionValue{
 		keyTuiRunDataRefreshIntervalSeconds: {Int: &run},
+		keyPlanningMaxPlanAutoRefinePasses:  {Int: &maxRefinePasses},
 		keyExecutionStopAfterEachTask:       {Bool: &stop},
 	}
 
@@ -140,6 +159,9 @@ func TestSaveConfigValuesWritesFile(t *testing.T) {
 	if cfg.TUI.PlanDataRefreshIntervalSeconds != nil {
 		t.Fatalf("plan interval = %v, want nil", cfg.TUI.PlanDataRefreshIntervalSeconds)
 	}
+	if cfg.Planning == nil || cfg.Planning.MaxPlanAutoRefinePasses == nil || *cfg.Planning.MaxPlanAutoRefinePasses != 2 {
+		t.Fatalf("maxPlanAutoRefinePasses = %#v, want 2", cfg.Planning)
+	}
 	if cfg.Execution == nil || cfg.Execution.StopAfterEachTask == nil || *cfg.Execution.StopAfterEachTask != false {
 		t.Fatalf("stop after each task = %#v, want false", cfg.Execution)
 	}
@@ -156,9 +178,11 @@ func TestSaveConfigValuesUpdatesExistingFile(t *testing.T) {
 	}
 
 	run := 9
+	maxRefinePasses := 1
 	stop := false
 	values := map[string]RawOptionValue{
 		keyTuiRunDataRefreshIntervalSeconds: {Int: &run},
+		keyPlanningMaxPlanAutoRefinePasses:  {Int: &maxRefinePasses},
 		keyExecutionStopAfterEachTask:       {Bool: &stop},
 	}
 
@@ -187,8 +211,53 @@ func TestSaveConfigValuesUpdatesExistingFile(t *testing.T) {
 	if cfg.TUI.PlanDataRefreshIntervalSeconds != nil {
 		t.Fatalf("plan interval = %v, want nil", cfg.TUI.PlanDataRefreshIntervalSeconds)
 	}
+	if cfg.Planning == nil || cfg.Planning.MaxPlanAutoRefinePasses == nil || *cfg.Planning.MaxPlanAutoRefinePasses != 1 {
+		t.Fatalf("maxPlanAutoRefinePasses = %#v, want 1", cfg.Planning)
+	}
 	if cfg.Execution == nil || cfg.Execution.StopAfterEachTask == nil || *cfg.Execution.StopAfterEachTask != false {
 		t.Fatalf("stop after each task = %#v, want false", cfg.Execution)
+	}
+}
+
+func TestSaveConfigValuesRoundTripPreservesExistingKeys(t *testing.T) {
+	tempDir := t.TempDir()
+	path := filepath.Join(tempDir, ".blackbird", "config.json")
+
+	run := 11
+	plan := 6
+	refinePasses := 3
+	stop := true
+	values := map[string]RawOptionValue{
+		keyTuiRunDataRefreshIntervalSeconds:  {Int: &run},
+		keyTuiPlanDataRefreshIntervalSeconds: {Int: &plan},
+		keyPlanningMaxPlanAutoRefinePasses:   {Int: &refinePasses},
+		keyExecutionStopAfterEachTask:        {Bool: &stop},
+	}
+
+	if err := SaveConfigValues(path, values); err != nil {
+		t.Fatalf("save config values: %v", err)
+	}
+
+	cfg, present, err := loadConfigFile(path)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if !present {
+		t.Fatalf("expected config file to be present")
+	}
+
+	roundTripValues := RawOptionValues(cfg)
+	if got := roundTripValues[keyTuiRunDataRefreshIntervalSeconds]; got.Int == nil || *got.Int != run {
+		t.Fatalf("round-trip run value = %#v, want %d", got, run)
+	}
+	if got := roundTripValues[keyTuiPlanDataRefreshIntervalSeconds]; got.Int == nil || *got.Int != plan {
+		t.Fatalf("round-trip plan value = %#v, want %d", got, plan)
+	}
+	if got := roundTripValues[keyPlanningMaxPlanAutoRefinePasses]; got.Int == nil || *got.Int != refinePasses {
+		t.Fatalf("round-trip planning value = %#v, want %d", got, refinePasses)
+	}
+	if got := roundTripValues[keyExecutionStopAfterEachTask]; got.Bool == nil || *got.Bool != stop {
+		t.Fatalf("round-trip stop value = %#v, want %v", got, stop)
 	}
 }
 

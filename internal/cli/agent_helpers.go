@@ -15,6 +15,7 @@ import (
 
 	"github.com/jbonatakis/blackbird/internal/agent"
 	"github.com/jbonatakis/blackbird/internal/plan"
+	"github.com/jbonatakis/blackbird/internal/planquality"
 )
 
 type agentMetaFlags struct {
@@ -188,6 +189,46 @@ func printPlanSummary(w io.Writer, g plan.WorkGraph) {
 		it := g.Items[id]
 		fmt.Fprintf(w, "- %s: %s\n", id, it.Title)
 	}
+}
+
+func printQualitySummary(w io.Writer, phase string, findings []planquality.PlanQualityFinding) planquality.FindingsSummary {
+	summary := planquality.Summarize(findings)
+	fmt.Fprintf(w, "Quality summary (%s): blocking=%d, warning=%d, total=%d\n",
+		phase, summary.Blocking, summary.Warning, summary.Total)
+	return summary
+}
+
+func printQualityFindings(w io.Writer, label string, findings []planquality.PlanQualityFinding, severity planquality.Severity) {
+	filtered := filterQualityFindingsBySeverity(findings, severity)
+	if len(filtered) == 0 {
+		return
+	}
+
+	fmt.Fprintln(w, label)
+	summary := planquality.Summarize(filtered)
+	for _, task := range summary.Tasks {
+		for _, field := range task.Fields {
+			for _, finding := range field.Findings {
+				fmt.Fprintf(w, "- %s.%s [%s] %s: %s\n",
+					task.TaskID,
+					field.Field,
+					finding.Severity,
+					finding.Code,
+					finding.Message,
+				)
+			}
+		}
+	}
+}
+
+func filterQualityFindingsBySeverity(findings []planquality.PlanQualityFinding, severity planquality.Severity) []planquality.PlanQualityFinding {
+	out := make([]planquality.PlanQualityFinding, 0)
+	for _, finding := range findings {
+		if finding.Severity == severity {
+			out = append(out, finding)
+		}
+	}
+	return out
 }
 
 func printDiffSummary(w io.Writer, diff plan.DiffSummary) {
