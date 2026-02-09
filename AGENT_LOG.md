@@ -1524,3 +1524,15 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 - Re-read `OVERVIEW.md` and `specs/improvements/PARENT_REVIEW_QUALITY_GATE.md`, then generated a very granular WorkGraph tailored to implementation in `internal/execution`, `internal/cli`, and `internal/tui`.
 - Decomposed delivery into focused units covering review data contracts, trigger/idempotence, review execution, pending-feedback resume injection, explicit CLI/TUI pause-and-resume UX, and final verification/docs sync.
 - Planned objective acceptance criteria and execution-oriented prompts for each leaf to keep tasks independently executable while preserving leaf-only normal execution semantics.
+
+## 2026-02-09 — Release workflow review for Homebrew tap updates
+
+- Reviewed `.github/workflows/release.yml` to verify Homebrew tap automation correctness.
+- Identified a checksum replacement bug in `update-homebrew`: the four `sed -i "0,/sha256 .../s//.../"` commands repeatedly target the first `sha256` match, so only one checksum line is effectively updated while others remain stale.
+- Noted additional hardening gap: checksum downloads use `curl -sL` without `-f`, so missing assets can silently produce invalid checksum values and still commit.
+- Confirmed release action defaults align with expected asset naming format `${BINARY_NAME}-${RELEASE_TAG}-${GOOS}-${GOARCH}` and optional `.sha256` files when `sha256sum: true` is enabled.
+
+## 2026-02-09 — Fixed checksum replacement bug in release workflow
+
+- Updated `.github/workflows/release.yml` in `update-homebrew` to replace the first four `sha256` formula lines deterministically with an `awk` pass, instead of repeatedly rewriting the first match with `sed`.
+- Added a guard that fails the workflow if fewer than four `sha256` lines are found in `tap/blackbird.rb`, preventing silent partial updates.

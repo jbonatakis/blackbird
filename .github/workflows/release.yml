@@ -70,10 +70,33 @@ jobs:
 
           sed -i "s/version \".*\"/version \"${VERSION}\"/" "$formula"
 
-          sed -i "0,/sha256 \".*\"/s//sha256 \"$(cat darwin_arm64)\"/" "$formula"
-          sed -i "0,/sha256 \".*\"/s//sha256 \"$(cat darwin_amd64)\"/" "$formula"
-          sed -i "0,/sha256 \".*\"/s//sha256 \"$(cat linux_arm64)\"/" "$formula"
-          sed -i "0,/sha256 \".*\"/s//sha256 \"$(cat linux_amd64)\"/" "$formula"
+          tmp_formula="$(mktemp)"
+          awk \
+            -v darwin_arm64="$(cat darwin_arm64)" \
+            -v darwin_amd64="$(cat darwin_amd64)" \
+            -v linux_arm64="$(cat linux_arm64)" \
+            -v linux_amd64="$(cat linux_amd64)" '
+            /^[[:space:]]*sha256 "[^"]+"/ {
+              count++
+              if (count == 1) {
+                sub(/sha256 "[^"]+"/, "sha256 \"" darwin_arm64 "\"")
+              } else if (count == 2) {
+                sub(/sha256 "[^"]+"/, "sha256 \"" darwin_amd64 "\"")
+              } else if (count == 3) {
+                sub(/sha256 "[^"]+"/, "sha256 \"" linux_arm64 "\"")
+              } else if (count == 4) {
+                sub(/sha256 "[^"]+"/, "sha256 \"" linux_amd64 "\"")
+              }
+            }
+            { print }
+            END {
+              if (count < 4) {
+                printf("Expected at least 4 sha256 lines in %s, found %d\n", FILENAME, count) > "/dev/stderr"
+                exit 1
+              }
+            }
+          ' "$formula" > "$tmp_formula"
+          mv "$tmp_formula" "$formula"
 
       - name: Commit and push
         run: |
