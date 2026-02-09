@@ -1513,3 +1513,14 @@ All tests pass locally and provide coverage for critical TUI logic paths without
 - Updated `docs/TUI.md` with settings row details for planning auto-refine and plan-review modal quality summary/override behavior (`Accept anyway` when blocking findings remain).
 - Validation:
   - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/planquality/... ./internal/plangen/... ./internal/cli/... ./internal/tui/... ./internal/config/...` (pass)
+
+## 2026-02-06 — Regenerated parent review quality-gate implementation plan
+
+- Re-read `specs/improvements/PARENT_REVIEW_QUALITY_GATE.md`, `OVERVIEW.md`, and current execution/CLI/TUI code paths to produce a concrete WorkGraph plan for implementation.
+- Structured deliverables around: (1) review trigger/idempotence + review run execution, (2) feedback persistence + resume injection, (3) explicit CLI/TUI pause-and-resume UX, and (4) verification/docs sync.
+
+## 2026-02-06 — Generated very granular parent review quality-gate plan
+
+- Re-read `OVERVIEW.md` and `specs/improvements/PARENT_REVIEW_QUALITY_GATE.md`, then generated a very granular WorkGraph tailored to implementation in `internal/execution`, `internal/cli`, and `internal/tui`.
+- Decomposed delivery into focused units covering review data contracts, trigger/idempotence, review execution, pending-feedback resume injection, explicit CLI/TUI pause-and-resume UX, and final verification/docs sync.
+- Planned objective acceptance criteria and execution-oriented prompts for each leaf to keep tasks independently executable while preserving leaf-only normal execution semantics.
