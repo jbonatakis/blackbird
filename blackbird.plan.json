@@ -15,9 +15,9 @@
       "parentId": "parent_go_fizzbuzz",
       "childIds": [],
       "deps": [],
-      "status": "in_progress",
+      "status": "todo",
       "createdAt": "2026-02-11T05:00:24.505814Z",
-      "updatedAt": "2026-02-11T18:59:02.279899Z"
+      "updatedAt": "2026-02-11T21:03:47.596925Z"
     },
     "child_python_fizzbuzz_impl": {
       "id": "child_python_fizzbuzz_impl",
@@ -35,7 +35,7 @@
       "deps": [],
       "status": "todo",
       "createdAt": "2026-02-11T05:00:24.505814Z",
-      "updatedAt": "2026-02-11T18:54:53.622516Z"
+      "updatedAt": "2026-02-11T21:03:47.629401Z"
     },
     "parent_go_fizzbuzz": {
       "id": "parent_go_fizzbuzz",
@@ -53,9 +53,9 @@
         "child_go_fizzbuzz_impl"
       ],
       "deps": [],
-      "status": "done",
+      "status": "todo",
       "createdAt": "2026-02-11T05:00:24.505814Z",
-      "updatedAt": "2026-02-11T18:55:55.260216Z"
+      "updatedAt": "2026-02-11T21:03:47.663817Z"
     },
     "parent_python_fizzbuzz": {
       "id": "parent_python_fizzbuzz",
@@ -75,7 +75,7 @@
       "deps": [],
       "status": "todo",
       "createdAt": "2026-02-11T05:00:24.505814Z",
-      "updatedAt": "2026-02-11T18:54:53.666794Z"
+      "updatedAt": "2026-02-11T21:03:47.698378Z"
     }
   }
 }

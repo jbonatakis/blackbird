@@ -22,6 +22,7 @@ type ExecutionController struct {
 	StopAfterEachTask   bool
 	ParentReviewEnabled bool
 	OnStateChange       func(ExecutionStageState)
+	OnParentReview      func(RunRecord)
 	OnTaskStart         func(taskID string)
 	OnTaskFinish        func(taskID string, record RunRecord, execErr error)
 }
@@ -52,6 +53,7 @@ func (c ExecutionController) Execute(ctx context.Context) (ExecuteResult, error)
 		StreamStdout:        c.StreamStdout,
 		StreamStderr:        c.StreamStderr,
 		OnStateChange:       c.OnStateChange,
+		OnParentReview:      c.OnParentReview,
 		OnTaskStart:         c.OnTaskStart,
 		OnTaskFinish:        c.OnTaskFinish,
 	})

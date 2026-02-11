@@ -39,6 +39,7 @@ type ExecuteConfig struct {
 	StreamStdout        io.Writer
 	StreamStderr        io.Writer
 	OnStateChange       func(ExecutionStageState)
+	OnParentReview      func(RunRecord)
 	OnTaskStart         func(taskID string)
 	OnTaskFinish        func(taskID string, record RunRecord, execErr error)
 }
@@ -443,6 +444,9 @@ func runParentReviewGateForCompletedTask(
 		if strings.TrimSpace(reviewRecord.ID) != "" {
 			recordCopy := reviewRecord
 			latestReviewRun = &recordCopy
+			if reviewErr == nil {
+				emitParentReviewRun(cfg.OnParentReview, recordCopy)
+			}
 		}
 		emitExecutionStageState(cfg.OnStateChange, ExecutionStageState{
 			Stage:  ExecutionStagePostReview,
@@ -478,6 +482,16 @@ func requiresParentReviewPause(record RunRecord) bool {
 		return false
 	}
 	return len(ParentReviewFailedTaskIDs(record)) > 0
+}
+
+func emitParentReviewRun(emit func(RunRecord), run RunRecord) {
+	if emit == nil {
+		return
+	}
+	if strings.TrimSpace(run.ID) == "" {
+		return
+	}
+	emit(run)
 }
 
 func loadValidatedPlan(planPath string, preloaded *plan.WorkGraph, usePreloaded *bool) (plan.WorkGraph, error) {

@@ -3,6 +3,7 @@ package execution
 import (
 	"context"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 
@@ -244,5 +245,141 @@ func TestRunExecuteStageTransitionsNoReviewingWhenParentReviewDisabled(t *testin
 		if state.ReviewedTaskID != "" {
 			t.Fatalf("states[%d].ReviewedTaskID = %q, want empty", i, state.ReviewedTaskID)
 		}
+	}
+}
+
+func TestRunExecuteParentReviewCallbacksEmitForEachReviewPass(t *testing.T) {
+	tempDir := t.TempDir()
+	planPath := filepath.Join(tempDir, "blackbird.plan.json")
+
+	rootID := "root-parent"
+	midID := "mid-parent"
+	childID := "a-child"
+	otherID := "z-other"
+
+	root := makeItem(rootID, plan.StatusTodo)
+	root.ChildIDs = []string{midID}
+	root.AcceptanceCriteria = []string{"Root parent criteria."}
+
+	mid := makeItem(midID, plan.StatusTodo)
+	midParent := rootID
+	mid.ParentID = &midParent
+	mid.ChildIDs = []string{childID}
+	mid.AcceptanceCriteria = []string{"Mid parent criteria."}
+
+	child := makeItem(childID, plan.StatusTodo)
+	childParent := midID
+	child.ParentID = &childParent
+
+	other := makeItem(otherID, plan.StatusTodo)
+
+	g := plan.WorkGraph{
+		SchemaVersion: plan.SchemaVersion,
+		Items: map[string]plan.WorkItem{
+			rootID:  root,
+			midID:   mid,
+			childID: child,
+			otherID: other,
+		},
+	}
+	if err := plan.SaveAtomic(planPath, g); err != nil {
+		t.Fatalf("save plan: %v", err)
+	}
+
+	var reviewRuns []RunRecord
+	result, err := RunExecute(context.Background(), ExecuteConfig{
+		PlanPath:            planPath,
+		ParentReviewEnabled: true,
+		Runtime: agent.Runtime{
+			Provider: "codex",
+			Command:  `printf '{"passed":true}'`,
+			UseShell: true,
+			Timeout:  2 * time.Second,
+		},
+		OnParentReview: func(run RunRecord) {
+			reviewRuns = append(reviewRuns, run)
+		},
+	})
+	if err != nil {
+		t.Fatalf("RunExecute: %v", err)
+	}
+	if result.Reason != ExecuteReasonCompleted {
+		t.Fatalf("result.Reason = %q, want %q", result.Reason, ExecuteReasonCompleted)
+	}
+
+	if len(reviewRuns) != 2 {
+		t.Fatalf("parent review callback count = %d, want 2", len(reviewRuns))
+	}
+	if got, want := []string{reviewRuns[0].TaskID, reviewRuns[1].TaskID}, []string{midID, rootID}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("review callback task IDs = %#v, want %#v", got, want)
+	}
+	for i, run := range reviewRuns {
+		if run.Type != RunTypeReview {
+			t.Fatalf("reviewRuns[%d].Type = %q, want %q", i, run.Type, RunTypeReview)
+		}
+		if run.ParentReviewPassed == nil || !*run.ParentReviewPassed {
+			t.Fatalf("reviewRuns[%d].ParentReviewPassed = %v, want true", i, run.ParentReviewPassed)
+		}
+	}
+}
+
+func TestRunExecuteParentReviewCallbacksEmitForFailingReview(t *testing.T) {
+	tempDir := t.TempDir()
+	planPath := filepath.Join(tempDir, "blackbird.plan.json")
+
+	parentID := "parent-1"
+	childID := "child-1"
+
+	parent := makeItem(parentID, plan.StatusTodo)
+	parent.ChildIDs = []string{childID}
+	parent.AcceptanceCriteria = []string{"Parent criteria must hold for child output."}
+
+	child := makeItem(childID, plan.StatusTodo)
+	childParent := parentID
+	child.ParentID = &childParent
+
+	g := plan.WorkGraph{
+		SchemaVersion: plan.SchemaVersion,
+		Items: map[string]plan.WorkItem{
+			parentID: parent,
+			childID:  child,
+		},
+	}
+	if err := plan.SaveAtomic(planPath, g); err != nil {
+		t.Fatalf("save plan: %v", err)
+	}
+
+	var reviewRuns []RunRecord
+	result, err := RunExecute(context.Background(), ExecuteConfig{
+		PlanPath:            planPath,
+		ParentReviewEnabled: true,
+		Runtime: agent.Runtime{
+			Provider: "codex",
+			Command:  `printf '{"passed":false,"resumeTaskIds":["child-1"],"feedbackForResume":"Fix child output before continuing."}'`,
+			UseShell: true,
+			Timeout:  2 * time.Second,
+		},
+		OnParentReview: func(run RunRecord) {
+			reviewRuns = append(reviewRuns, run)
+		},
+	})
+	if err != nil {
+		t.Fatalf("RunExecute: %v", err)
+	}
+	if result.Reason != ExecuteReasonParentReviewRequired {
+		t.Fatalf("result.Reason = %q, want %q", result.Reason, ExecuteReasonParentReviewRequired)
+	}
+
+	if len(reviewRuns) != 1 {
+		t.Fatalf("parent review callback count = %d, want 1", len(reviewRuns))
+	}
+	if reviewRuns[0].TaskID != parentID {
+		t.Fatalf("reviewRuns[0].TaskID = %q, want %q", reviewRuns[0].TaskID, parentID)
+	}
+	if reviewRuns[0].ParentReviewPassed == nil || *reviewRuns[0].ParentReviewPassed {
+		t.Fatalf("reviewRuns[0].ParentReviewPassed = %v, want false", reviewRuns[0].ParentReviewPassed)
+	}
+	if got, want := ParentReviewFailedTaskIDs(reviewRuns[0]), []string{childID}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("ParentReviewFailedTaskIDs() = %#v, want %#v", got, want)
 	}
 }

@@ -30,6 +30,7 @@ func HandleParentReviewKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	case ParentReviewModalActionContinue:
 		m.actionMode = ActionModeNone
 		m.parentReviewForm = nil
+		m = m.showNextQueuedParentReview()
 		return m, nil
 	case ParentReviewModalActionResumeOneTask:
 		targetID := strings.TrimSpace(updatedForm.SelectedTarget())
@@ -62,6 +63,7 @@ func HandleParentReviewKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	case ParentReviewModalActionDiscardChanges:
 		m.actionMode = ActionModeNone
 		m.parentReviewForm = nil
+		m = m.showNextQueuedParentReview()
 		return m, nil
 	default:
 		return m, nil

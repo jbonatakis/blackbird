@@ -88,6 +88,8 @@ type Model struct {
 	spinnerIndex            int
 	executionState          execution.ExecutionStageState
 	executionStateChan      chan execution.ExecutionStageState
+	parentReviewRunChan     chan execution.RunRecord
+	queuedParentReviewRuns  []execution.RunRecord
 	runData                 map[string]execution.RunRecord
 	pendingParentFeedback   map[string]execution.PendingParentReviewFeedback
 	timerActive             bool
@@ -284,12 +286,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if parentReviewRequired {
 			m.actionOutput = nil
 			if typed.Result != nil && typed.Result.Run != nil {
-				m = openParentReviewModal(m, *typed.Result.Run)
+				m = m.enqueueParentReviewRun(*typed.Result.Run)
+				m = m.showNextQueuedParentReview()
 			}
 		} else if parentReviewCompleted {
 			m.actionOutput = nil
 			if typed.Result != nil && typed.Result.Run != nil {
-				m = openParentReviewModal(m, *typed.Result.Run)
+				m = m.enqueueParentReviewRun(*typed.Result.Run)
+				m = m.showNextQueuedParentReview()
 			}
 		} else if decisionRequired {
 			m.actionOutput = nil
@@ -316,6 +320,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if typed.Action == "resume" {
 			m.parentReviewResumeState = nil
 		}
+		m = m.showNextQueuedParentReview()
 		if typed.Action == "execute" || typed.Action == "resume" || typed.Action == "set-status" {
 			return m, tea.Batch(m.LoadRunData(), m.LoadPlanData())
 		}
@@ -364,6 +369,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.actionCancel = cancel
 			streamCh, stdout, stderr := m.startLiveOutput()
 			stageCh := m.startLiveExecutionStage()
+			parentReviewCh := m.startLiveParentReviewRuns()
 			return m, tea.Batch(
 				ExecuteCmdWithContextAndStream(
 					ctx,
@@ -371,11 +377,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					stderr,
 					streamCh,
 					stageCh,
+					parentReviewCh,
 					m.config.Execution.StopAfterEachTask,
 					m.config.Execution.ParentReviewEnabled,
 				),
 				listenLiveOutputCmd(streamCh),
 				listenExecutionStageCmd(stageCh),
+				listenParentReviewRunCmd(parentReviewCh),
 				spinnerTickCmd(),
 				m.LoadRunData(),
 				m.LoadPlanData(),
@@ -481,6 +489,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case executionStageDoneMsg:
 		m.executionStateChan = nil
+		return m, nil
+	case parentReviewRunMsg:
+		m = m.enqueueParentReviewRun(typed.run)
+		m = m.showNextQueuedParentReview()
+		if m.parentReviewRunChan != nil {
+			return m, listenParentReviewRunCmd(m.parentReviewRunChan)
+		}
+		return m, nil
+	case parentReviewRunDoneMsg:
+		m.parentReviewRunChan = nil
 		return m, nil
 	case runDataRefreshMsg:
 		return m, tea.Batch(m.LoadRunData(), m.RunDataRefreshCmd())
@@ -659,6 +677,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.actionCancel = cancel
 				streamCh, stdout, stderr := m.startLiveOutput()
 				stageCh := m.startLiveExecutionStage()
+				parentReviewCh := m.startLiveParentReviewRuns()
 				return m, tea.Batch(
 					ExecuteCmdWithContextAndStream(
 						ctx,
@@ -666,11 +685,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						stderr,
 						streamCh,
 						stageCh,
+						parentReviewCh,
 						m.config.Execution.StopAfterEachTask,
 						m.config.Execution.ParentReviewEnabled,
 					),
 					listenLiveOutputCmd(streamCh),
 					listenExecutionStageCmd(stageCh),
+					listenParentReviewRunCmd(parentReviewCh),
 					spinnerTickCmd(),
 				)
 			case "c":
@@ -817,6 +838,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.actionCancel = cancel
 			streamCh, stdout, stderr := m.startLiveOutput()
 			stageCh := m.startLiveExecutionStage()
+			parentReviewCh := m.startLiveParentReviewRuns()
 			return m, tea.Batch(
 				ExecuteCmdWithContextAndStream(
 					ctx,
@@ -824,11 +846,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					stderr,
 					streamCh,
 					stageCh,
+					parentReviewCh,
 					m.config.Execution.StopAfterEachTask,
 					m.config.Execution.ParentReviewEnabled,
 				),
 				listenLiveOutputCmd(streamCh),
 				listenExecutionStageCmd(stageCh),
+				listenParentReviewRunCmd(parentReviewCh),
 				spinnerTickCmd(),
 			)
 		case "s":
@@ -1195,6 +1219,48 @@ func (m *Model) startLiveExecutionStage() chan execution.ExecutionStageState {
 	stageCh := make(chan execution.ExecutionStageState, 64)
 	m.executionStateChan = stageCh
 	return stageCh
+}
+
+func (m *Model) startLiveParentReviewRuns() chan execution.RunRecord {
+	reviewCh := make(chan execution.RunRecord, 64)
+	m.parentReviewRunChan = reviewCh
+	return reviewCh
+}
+
+func (m Model) enqueueParentReviewRun(run execution.RunRecord) Model {
+	runID := strings.TrimSpace(run.ID)
+	if runID == "" {
+		return m
+	}
+
+	if m.parentReviewForm != nil && strings.TrimSpace(m.parentReviewForm.run.ID) == runID {
+		return m
+	}
+	for _, queued := range m.queuedParentReviewRuns {
+		if strings.TrimSpace(queued.ID) == runID {
+			return m
+		}
+	}
+
+	m.queuedParentReviewRuns = append(m.queuedParentReviewRuns, run)
+	return m
+}
+
+func (m Model) showNextQueuedParentReview() Model {
+	if len(m.queuedParentReviewRuns) == 0 {
+		return m
+	}
+	if m.actionMode == ActionModeParentReview && m.parentReviewForm != nil {
+		return m
+	}
+
+	run := m.queuedParentReviewRuns[0]
+	if len(m.queuedParentReviewRuns) == 1 {
+		m.queuedParentReviewRuns = nil
+	} else {
+		m.queuedParentReviewRuns = append([]execution.RunRecord{}, m.queuedParentReviewRuns[1:]...)
+	}
+	return openParentReviewModal(m, run)
 }
 
 func (m *Model) clearLiveOutput() {

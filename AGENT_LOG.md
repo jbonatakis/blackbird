@@ -2407,3 +2407,41 @@ Verification:
 - Added `specs/improvements/PARENT_REVIEW_STRICT_JSON_SCHEMA_ENFORCEMENT.md`.
 - Captured required changes for schema-enforced parent review invocation (schema builder, launcher metadata support, parent-review runner wiring, strict provider policy, and tests).
 - Scope keeps existing parent-review gate semantics and parse/validation behavior, while removing prompt-only reliance for structured output guarantees.
+
+## 2026-02-11 — Diagnosis: first post-review modal not shown in multi-review execute pass
+
+- Investigated TUI parent-review modal behavior against `specs/improvements/PARENT_REVIEW_QUALITY_GATE.md`.
+- Root cause identified in execution/TUI handoff:
+  - `internal/execution/runner.go` tracks only one `latestParentReviewRun` during `RunExecute` and returns that single run in `ExecuteResult` on `ExecuteReasonCompleted`.
+  - `internal/tui/model.go` opens the post-review modal only from `ExecuteActionComplete` using `typed.Result.Run`.
+  - When one execute action performs multiple parent reviews, only the last review run is surfaced to the TUI modal flow; earlier review runs are not emitted as separate results/messages.
+- Symptom match: first reviewed task appears skipped while second appears in post-review modal.
+
+## 2026-02-11 — Live post-review modal events per parent review (pass + fail)
+
+- Implemented live parent-review event propagation from execution orchestration to TUI:
+  - added `OnParentReview func(RunRecord)` callback to `execution.ExecuteConfig` and `ExecutionController`,
+  - `RunExecute` now emits this callback after each successful parent review run completes (including both pass and fail outcomes),
+  - kept existing execute stop/result semantics intact for CLI compatibility.
+- Added TUI live parent-review channel/message plumbing:
+  - new `parentReviewRunMsg` listener (`internal/tui/parent_review_live.go`),
+  - `ExecuteCmdWithContextAndStream` now accepts a parent-review run channel and forwards `OnParentReview` events,
+  - `Model` now starts/listens to this stream for execute flows (home/main execute + decision-approved continue).
+- Changed parent-review modal behavior to show per review as events arrive:
+  - immediate modal open from live parent-review messages while execute is still running,
+  - pass and fail reviews both open the same post-review modal,
+  - added deterministic in-model queueing for back-to-back review events so no review modal is dropped,
+  - dismiss actions (`continue` / `discard`) now advance to the next queued review modal if present,
+  - execute-complete fallback still enqueues result review runs, but deduping prevents duplicate modal opens when live events already displayed the same run.
+- Added/expanded tests:
+  - `internal/execution/stage_state_test.go`:
+    - `TestRunExecuteParentReviewCallbacksEmitForEachReviewPass`,
+    - `TestRunExecuteParentReviewCallbacksEmitForFailingReview`.
+  - `internal/tui/parent_review_live_test.go`:
+    - immediate live modal open for passed review,
+    - immediate live modal open for failed review,
+    - queued sequential modal rendering for multiple live reviews,
+    - duplicate-protection when execute completion includes a run already shown live.
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/execution ./internal/tui`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`

@@ -53,7 +53,7 @@ func ExecuteCmd() tea.Cmd {
 }
 
 func ExecuteCmdWithContext(ctx context.Context) tea.Cmd {
-	return ExecuteCmdWithContextAndStream(ctx, nil, nil, nil, nil, false, false)
+	return ExecuteCmdWithContextAndStream(ctx, nil, nil, nil, nil, nil, false, false)
 }
 
 func ExecuteCmdWithContextAndStream(
@@ -62,6 +62,7 @@ func ExecuteCmdWithContextAndStream(
 	stderr io.Writer,
 	liveOutput chan liveOutputMsg,
 	liveStage chan execution.ExecutionStageState,
+	liveParentReview chan execution.RunRecord,
 	stopAfterEachTask bool,
 	parentReviewEnabled bool,
 ) tea.Cmd {
@@ -71,6 +72,9 @@ func ExecuteCmdWithContextAndStream(
 		}
 		if liveStage != nil {
 			defer close(liveStage)
+		}
+		if liveParentReview != nil {
+			defer close(liveParentReview)
 		}
 		runtime, err := agent.NewRuntimeFromEnv()
 		if err != nil {
@@ -89,6 +93,12 @@ func ExecuteCmdWithContextAndStream(
 					return
 				}
 				liveStage <- state
+			},
+			OnParentReview: func(run execution.RunRecord) {
+				if liveParentReview == nil {
+					return
+				}
+				liveParentReview <- run
 			},
 		})
 		msg := ExecuteActionComplete{
