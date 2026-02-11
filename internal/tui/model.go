@@ -89,6 +89,8 @@ type Model struct {
 	executionState          execution.ExecutionStageState
 	executionStateChan      chan execution.ExecutionStageState
 	parentReviewRunChan     chan execution.RunRecord
+	parentReviewAckChan     chan struct{}
+	seenParentReviewRuns    map[string]struct{}
 	queuedParentReviewRuns  []execution.RunRecord
 	runData                 map[string]execution.RunRecord
 	pendingParentFeedback   map[string]execution.PendingParentReviewFeedback
@@ -260,6 +262,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if typed.Action == "execute" || typed.Action == "resume" {
 			m.clearLiveOutput()
 			m.executionStateChan = nil
+			m.parentReviewRunChan = nil
+			m.parentReviewAckChan = nil
 		}
 		parentReviewRequired := typed.Result != nil && typed.Result.Reason == execution.ExecuteReasonParentReviewRequired
 		parentReviewCompleted := typed.Result != nil &&
@@ -370,6 +374,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			streamCh, stdout, stderr := m.startLiveOutput()
 			stageCh := m.startLiveExecutionStage()
 			parentReviewCh := m.startLiveParentReviewRuns()
+			parentReviewAckCh := m.startLiveParentReviewAcks()
 			return m, tea.Batch(
 				ExecuteCmdWithContextAndStream(
 					ctx,
@@ -378,6 +383,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					streamCh,
 					stageCh,
 					parentReviewCh,
+					parentReviewAckCh,
 					m.config.Execution.StopAfterEachTask,
 					m.config.Execution.ParentReviewEnabled,
 				),
@@ -678,6 +684,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				streamCh, stdout, stderr := m.startLiveOutput()
 				stageCh := m.startLiveExecutionStage()
 				parentReviewCh := m.startLiveParentReviewRuns()
+				parentReviewAckCh := m.startLiveParentReviewAcks()
 				return m, tea.Batch(
 					ExecuteCmdWithContextAndStream(
 						ctx,
@@ -686,6 +693,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						streamCh,
 						stageCh,
 						parentReviewCh,
+						parentReviewAckCh,
 						m.config.Execution.StopAfterEachTask,
 						m.config.Execution.ParentReviewEnabled,
 					),
@@ -839,6 +847,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			streamCh, stdout, stderr := m.startLiveOutput()
 			stageCh := m.startLiveExecutionStage()
 			parentReviewCh := m.startLiveParentReviewRuns()
+			parentReviewAckCh := m.startLiveParentReviewAcks()
 			return m, tea.Batch(
 				ExecuteCmdWithContextAndStream(
 					ctx,
@@ -847,6 +856,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					streamCh,
 					stageCh,
 					parentReviewCh,
+					parentReviewAckCh,
 					m.config.Execution.StopAfterEachTask,
 					m.config.Execution.ParentReviewEnabled,
 				),
@@ -1224,12 +1234,37 @@ func (m *Model) startLiveExecutionStage() chan execution.ExecutionStageState {
 func (m *Model) startLiveParentReviewRuns() chan execution.RunRecord {
 	reviewCh := make(chan execution.RunRecord, 64)
 	m.parentReviewRunChan = reviewCh
+	m.seenParentReviewRuns = map[string]struct{}{}
+	m.queuedParentReviewRuns = nil
 	return reviewCh
+}
+
+func (m *Model) startLiveParentReviewAcks() chan struct{} {
+	ackCh := make(chan struct{}, 1)
+	m.parentReviewAckChan = ackCh
+	return ackCh
+}
+
+func (m Model) releaseLiveParentReviewAckIfExecuting() Model {
+	if !m.actionInProgress || m.actionName != "Executing..." {
+		return m
+	}
+	if m.parentReviewAckChan == nil {
+		return m
+	}
+	select {
+	case m.parentReviewAckChan <- struct{}{}:
+	default:
+	}
+	return m
 }
 
 func (m Model) enqueueParentReviewRun(run execution.RunRecord) Model {
 	runID := strings.TrimSpace(run.ID)
 	if runID == "" {
+		return m
+	}
+	if _, seen := m.seenParentReviewRuns[runID]; seen {
 		return m
 	}
 
@@ -1242,6 +1277,10 @@ func (m Model) enqueueParentReviewRun(run execution.RunRecord) Model {
 		}
 	}
 
+	if m.seenParentReviewRuns == nil {
+		m.seenParentReviewRuns = map[string]struct{}{}
+	}
+	m.seenParentReviewRuns[runID] = struct{}{}
 	m.queuedParentReviewRuns = append(m.queuedParentReviewRuns, run)
 	return m
 }

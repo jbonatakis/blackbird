@@ -53,7 +53,7 @@ func ExecuteCmd() tea.Cmd {
 }
 
 func ExecuteCmdWithContext(ctx context.Context) tea.Cmd {
-	return ExecuteCmdWithContextAndStream(ctx, nil, nil, nil, nil, nil, false, false)
+	return ExecuteCmdWithContextAndStream(ctx, nil, nil, nil, nil, nil, nil, false, false)
 }
 
 func ExecuteCmdWithContextAndStream(
@@ -63,6 +63,7 @@ func ExecuteCmdWithContextAndStream(
 	liveOutput chan liveOutputMsg,
 	liveStage chan execution.ExecutionStageState,
 	liveParentReview chan execution.RunRecord,
+	liveParentReviewAck chan struct{},
 	stopAfterEachTask bool,
 	parentReviewEnabled bool,
 ) tea.Cmd {
@@ -99,6 +100,16 @@ func ExecuteCmdWithContextAndStream(
 					return
 				}
 				liveParentReview <- run
+				// Passing reviews require explicit user acknowledgement before
+				// execution can continue to the next task.
+				if liveParentReviewAck != nil && parentReviewModalPassed(run) {
+					select {
+					case <-ctx.Done():
+						return
+					case <-liveParentReviewAck:
+						return
+					}
+				}
 			},
 		})
 		msg := ExecuteActionComplete{

@@ -172,3 +172,95 @@ func TestExecuteActionCompleteParentReviewFallbackDoesNotDuplicateLiveModal(t *t
 		t.Fatalf("expected no duplicate queued parent reviews, got %d", len(updated.queuedParentReviewRuns))
 	}
 }
+
+func TestExecuteActionCompleteParentReviewFallbackDoesNotReopenAfterLiveDismiss(t *testing.T) {
+	model := Model{
+		plan: plan.WorkGraph{
+			SchemaVersion: plan.SchemaVersion,
+			Items: map[string]plan.WorkItem{
+				"parent-1": {ID: "parent-1", Title: "Parent"},
+			},
+		},
+		viewMode:         ViewModeMain,
+		planExists:       true,
+		actionInProgress: true,
+		actionName:       "Executing...",
+		windowWidth:      120,
+		windowHeight:     32,
+	}
+
+	run := testExecuteActionCompleteParentReviewPassRun("review-live-dismissed")
+	updatedModel, _ := model.Update(parentReviewRunMsg{run: run})
+	updated := updatedModel.(Model)
+	if updated.parentReviewForm == nil || updated.parentReviewForm.run.ID != "review-live-dismissed" {
+		t.Fatalf("expected live parent review modal to open")
+	}
+
+	updatedModel, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	updated = updatedModel.(Model)
+	if updated.actionMode != ActionModeNone {
+		t.Fatalf("expected modal dismissed before execute completion, got mode %v", updated.actionMode)
+	}
+	if updated.parentReviewForm != nil {
+		t.Fatalf("expected parentReviewForm cleared after live dismiss")
+	}
+
+	updatedModel, _ = updated.Update(ExecuteActionComplete{
+		Action:  "execute",
+		Success: true,
+		Result: &execution.ExecuteResult{
+			Reason: execution.ExecuteReasonCompleted,
+			Run:    &run,
+		},
+	})
+	updated = updatedModel.(Model)
+
+	if updated.actionMode != ActionModeNone {
+		t.Fatalf("expected no duplicate modal reopen after execute completion, got mode %v", updated.actionMode)
+	}
+	if updated.parentReviewForm != nil {
+		t.Fatalf("expected parent review modal to remain closed after fallback result")
+	}
+}
+
+func TestParentReviewContinueWhileExecutingSignalsAck(t *testing.T) {
+	ackCh := make(chan struct{}, 1)
+	model := Model{
+		plan: plan.WorkGraph{
+			SchemaVersion: plan.SchemaVersion,
+			Items: map[string]plan.WorkItem{
+				"parent-1": {ID: "parent-1", Title: "Parent"},
+			},
+		},
+		viewMode:            ViewModeMain,
+		planExists:          true,
+		actionInProgress:    true,
+		actionName:          "Executing...",
+		windowWidth:         120,
+		windowHeight:        32,
+		parentReviewAckChan: ackCh,
+	}
+
+	run := testExecuteActionCompleteParentReviewPassRun("review-pass-ack")
+	updatedModel, _ := model.Update(parentReviewRunMsg{run: run})
+	updated := updatedModel.(Model)
+	if updated.parentReviewForm == nil {
+		t.Fatalf("expected live parent review modal to open")
+	}
+
+	updatedModel, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	updated = updatedModel.(Model)
+	if updated.actionMode != ActionModeNone {
+		t.Fatalf("expected modal to close on continue, got mode %v", updated.actionMode)
+	}
+	if updated.parentReviewForm != nil {
+		t.Fatalf("expected parentReviewForm cleared on continue")
+	}
+
+	select {
+	case <-ackCh:
+		// expected
+	default:
+		t.Fatalf("expected continue action to signal parent review ack while executing")
+	}
+}

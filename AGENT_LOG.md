@@ -2445,3 +2445,21 @@ Verification:
 - Verification:
   - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/execution ./internal/tui`
   - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-11 — TUI execute blocking on passing parent-review modal resolution
+
+- Updated TUI execute flow so passing parent reviews block further execution until the modal is resolved.
+- Added parent-review ack handshake plumbing:
+  - `ExecuteCmdWithContextAndStream` now accepts an ack channel and waits on it after emitting each passing review event.
+  - wait is context-aware (`ctx.Done`) so cancel/quit still unblocks cleanly.
+- Added model state for this handshake and per-execute dedupe:
+  - `parentReviewAckChan` for live execute review acknowledgements,
+  - `seenParentReviewRuns` to prevent duplicate end-of-run modal reopen for reviews already shown live.
+- Continue/discard in parent-review modal now release execute ack only when execute is actively running (`actionInProgress` + `actionName == "Executing..."`), then close/advance the modal.
+- Added regression coverage in `internal/tui/parent_review_live_test.go`:
+  - continue while executing signals ack,
+  - dismissed live review is not reopened from execute-complete fallback.
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -run ParentReview -count=1`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui ./internal/execution`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
