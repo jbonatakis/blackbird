@@ -1,5 +1,24 @@
 # AGENT_LOG
 
+## 2026-02-11 — Stop-after-task and parent-review modal ordering fix
+
+- Addressed TUI sequencing when both execution gates are enabled:
+  - `execution.stopAfterEachTask = true`
+  - `execution.parentReviewEnabled = true`
+- Fixed behavior so checkpoint review appears first, then deferred parent-review modal appears after approving continue, then execute resumes.
+- Implementation details:
+  - Added execute start helper `startExecuteAction(includeRefresh bool)` to centralize run startup and stream wiring.
+  - Parent-review live messages are now deferred while execute is active in stop-after mode (`parentReviewRunMsg` no longer opens the modal during in-flight execute for that config).
+  - Added `resumeExecuteAfterParentReview` state to auto-restart execute after deferred parent-review modal(s) are resolved.
+  - Tightened modal queue display rules so parent-review modals do not preempt other active modals (like checkpoint modal).
+  - Parent-review ack channel now only enables when stop-after mode is disabled, avoiding conflicting dual-block semantics.
+- Added regression test:
+  - `TestStopAfterEachTaskDefersParentReviewUntilAfterCheckpointContinue` in `internal/tui/parent_review_live_test.go`.
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -run StopAfterEachTaskDefersParentReview -count=1`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui ./internal/execution`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
 ## 2026-02-11 — Post-review decision flow integration/regression coverage
 
 - Added `internal/tui/post_review_decision_integration_test.go` with integration-oriented post-review branch coverage for:

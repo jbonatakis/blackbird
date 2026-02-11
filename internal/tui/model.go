@@ -71,52 +71,53 @@ type PendingPlanRequest struct {
 }
 
 type Model struct {
-	plan                    plan.WorkGraph
-	selectedID              string
-	pendingStatusID         string
-	actionMode              ActionMode
-	activePane              ActivePane
-	tabMode                 TabMode
-	viewMode                ViewMode
-	planExists              bool
-	planValidationErr       string
-	windowWidth             int
-	windowHeight            int
-	actionInProgress        bool
-	actionName              string
-	actionCancel            context.CancelFunc
-	spinnerIndex            int
-	executionState          execution.ExecutionStageState
-	executionStateChan      chan execution.ExecutionStageState
-	parentReviewRunChan     chan execution.RunRecord
-	parentReviewAckChan     chan struct{}
-	seenParentReviewRuns    map[string]struct{}
-	queuedParentReviewRuns  []execution.RunRecord
-	runData                 map[string]execution.RunRecord
-	pendingParentFeedback   map[string]execution.PendingParentReviewFeedback
-	timerActive             bool
-	liveStdout              string
-	liveStderr              string
-	liveOutputChan          chan liveOutputMsg
-	expandedItems           map[string]bool
-	filterMode              FilterMode
-	detailOffset            int
-	actionOutput            *ActionOutput
-	planGenerateForm        *PlanGenerateForm
-	planRefineForm          *PlanRefineForm
-	agentQuestionForm       *AgentQuestionForm
-	planReviewForm          *PlanReviewForm
-	reviewCheckpointForm    *ReviewCheckpointForm
-	parentReviewForm        *ParentReviewForm
-	parentReviewResumeState *ParentReviewForm
-	pendingPlanRequest      PendingPlanRequest
-	pendingResumeTask       string
-	agentSelection          agent.AgentSelection
-	agentSelectionErr       string
-	agentSelectionHighlight int // index into agent.AgentRegistry when modal is open
-	projectRoot             string
-	config                  config.ResolvedConfig
-	settings                SettingsState
+	plan                           plan.WorkGraph
+	selectedID                     string
+	pendingStatusID                string
+	actionMode                     ActionMode
+	activePane                     ActivePane
+	tabMode                        TabMode
+	viewMode                       ViewMode
+	planExists                     bool
+	planValidationErr              string
+	windowWidth                    int
+	windowHeight                   int
+	actionInProgress               bool
+	actionName                     string
+	actionCancel                   context.CancelFunc
+	spinnerIndex                   int
+	executionState                 execution.ExecutionStageState
+	executionStateChan             chan execution.ExecutionStageState
+	parentReviewRunChan            chan execution.RunRecord
+	parentReviewAckChan            chan struct{}
+	seenParentReviewRuns           map[string]struct{}
+	queuedParentReviewRuns         []execution.RunRecord
+	resumeExecuteAfterParentReview bool
+	runData                        map[string]execution.RunRecord
+	pendingParentFeedback          map[string]execution.PendingParentReviewFeedback
+	timerActive                    bool
+	liveStdout                     string
+	liveStderr                     string
+	liveOutputChan                 chan liveOutputMsg
+	expandedItems                  map[string]bool
+	filterMode                     FilterMode
+	detailOffset                   int
+	actionOutput                   *ActionOutput
+	planGenerateForm               *PlanGenerateForm
+	planRefineForm                 *PlanRefineForm
+	agentQuestionForm              *AgentQuestionForm
+	planReviewForm                 *PlanReviewForm
+	reviewCheckpointForm           *ReviewCheckpointForm
+	parentReviewForm               *ParentReviewForm
+	parentReviewResumeState        *ParentReviewForm
+	pendingPlanRequest             PendingPlanRequest
+	pendingResumeTask              string
+	agentSelection                 agent.AgentSelection
+	agentSelectionErr              string
+	agentSelectionHighlight        int // index into agent.AgentRegistry when modal is open
+	projectRoot                    string
+	config                         config.ResolvedConfig
+	settings                       SettingsState
 }
 
 func NewModel(g plan.WorkGraph) Model {
@@ -264,6 +265,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.executionStateChan = nil
 			m.parentReviewRunChan = nil
 			m.parentReviewAckChan = nil
+			m.resumeExecuteAfterParentReview = false
 		}
 		parentReviewRequired := typed.Result != nil && typed.Result.Reason == execution.ExecuteReasonParentReviewRequired
 		parentReviewCompleted := typed.Result != nil &&
@@ -366,34 +368,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		if typed.Action == execution.DecisionStateApprovedContinue {
-			m.actionInProgress = true
-			m.actionName = "Executing..."
-			m.executionState = execution.ExecutionStageState{Stage: execution.ExecutionStageIdle}
-			ctx, cancel := context.WithCancel(context.Background())
-			m.actionCancel = cancel
-			streamCh, stdout, stderr := m.startLiveOutput()
-			stageCh := m.startLiveExecutionStage()
-			parentReviewCh := m.startLiveParentReviewRuns()
-			parentReviewAckCh := m.startLiveParentReviewAcks()
-			return m, tea.Batch(
-				ExecuteCmdWithContextAndStream(
-					ctx,
-					stdout,
-					stderr,
-					streamCh,
-					stageCh,
-					parentReviewCh,
-					parentReviewAckCh,
-					m.config.Execution.StopAfterEachTask,
-					m.config.Execution.ParentReviewEnabled,
-				),
-				listenLiveOutputCmd(streamCh),
-				listenExecutionStageCmd(stageCh),
-				listenParentReviewRunCmd(parentReviewCh),
-				spinnerTickCmd(),
-				m.LoadRunData(),
-				m.LoadPlanData(),
-			)
+			if len(m.queuedParentReviewRuns) > 0 {
+				m.resumeExecuteAfterParentReview = true
+				m = m.showNextQueuedParentReview()
+				if m.actionMode == ActionModeParentReview {
+					return m, nil
+				}
+			}
+			m.resumeExecuteAfterParentReview = false
+			return m.startExecuteAction(true)
 		}
 
 		if typed.Action == execution.DecisionStateApprovedQuit {
@@ -498,7 +481,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case parentReviewRunMsg:
 		m = m.enqueueParentReviewRun(typed.run)
-		m = m.showNextQueuedParentReview()
+		if !(m.config.Execution.StopAfterEachTask && m.actionInProgress && m.actionName == "Executing...") {
+			m = m.showNextQueuedParentReview()
+		}
 		if m.parentReviewRunChan != nil {
 			return m, listenParentReviewRunCmd(m.parentReviewRunChan)
 		}
@@ -676,32 +661,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if m.actionMode != ActionModeNone || m.actionInProgress || !m.canExecute() {
 					return m, nil
 				}
-				m.actionInProgress = true
-				m.actionName = "Executing..."
-				m.executionState = execution.ExecutionStageState{Stage: execution.ExecutionStageIdle}
-				ctx, cancel := context.WithCancel(context.Background())
-				m.actionCancel = cancel
-				streamCh, stdout, stderr := m.startLiveOutput()
-				stageCh := m.startLiveExecutionStage()
-				parentReviewCh := m.startLiveParentReviewRuns()
-				parentReviewAckCh := m.startLiveParentReviewAcks()
-				return m, tea.Batch(
-					ExecuteCmdWithContextAndStream(
-						ctx,
-						stdout,
-						stderr,
-						streamCh,
-						stageCh,
-						parentReviewCh,
-						parentReviewAckCh,
-						m.config.Execution.StopAfterEachTask,
-						m.config.Execution.ParentReviewEnabled,
-					),
-					listenLiveOutputCmd(streamCh),
-					listenExecutionStageCmd(stageCh),
-					listenParentReviewRunCmd(parentReviewCh),
-					spinnerTickCmd(),
-				)
+				return m.startExecuteAction(false)
 			case "c":
 				if m.actionMode != ActionModeNone || m.actionInProgress {
 					return m, nil
@@ -839,32 +799,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if !m.canExecute() {
 				return m, nil
 			}
-			m.actionInProgress = true
-			m.actionName = "Executing..."
-			m.executionState = execution.ExecutionStageState{Stage: execution.ExecutionStageIdle}
-			ctx, cancel := context.WithCancel(context.Background())
-			m.actionCancel = cancel
-			streamCh, stdout, stderr := m.startLiveOutput()
-			stageCh := m.startLiveExecutionStage()
-			parentReviewCh := m.startLiveParentReviewRuns()
-			parentReviewAckCh := m.startLiveParentReviewAcks()
-			return m, tea.Batch(
-				ExecuteCmdWithContextAndStream(
-					ctx,
-					stdout,
-					stderr,
-					streamCh,
-					stageCh,
-					parentReviewCh,
-					parentReviewAckCh,
-					m.config.Execution.StopAfterEachTask,
-					m.config.Execution.ParentReviewEnabled,
-				),
-				listenLiveOutputCmd(streamCh),
-				listenExecutionStageCmd(stageCh),
-				listenParentReviewRunCmd(parentReviewCh),
-				spinnerTickCmd(),
-			)
+			return m.startExecuteAction(false)
 		case "s":
 			if m.actionMode != ActionModeNone || m.actionInProgress {
 				return m, nil
@@ -944,6 +879,43 @@ func (m Model) startPlanRefine() (Model, tea.Cmd) {
 	m.planRefineForm = &form
 	m.actionMode = ActionModePlanRefine
 	return m, nil
+}
+
+func (m Model) startExecuteAction(includeRefresh bool) (Model, tea.Cmd) {
+	m.actionInProgress = true
+	m.actionName = "Executing..."
+	m.executionState = execution.ExecutionStageState{Stage: execution.ExecutionStageIdle}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	m.actionCancel = cancel
+
+	streamCh, stdout, stderr := m.startLiveOutput()
+	stageCh := m.startLiveExecutionStage()
+	parentReviewCh := m.startLiveParentReviewRuns()
+	parentReviewAckCh := m.startLiveParentReviewAcks(!m.config.Execution.StopAfterEachTask)
+
+	cmds := []tea.Cmd{
+		ExecuteCmdWithContextAndStream(
+			ctx,
+			stdout,
+			stderr,
+			streamCh,
+			stageCh,
+			parentReviewCh,
+			parentReviewAckCh,
+			m.config.Execution.StopAfterEachTask,
+			m.config.Execution.ParentReviewEnabled,
+		),
+		listenLiveOutputCmd(streamCh),
+		listenExecutionStageCmd(stageCh),
+		listenParentReviewRunCmd(parentReviewCh),
+		spinnerTickCmd(),
+	}
+	if includeRefresh {
+		cmds = append(cmds, m.LoadRunData(), m.LoadPlanData())
+	}
+
+	return m, tea.Batch(cmds...)
 }
 
 func (m Model) startFeedbackResumeAction(taskIDs []string) (Model, tea.Cmd) {
@@ -1239,7 +1211,11 @@ func (m *Model) startLiveParentReviewRuns() chan execution.RunRecord {
 	return reviewCh
 }
 
-func (m *Model) startLiveParentReviewAcks() chan struct{} {
+func (m *Model) startLiveParentReviewAcks(enabled bool) chan struct{} {
+	if !enabled {
+		m.parentReviewAckChan = nil
+		return nil
+	}
 	ackCh := make(chan struct{}, 1)
 	m.parentReviewAckChan = ackCh
 	return ackCh
@@ -1289,7 +1265,10 @@ func (m Model) showNextQueuedParentReview() Model {
 	if len(m.queuedParentReviewRuns) == 0 {
 		return m
 	}
-	if m.actionMode == ActionModeParentReview && m.parentReviewForm != nil {
+	if m.actionMode != ActionModeNone {
+		return m
+	}
+	if m.actionInProgress && m.actionName != "Executing..." {
 		return m
 	}
 

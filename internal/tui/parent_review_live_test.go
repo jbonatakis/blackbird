@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jbonatakis/blackbird/internal/config"
 	"github.com/jbonatakis/blackbird/internal/execution"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
@@ -262,5 +263,123 @@ func TestParentReviewContinueWhileExecutingSignalsAck(t *testing.T) {
 		// expected
 	default:
 		t.Fatalf("expected continue action to signal parent review ack while executing")
+	}
+}
+
+func TestStopAfterEachTaskDefersParentReviewUntilAfterCheckpointContinue(t *testing.T) {
+	model := Model{
+		plan: plan.WorkGraph{
+			SchemaVersion: plan.SchemaVersion,
+			Items: map[string]plan.WorkItem{
+				"child-1": {
+					ID:    "child-1",
+					Title: "Child 1",
+				},
+				"parent-1": {
+					ID:    "parent-1",
+					Title: "Parent 1",
+				},
+			},
+		},
+		viewMode:         ViewModeMain,
+		planExists:       true,
+		actionInProgress: true,
+		actionName:       "Executing...",
+		windowWidth:      120,
+		windowHeight:     32,
+		config: config.ResolvedConfig{
+			Execution: config.ResolvedExecution{
+				StopAfterEachTask: true,
+			},
+		},
+	}
+
+	reviewRun := testExecuteActionCompleteParentReviewPassRun("review-deferred")
+	updatedModel, _ := model.Update(parentReviewRunMsg{run: reviewRun})
+	updated := updatedModel.(Model)
+	if updated.actionMode != ActionModeNone {
+		t.Fatalf("expected parent review to remain deferred while execute is in progress, got mode %v", updated.actionMode)
+	}
+	if updated.parentReviewForm != nil {
+		t.Fatalf("expected no parent review modal before decision checkpoint")
+	}
+	if len(updated.queuedParentReviewRuns) != 1 {
+		t.Fatalf("queued parent reviews = %d, want 1", len(updated.queuedParentReviewRuns))
+	}
+
+	decisionRun := execution.RunRecord{
+		ID:               "run-decision-1",
+		TaskID:           "child-1",
+		Status:           execution.RunStatusSuccess,
+		DecisionRequired: true,
+		DecisionState:    execution.DecisionStatePending,
+		Context: execution.ContextPack{
+			Task: execution.TaskContext{
+				ID:    "child-1",
+				Title: "Child 1",
+			},
+		},
+	}
+	updatedModel, _ = updated.Update(ExecuteActionComplete{
+		Action:  "execute",
+		Success: true,
+		Result: &execution.ExecuteResult{
+			Reason: execution.ExecuteReasonDecisionRequired,
+			TaskID: "child-1",
+			Run:    &decisionRun,
+		},
+	})
+	updated = updatedModel.(Model)
+	if updated.actionMode != ActionModeReviewCheckpoint {
+		t.Fatalf("expected review checkpoint first, got mode %v", updated.actionMode)
+	}
+	if updated.reviewCheckpointForm == nil {
+		t.Fatalf("expected review checkpoint modal to be open")
+	}
+	if updated.parentReviewForm != nil {
+		t.Fatalf("expected parent review modal to remain deferred while checkpoint is active")
+	}
+
+	// Decision completions are delivered after the checkpoint modal has been
+	// closed and decision action has been started.
+	updated.actionMode = ActionModeNone
+	updated.reviewCheckpointForm = nil
+	updated.actionInProgress = true
+	updated.actionName = "Recording decision..."
+
+	updatedModel, cmd := updated.Update(DecisionActionComplete{
+		Action: execution.DecisionStateApprovedContinue,
+		Result: execution.DecisionResult{
+			Action:   execution.DecisionStateApprovedContinue,
+			Continue: true,
+		},
+	})
+	updated = updatedModel.(Model)
+	if cmd != nil {
+		t.Fatalf("expected no execute command until deferred parent review is resolved")
+	}
+	if updated.actionMode != ActionModeParentReview {
+		t.Fatalf("expected deferred parent review modal after checkpoint continue, got mode %v", updated.actionMode)
+	}
+	if updated.parentReviewForm == nil {
+		t.Fatalf("expected parent review modal to open after checkpoint continue")
+	}
+	if updated.parentReviewForm.run.ID != "review-deferred" {
+		t.Fatalf("parentReviewForm.run.ID = %q, want %q", updated.parentReviewForm.run.ID, "review-deferred")
+	}
+
+	updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	updated = updatedModel.(Model)
+	if !updated.actionInProgress {
+		t.Fatalf("expected execute to restart after deferred parent review continue")
+	}
+	if updated.actionName != "Executing..." {
+		t.Fatalf("actionName = %q, want %q", updated.actionName, "Executing...")
+	}
+	if updated.actionMode != ActionModeNone {
+		t.Fatalf("expected parent review modal to close before execute restart, got mode %v", updated.actionMode)
+	}
+	if cmd == nil {
+		t.Fatalf("expected execute command to be started after deferred parent review continue")
 	}
 }

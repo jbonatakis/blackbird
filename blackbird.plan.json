@@ -17,7 +17,25 @@
       "deps": [],
       "status": "todo",
       "createdAt": "2026-02-11T05:00:24.505814Z",
-      "updatedAt": "2026-02-11T21:19:17.908626Z"
+      "updatedAt": "2026-02-11T22:23:18.294307Z"
+    },
+    "child_go_fizzbuzz_noop": {
+      "id": "child_go_fizzbuzz_noop",
+      "title": "Go FizzBuzz No-Op Child",
+      "description": "A deliberate no-op child task for the Go FizzBuzz parent. This task exists only to satisfy structure requirements and must not introduce code, configuration, or behavior changes.",
+      "acceptanceCriteria": [
+        "No files are created, modified, moved, or deleted when this task is executed.",
+        "No commands that change repository state are required for completion.",
+        "Task can be marked complete by recording that no action was needed.",
+        "Parent/child linkage remains valid with this task attached to the Go parent."
+      ],
+      "prompt": "Perform no implementation changes. Confirm this is an intentional no-op task and leave the repository unchanged.",
+      "parentId": "parent_go_fizzbuzz",
+      "childIds": [],
+      "deps": [],
+      "status": "todo",
+      "createdAt": "2026-02-11T22:03:29.45281Z",
+      "updatedAt": "2026-02-11T22:23:18.31502Z"
     },
     "child_python_fizzbuzz_impl": {
       "id": "child_python_fizzbuzz_impl",
@@ -35,7 +53,25 @@
       "deps": [],
       "status": "todo",
       "createdAt": "2026-02-11T05:00:24.505814Z",
-      "updatedAt": "2026-02-11T21:19:17.94957Z"
+      "updatedAt": "2026-02-11T22:23:18.336701Z"
+    },
+    "child_python_fizzbuzz_noop": {
+      "id": "child_python_fizzbuzz_noop",
+      "title": "Python FizzBuzz No-Op Child",
+      "description": "A deliberate no-op child task for the Python FizzBuzz parent. This task exists only to satisfy structure requirements and must not introduce code, configuration, or behavior changes.",
+      "acceptanceCriteria": [
+        "No files are created, modified, moved, or deleted when this task is executed.",
+        "No commands that change repository state are required for completion.",
+        "Task can be marked complete by recording that no action was needed.",
+        "Parent/child linkage remains valid with this task attached to the Python parent."
+      ],
+      "prompt": "Perform no implementation changes. Confirm this is an intentional no-op task and leave the repository unchanged.",
+      "parentId": "parent_python_fizzbuzz",
+      "childIds": [],
+      "deps": [],
+      "status": "todo",
+      "createdAt": "2026-02-11T22:03:29.45281Z",
+      "updatedAt": "2026-02-11T22:23:18.358693Z"
     },
     "parent_go_fizzbuzz": {
       "id": "parent_go_fizzbuzz",
@@ -50,12 +86,13 @@
       "prompt": "Complete the child task to implement minimal Go FizzBuzz quickly, without adding tests, and verify with a fast build/smoke command.",
       "parentId": null,
       "childIds": [
-        "child_go_fizzbuzz_impl"
+        "child_go_fizzbuzz_impl",
+        "child_go_fizzbuzz_noop"
       ],
       "deps": [],
       "status": "todo",
       "createdAt": "2026-02-11T05:00:24.505814Z",
-      "updatedAt": "2026-02-11T21:19:17.984578Z"
+      "updatedAt": "2026-02-11T22:23:18.380505Z"
     },
     "parent_python_fizzbuzz": {
       "id": "parent_python_fizzbuzz",
@@ -70,12 +107,13 @@
       "prompt": "Complete the child task to implement minimal Python FizzBuzz quickly, without adding tests, and verify with a fast runtime/import command.",
       "parentId": null,
       "childIds": [
-        "child_python_fizzbuzz_impl"
+        "child_python_fizzbuzz_impl",
+        "child_python_fizzbuzz_noop"
       ],
       "deps": [],
       "status": "todo",
       "createdAt": "2026-02-11T05:00:24.505814Z",
-      "updatedAt": "2026-02-11T21:19:18.019028Z"
+      "updatedAt": "2026-02-11T22:23:18.402643Z"
     }
   }
 }

@@ -32,8 +32,13 @@ func HandleParentReviewKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.actionMode = ActionModeNone
 		m.parentReviewForm = nil
 		m = m.showNextQueuedParentReview()
+		if m.actionMode == ActionModeNone && m.resumeExecuteAfterParentReview {
+			m.resumeExecuteAfterParentReview = false
+			return m.startExecuteAction(true)
+		}
 		return m, nil
 	case ParentReviewModalActionResumeOneTask:
+		m.resumeExecuteAfterParentReview = false
 		targetID := strings.TrimSpace(updatedForm.SelectedTarget())
 		if targetID == "" {
 			return m, nil
@@ -48,6 +53,7 @@ func HandleParentReviewKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			updatedForm,
 		)
 	case ParentReviewModalActionResumeAllFailed:
+		m.resumeExecuteAfterParentReview = false
 		targetIDs := updatedForm.ResumeTargets()
 		targets := make([]ResumePendingParentFeedbackTarget, 0, len(targetIDs))
 		for _, taskID := range targetIDs {
@@ -66,6 +72,10 @@ func HandleParentReviewKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.actionMode = ActionModeNone
 		m.parentReviewForm = nil
 		m = m.showNextQueuedParentReview()
+		if m.actionMode == ActionModeNone && m.resumeExecuteAfterParentReview {
+			m.resumeExecuteAfterParentReview = false
+			return m.startExecuteAction(true)
+		}
 		return m, nil
 	default:
 		return m, nil
