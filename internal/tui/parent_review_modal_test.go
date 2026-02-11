@@ -292,6 +292,23 @@ func TestRenderParentReviewModalNoFailedShowsDisabledResumeActionsAndExplanation
 	}
 }
 
+func TestParentReviewModalBorderColorReflectsAggregateResult(t *testing.T) {
+	allPassed := NewParentReviewForm(testParentReviewAllPassedRun(), plan.NewEmptyWorkGraph())
+	if got, want := string(parentReviewModalBorderColor(allPassed)), "46"; got != want {
+		t.Fatalf("all-pass border color = %q, want %q", got, want)
+	}
+
+	mixed := NewParentReviewForm(testParentReviewRun(), plan.NewEmptyWorkGraph())
+	if got, want := string(parentReviewModalBorderColor(mixed)), "214"; got != want {
+		t.Fatalf("mixed border color = %q, want %q", got, want)
+	}
+
+	allFailed := NewParentReviewForm(testParentReviewAllFailedRun(), plan.NewEmptyWorkGraph())
+	if got, want := string(parentReviewModalBorderColor(allFailed)), "196"; got != want {
+		t.Fatalf("all-fail border color = %q, want %q", got, want)
+	}
+}
+
 func testParentReviewRun() execution.RunRecord {
 	passed := false
 	return execution.RunRecord{
@@ -342,6 +359,33 @@ func testParentReviewAllPassedRun() execution.RunRecord {
 			"child-b": {
 				TaskID: "child-b",
 				Status: execution.ParentReviewTaskStatusPassed,
+			},
+		},
+		Context: execution.ContextPack{
+			Task: execution.TaskContext{
+				ID:    "parent-checkout",
+				Title: "Parent Checkout Review",
+			},
+		},
+	}
+}
+
+func testParentReviewAllFailedRun() execution.RunRecord {
+	passed := false
+	return execution.RunRecord{
+		ID:                 "review-88",
+		TaskID:             "parent-checkout",
+		ParentReviewPassed: &passed,
+		ParentReviewResults: execution.ParentReviewTaskResults{
+			"child-a": {
+				TaskID:   "child-a",
+				Status:   execution.ParentReviewTaskStatusFailed,
+				Feedback: "Fix child-a issues.",
+			},
+			"child-b": {
+				TaskID:   "child-b",
+				Status:   execution.ParentReviewTaskStatusFailed,
+				Feedback: "Fix child-b issues.",
 			},
 		},
 		Context: execution.ContextPack{

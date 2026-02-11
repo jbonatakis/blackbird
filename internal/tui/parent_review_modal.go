@@ -386,9 +386,10 @@ func RenderParentReviewModal(m Model, form ParentReviewForm) string {
 		lines = append(lines, mutedStyle.Render("[↑/↓]navigate  [1-4]select  [enter]confirm  [esc]back"))
 	}
 
+	borderColor := parentReviewModalBorderColor(form)
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("196")).
+		BorderForeground(borderColor).
 		Padding(1, 2).
 		Width(modalWidth).
 		Height(modalHeight)
@@ -523,4 +524,37 @@ func parentReviewModalPassed(run execution.RunRecord) bool {
 		return *run.ParentReviewPassed
 	}
 	return len(execution.ParentReviewFailedTaskIDs(run)) == 0
+}
+
+func parentReviewModalBorderColor(form ParentReviewForm) lipgloss.Color {
+	passedColor := lipgloss.Color("46")
+	mixedColor := lipgloss.Color("214")
+	failedColor := lipgloss.Color("196")
+
+	total := 0
+	failed := 0
+	for _, taskID := range form.reviewedTaskIDs {
+		result, ok := form.taskResults[taskID]
+		if !ok {
+			continue
+		}
+		total++
+		if result.Status == execution.ParentReviewTaskStatusFailed {
+			failed++
+		}
+	}
+
+	if total == 0 {
+		if parentReviewModalPassed(form.run) {
+			return passedColor
+		}
+		return failedColor
+	}
+	if failed == 0 {
+		return passedColor
+	}
+	if failed == total {
+		return failedColor
+	}
+	return mixedColor
 }

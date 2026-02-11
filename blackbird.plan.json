@@ -15,9 +15,9 @@
       "parentId": "parent_go_fizzbuzz",
       "childIds": [],
       "deps": [],
-      "status": "done",
+      "status": "todo",
       "createdAt": "2026-02-11T05:00:24.505814Z",
-      "updatedAt": "2026-02-11T23:19:40.803358Z"
+      "updatedAt": "2026-02-11T23:45:40.632171Z"
     },
     "child_go_fizzbuzz_noop": {
       "id": "child_go_fizzbuzz_noop",
@@ -33,9 +33,9 @@
       "parentId": "parent_go_fizzbuzz",
       "childIds": [],
       "deps": [],
-      "status": "done",
+      "status": "todo",
       "createdAt": "2026-02-11T22:03:29.45281Z",
-      "updatedAt": "2026-02-11T23:20:28.057233Z"
+      "updatedAt": "2026-02-11T23:45:40.656434Z"
     },
     "child_python_fizzbuzz_impl": {
       "id": "child_python_fizzbuzz_impl",
@@ -51,9 +51,9 @@
       "parentId": "parent_python_fizzbuzz",
       "childIds": [],
       "deps": [],
-      "status": "done",
+      "status": "todo",
       "createdAt": "2026-02-11T05:00:24.505814Z",
-      "updatedAt": "2026-02-11T23:21:41.257151Z"
+      "updatedAt": "2026-02-11T23:45:40.677493Z"
     },
     "child_python_fizzbuzz_noop": {
       "id": "child_python_fizzbuzz_noop",
@@ -69,9 +69,9 @@
       "parentId": "parent_python_fizzbuzz",
       "childIds": [],
       "deps": [],
-      "status": "done",
+      "status": "todo",
       "createdAt": "2026-02-11T22:03:29.45281Z",
-      "updatedAt": "2026-02-11T23:23:19.223189Z"
+      "updatedAt": "2026-02-11T23:45:40.699538Z"
     },
     "parent_go_fizzbuzz": {
       "id": "parent_go_fizzbuzz",
@@ -90,9 +90,9 @@
         "child_go_fizzbuzz_noop"
       ],
       "deps": [],
-      "status": "done",
+      "status": "todo",
       "createdAt": "2026-02-11T05:00:24.505814Z",
-      "updatedAt": "2026-02-11T23:20:28.057233Z"
+      "updatedAt": "2026-02-11T23:45:40.72315Z"
     },
     "parent_python_fizzbuzz": {
       "id": "parent_python_fizzbuzz",
@@ -111,9 +111,9 @@
         "child_python_fizzbuzz_noop"
       ],
       "deps": [],
-      "status": "done",
+      "status": "todo",
       "createdAt": "2026-02-11T05:00:24.505814Z",
-      "updatedAt": "2026-02-11T23:23:19.223189Z"
+      "updatedAt": "2026-02-11T23:45:40.742677Z"
     }
   }
 }

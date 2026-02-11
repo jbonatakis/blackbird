@@ -2564,3 +2564,17 @@ Verification:
   - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -run ParentReview -count=1`
   - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui ./internal/execution`
   - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-11 — Parent-review modal border color reflects aggregate child outcomes
+
+- Updated `internal/tui/parent_review_modal.go` so post-review modal border color is derived from per-child review results:
+  - green (`46`) when all reviewed child tasks passed,
+  - orange (`214`) when results are mixed pass/fail,
+  - red (`196`) when all reviewed child tasks failed.
+- Added `parentReviewModalBorderColor` helper with fallback behavior for runs without structured per-task results.
+- Added regression coverage in `internal/tui/parent_review_modal_test.go`:
+  - `TestParentReviewModalBorderColorReflectsAggregateResult` validates all-pass/mixed/all-fail mapping.
+
+Verification:
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+- `GOCACHE=/tmp/blackbird-go-cache go test ./... -count=1`
