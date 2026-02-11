@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/jbonatakis/blackbird/internal/config"
 	"github.com/jbonatakis/blackbird/internal/execution"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
@@ -209,22 +210,53 @@ func TestReviewCheckpointEscBackPreservesChangeRequest(t *testing.T) {
 	}
 }
 
-func TestRenderActionRequiredBanner(t *testing.T) {
+func TestStartReviewDecisionApprovedContinueStartsStageListenerWhenParentReviewEnabled(t *testing.T) {
 	run := testDecisionRun()
+	form := NewReviewCheckpointForm(run, plan.NewEmptyWorkGraph())
 	m := Model{
-		windowWidth: 80,
-		runData: map[string]execution.RunRecord{
-			"task-1": run,
+		actionMode:           ActionModeReviewCheckpoint,
+		reviewCheckpointForm: &form,
+		config: config.ResolvedConfig{
+			Execution: config.ResolvedExecution{
+				ParentReviewEnabled: true,
+			},
 		},
-		plan: plan.NewEmptyWorkGraph(),
 	}
 
-	out := RenderActionRequiredBanner(m)
-	if !strings.Contains(out, "ACTION REQUIRED") {
-		t.Fatalf("expected action required banner, got %q", out)
+	updated, cmd := startReviewDecision(m, execution.DecisionStateApprovedContinue, "")
+	if cmd == nil {
+		t.Fatalf("expected review decision command")
 	}
-	if !strings.Contains(out, "task-1") {
-		t.Fatalf("expected task id in banner, got %q", out)
+	if !updated.actionInProgress {
+		t.Fatalf("expected actionInProgress=true while decision review runs")
+	}
+	if updated.actionName != "Reviewing..." {
+		t.Fatalf("actionName = %q, want %q", updated.actionName, "Reviewing...")
+	}
+	if updated.executionStateChan == nil {
+		t.Fatalf("expected execution stage channel for live review-state updates")
+	}
+}
+
+func TestStartReviewDecisionApprovedContinueWithoutParentReviewDoesNotStartStageListener(t *testing.T) {
+	run := testDecisionRun()
+	form := NewReviewCheckpointForm(run, plan.NewEmptyWorkGraph())
+	m := Model{
+		actionMode:           ActionModeReviewCheckpoint,
+		reviewCheckpointForm: &form,
+		config: config.ResolvedConfig{
+			Execution: config.ResolvedExecution{
+				ParentReviewEnabled: false,
+			},
+		},
+	}
+
+	updated, cmd := startReviewDecision(m, execution.DecisionStateApprovedContinue, "")
+	if cmd == nil {
+		t.Fatalf("expected decision command")
+	}
+	if updated.executionStateChan != nil {
+		t.Fatalf("expected no execution stage channel when parent review is disabled")
 	}
 }
 

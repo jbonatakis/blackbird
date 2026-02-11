@@ -1041,12 +1041,6 @@ func cancelRunningAction(m Model) Model {
 func (m Model) View() string {
 	banner := ""
 	bannerHeight := 0
-	if m.viewMode == ViewModeMain {
-		banner = RenderActionRequiredBanner(m)
-		if banner != "" {
-			bannerHeight = lipgloss.Height(banner)
-		}
-	}
 
 	// Reserve space so total output is strictly less than windowHeight. Each pane
 	// gets Height(availableHeight) and lipgloss adds top+bottom border (2 lines),

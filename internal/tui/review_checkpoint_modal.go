@@ -331,8 +331,30 @@ func startReviewDecision(m Model, action execution.DecisionState, feedback strin
 				stdout,
 				stderr,
 				streamCh,
+				nil,
 			),
 			listenLiveOutputCmd(streamCh),
+			spinnerTickCmd(),
+		)
+	}
+
+	if action == execution.DecisionStateApprovedContinue && m.config.Execution.ParentReviewEnabled {
+		stageCh := m.startLiveExecutionStage()
+		return m, tea.Batch(
+			ResolveDecisionCmdWithContextAndStream(
+				ctx,
+				taskID,
+				runID,
+				action,
+				feedback,
+				m.config.Execution.StopAfterEachTask,
+				m.config.Execution.ParentReviewEnabled,
+				nil,
+				nil,
+				nil,
+				stageCh,
+			),
+			listenExecutionStageCmd(stageCh),
 			spinnerTickCmd(),
 		)
 	}

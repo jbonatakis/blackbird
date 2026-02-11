@@ -389,6 +389,7 @@ func ResolveDecisionCmdWithContext(
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 }
 
@@ -403,10 +404,14 @@ func ResolveDecisionCmdWithContextAndStream(
 	stdout io.Writer,
 	stderr io.Writer,
 	liveOutput chan liveOutputMsg,
+	liveStage chan execution.ExecutionStageState,
 ) tea.Cmd {
 	return func() tea.Msg {
 		if liveOutput != nil {
 			defer close(liveOutput)
+		}
+		if liveStage != nil {
+			defer close(liveStage)
 		}
 		runtime, err := agent.NewRuntimeFromEnv()
 		if err != nil {
@@ -420,6 +425,12 @@ func ResolveDecisionCmdWithContextAndStream(
 			ParentReviewEnabled: parentReviewEnabled,
 			StreamStdout:        stdout,
 			StreamStderr:        stderr,
+			OnStateChange: func(state execution.ExecutionStageState) {
+				if liveStage == nil {
+					return
+				}
+				liveStage <- state
+			},
 		}
 
 		result, err := controller.ResolveDecision(ctx, execution.DecisionRequest{
