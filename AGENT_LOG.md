@@ -1,5 +1,62 @@
 # AGENT_LOG
 
+## 2026-02-11 — Post-review decision flow integration/regression coverage
+
+- Added `internal/tui/post_review_decision_integration_test.go` with integration-oriented post-review branch coverage for:
+  - `Continue` (closes post-review without mutating task content/state),
+  - `Discard changes` safety flow (confirmation open, cancel back to actions, confirm exit),
+  - `Resume all failed`,
+  - `Resume one task` (selected target only).
+- Strengthened behavioral guarantees at payload level:
+  - bulk resume test asserts only failed tasks are resumed while passed reviewed tasks are not resumed and keep pending feedback untouched,
+  - both resume modes assert per-task review feedback is propagated into resumed run context (`parentReviewFeedback.feedback`) rather than using stale pending feedback.
+- Added regression assertions that Continue/Discard paths keep plan/task content unchanged (no task-state mutation from post-review navigation choices alone).
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -run PostReview -count=1`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-11 — TUI regression tests for reviewing indicators
+
+- Expanded `internal/tui/execution_stage_live_test.go` with view-model/UI-focused regression coverage for reviewing-stage indicators:
+  - `TestExecutionStageReviewingStateShowsBottomBarAndTreeReviewIndicators` asserts bottom-bar status switches to `Reviewing...` only in reviewing stage and that only the reviewed task row receives the `[REV]` marker.
+  - `TestExecutionStageExecutingStatesDoNotShowReviewIndicatorsWhenParentReviewDisabled` asserts executing-only stage updates (parent review disabled path) never render reviewing text or review markers.
+- Added a shared deterministic TUI fixture helper in the same test file to keep assertions behavior-focused and avoid fragile full-render snapshots.
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-11 — Reviewing-stage execution state propagation
+
+- Added explicit live execution stage modeling in `internal/execution/stage_state.go`:
+  - `ExecutionStage` values: `idle`, `executing`, `reviewing`, `post_review`.
+  - `ExecutionStageState` payload includes `taskId` plus `reviewedTaskId` (review-only).
+  - normalization/emit helpers enforce cleared review markers outside `reviewing`.
+- Threaded stage propagation through orchestration:
+  - extended `ExecuteConfig` and `ExecutionController` with `OnStateChange func(ExecutionStageState)`.
+  - `RunExecute` now emits `executing` transitions when each ready task starts.
+  - parent-review gate flow now emits `reviewing` (with parent `reviewedTaskId`) and `post_review` transitions around each review run.
+- Added dedicated execution-stage transition tests in `internal/execution/stage_state_test.go`:
+  - single-task parent-review failure transition sequence (enter review with reviewed task ID, exit to post-review with cleared review marker),
+  - multi-task/nested-parent review sequence (mid + root review transitions in deterministic order),
+  - disabled parent-review branch verifies no `reviewing` state emissions.
+- Added TUI live stage-message plumbing for view-model integration:
+  - `internal/tui/execution_stage_live.go` introduces stage message/listener channel handling.
+  - `Model` now stores `executionState` and listens for execution stage updates during execute flows.
+  - `ExecuteCmdWithContextAndStream` now accepts an optional stage channel and forwards orchestration `OnStateChange` callbacks.
+  - added `internal/tui/execution_stage_live_test.go` coverage for stage message handling and model stage updates.
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/execution -run StageTransitions -count=1`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -run ExecutionStage -count=1`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/execution ./internal/tui`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-10 — Fix TestPlanReviewAcceptAnywayWithBlocking writing blackbird.plan.json to internal/tui/
+
+- `TestPlanReviewAcceptAnywayWithBlocking` in `plan_review_modal_test.go` was executing the real `SavePlanCmd`, which writes via `plan.PlanPath()` (cwd + blackbird.plan.json) without first changing to a temp dir.
+- When the IDE ran the test with cwd set to `internal/tui/`, the test created `internal/tui/blackbird.plan.json` containing the sample plan (task-1, task-2, Test Task 1, etc.).
+- Fixed by adding `t.TempDir()`, `os.Chdir(tempDir)`, and `t.Cleanup` to restore the working directory before running the save command, matching the pattern used by other TUI tests (e.g. `action_wrappers_test.go`).
+
 ## 2026-02-09 — Execution integration tests for parent review lifecycle
 
 - Added `internal/execution/parent_review_cycle_integration_test.go` with integration-style coverage that exercises the parent review lifecycle end-to-end across:
@@ -2128,3 +2185,225 @@ Verification:
 
 - Verification for `prqg_07c` docs sync:
   - `GOCACHE=/tmp/blackbird-go-cache go test ./...` -> passing (`cmd/blackbird` no test files; all tested packages `ok`)
+
+## 2026-02-11 — Parent-review config precedence + execution gating wiring (bb-prqg-config-precedence)
+
+- Added new execution config key `execution.parentReviewEnabled` with full model/default/serialization support:
+  - `internal/config/types.go`: added raw/resolved fields and default constant (`DefaultParentReviewEnabled=false`).
+  - `internal/config/resolve.go`: added precedence resolution via existing local > global > default bool resolver.
+  - `internal/config/settings.go`: added key constant, raw extraction, and save/build support.
+  - `internal/config/settings_resolution.go`: included resolved applied-value mapping.
+  - `internal/config/registry.go`: surfaced settings metadata in option registry.
+- Wired orchestration to honor resolved enablement:
+  - `internal/execution/runner.go`: parent review gate now runs only when `ExecuteConfig.ParentReviewEnabled` is true.
+  - `internal/execution/controller.go`: propagated `ParentReviewEnabled` through `ExecutionController.Execute`.
+  - `internal/cli/execute.go`: passed resolved config value into controller.
+  - `internal/tui/action_wrappers.go`, `internal/tui/model.go`, `internal/tui/review_checkpoint_modal.go`: threaded `ParentReviewEnabled` through execute/decision command wrappers so TUI orchestration behavior matches config.
+- Added/updated focused tests for precedence, defaults, backward compatibility, and orchestration behavior:
+  - Config precedence/default/back-compat coverage:
+    - `internal/config/resolve_test.go`
+    - `internal/config/load_config_test.go`
+    - `internal/config/settings_resolution_test.go`
+    - `internal/config/settings_test.go`
+    - `internal/config/registry_test.go`
+  - Execution/orchestration coverage for disabled vs enabled parent review:
+    - `internal/execution/runner_test.go`
+    - `internal/execution/parent_review_cycle_integration_test.go` (explicitly enables gate where expected)
+    - `internal/cli/execute_test.go` (enabled and disabled gate paths)
+
+Verification:
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config ./internal/execution ./internal/cli ./internal/tui`
+- `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-11 — Exposed parent-review toggle in TUI Settings (bb-prqg-config-settings)
+
+- Updated parent-review settings metadata copy for clearer, concise settings helper text:
+  - `internal/config/registry.go`
+    - display label: `Execution Parent Review Gate`
+    - description: `Run parent-review checks after successful child tasks`
+  - `internal/config/registry_test.go` updated expected registry metadata.
+- Added explicit settings UI render coverage for parent review in `internal/tui/settings_view_test.go`:
+  - verifies parent-review row is rendered in the settings table.
+  - verifies default-applied rendering when no explicit value exists (`false (default)`).
+  - verifies explicit configured rendering (`true (global)`).
+  - verifies selected-option helper text includes the parent-review description and bool type details.
+- Added parent-review toggle mutation/persistence coverage in `internal/tui/settings_edit_test.go`:
+  - `TestSettingsParentReviewTogglePersistenceAcrossLayers` validates toggle/write flow through existing handlers for:
+    - global toggle on -> persisted + applied as global,
+    - reopening settings preserves rendered/applied state,
+    - local toggle override -> persisted + applied as local,
+    - clear local fallback -> global value resumes,
+    - clear global fallback -> default value resumes,
+    - reopening after each stage reflects persisted precedence.
+  - keeps keyboard semantics aligned with existing controls (`space` toggle, `delete` clear).
+
+Verification:
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config ./internal/tui`
+- `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-11 — Parent-review config gating regression validation (bb-prqg-config-tests)
+
+- Added explicit config-resolution regression coverage for `execution.parentReviewEnabled` in `internal/config/settings_resolution_test.go`:
+  - `TestResolveSettingsParentReviewEnabledPrecedence` asserts:
+    - unset key in both local and global layers resolves to `false` with source `default`,
+    - local `true` overrides global `false`,
+    - local `false` overrides global `true`.
+- Added execution-flow regression coverage for resolved config precedence in `internal/cli/execute_test.go`:
+  - `TestRunExecuteParentReviewResolvedConfigPrecedence` asserts:
+    - resolved `false` path skips entering parent-review stage and continues normal task execution,
+    - resolved `true` path enters parent-review stage and records a parent-review run before proceeding.
+- Decision note recorded: `execution.parentReviewEnabled` behavior is `local > global > default`, with a built-in default of `false`.
+
+Verification:
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config ./internal/execution ./internal/cli`
+
+## 2026-02-11 — Reviewing-specific row and status-bar styling (bb-prqg-live-ui)
+
+- Updated TUI task-row rendering to surface reviewing state with a distinct non-color marker:
+  - `internal/tui/tree_view.go`
+    - added `reviewingRowMarker` token (`[REV]`) rendered only when:
+      - `executionState.Stage == reviewing`
+      - row task ID matches `executionState.ReviewedTaskID`
+    - marker styling is isolated to the reviewed row during reviewing stage.
+    - non-reviewed rows and all non-reviewing stages preserve existing rendering.
+    - updated width/truncation logic (`maxTitleWidth`) to account for optional marker prefix.
+- Updated bottom status bar to show reviewing-specific live text:
+  - `internal/tui/bottom_bar.go`
+    - added `bottomBarActionText(model)` helper.
+    - spinner/action text now renders exactly `Reviewing...` while reviewing stage is active.
+    - existing `actionName` text remains for non-reviewing stages.
+- Added/extended UI view tests for reviewing behavior and regressions:
+  - `internal/tui/tree_view_test.go`
+    - `TestRenderTreeLine_ReviewingMarkerShownAndNonReviewedRowsUnchanged`
+    - `TestRenderTreeLine_ReviewingMarkerClearsOutsideReviewingState`
+    - `TestRenderTreeView_ReviewingMarkerPersistsWithoutColor`
+  - `internal/tui/bottom_bar_test.go`
+    - `TestBottomBarShowsReviewingTextOnlyWhileReviewingStageActive`
+    - `TestBottomBarReviewingTextClearsWhenActionStops`
+
+Verification:
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+
+## 2026-02-11 — Parent-review task-indexed results model + post-review wiring (bb-prqg-post-results)
+
+- Added a structured task-indexed parent-review outcome model in `internal/execution/types.go`:
+  - `ParentReviewTaskStatus` (`passed` / `failed`)
+  - `ParentReviewTaskResult` (`task_id`, `status`, `feedback`)
+  - `RunRecord.ParentReviewResults` (`parent_review_results`) for persisted per-task review outcomes.
+- Added `internal/execution/parent_review_results.go` helpers to normalize and consume per-task outcomes:
+  - `NormalizeParentReviewTaskResults(...)` builds deterministic all-child result coverage from raw response + parent-child topology.
+  - `ParentReviewTaskResultsForRecord(...)`, `ParentReviewFailedTaskIDs(...)`, `ParentReviewFeedbackForTask(...)`, `ParentReviewPrimaryFeedback(...)` provide structured access with legacy fallback for older run records.
+- Extended parent-review response parsing in `internal/execution/parent_review_response.go`:
+  - supports optional raw per-task payload fields (`reviewResults` / `taskResults`), including array and task-keyed object forms.
+  - maps partial/missing per-task fields safely by falling back to normalized top-level review fields.
+  - guarantees all parent children are represented in `TaskResults` for parsed review outcomes.
+- Updated parent-review persistence/decisioning in `internal/execution/parent_review_runner.go` and `internal/execution/runner.go`:
+  - persisted review outcomes now include `ParentReviewResults`.
+  - pause decision (`requiresParentReviewPause`) now uses structured failed-task detection.
+  - pending feedback linkage persistence now uses per-task feedback when available.
+- Wired post-review consumers to structured outcomes:
+  - CLI parent-review summary rendering (`internal/cli/parent_review_render.go`) now derives resume targets + feedback from structured results first.
+  - TUI parent-review modal (`internal/tui/parent_review_modal.go`) now derives resume targets from structured failed tasks and renders selected-target feedback from structured results.
+- Added/expanded tests:
+  - `internal/execution/parent_review_response_test.go`: structured task-result mapping for pass/fail + partial reviewer payloads.
+  - `internal/execution/parent_review_results_test.go`: normalization and helper precedence/fallback coverage.
+  - `internal/execution/parent_review_runner_test.go`: persisted per-task outcomes + task-specific pending feedback assertions.
+  - `internal/execution/types_test.go`: run-record JSON omit/round-trip coverage for `parent_review_results`.
+  - `internal/cli/parent_review_render_test.go`: structured-results rendering path.
+  - `internal/tui/parent_review_modal_test.go`: structured-results modal target + per-target feedback path.
+
+Verification:
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/execution -count=1`
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/cli -count=1`
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+- `GOCACHE=/tmp/blackbird-go-cache go test ./... -count=1`
+
+## 2026-02-11 — Post-review results screen UI update (bb-prqg-post-screen)
+
+- Reworked the parent-review post-review modal into an explicit results screen with stop-after-each-task interaction parity:
+  - `internal/tui/parent_review_modal.go`
+    - renders structured per-task review outcomes (`PASS`/`FAIL`) and task-level feedback from `ParentReviewResults`.
+    - action list now renders in required order:
+      1. `Continue`
+      2. `Resume all failed`
+      3. `Resume one task`
+      4. `Discard changes`
+    - `Discard changes` now has dedicated destructive/warning styling while remaining selectable.
+    - when no failed tasks exist, both resume actions are disabled/non-selectable and explanatory text is shown.
+    - key handling now follows interruption-screen navigation patterns (`up/down` + `j/k` move, `1-4` select, `enter` confirm, `esc` back/continue).
+- Updated post-review state wiring for new action enum:
+  - `internal/tui/parent_review_state.go`
+    - added handlers for `Continue`, `Resume all failed`, `Resume one task`, and `Discard changes` (current discard path closes screen; confirmation semantics are deferred to follow-on action task).
+- Updated modal hint text to match new keybindings:
+  - `internal/tui/bottom_bar.go`
+- Added/updated UI tests covering review-content rendering, action order, destructive styling, keybindings, and no-fail disabled behavior:
+  - `internal/tui/parent_review_modal_test.go`
+  - `internal/tui/parent_review_state_resume_test.go`
+  - `internal/tui/model_execute_action_complete_test.go`
+  - `internal/tui/bottom_bar_test.go`
+
+Verification:
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui ./internal/cli ./internal/execution -count=1`
+
+## 2026-02-11 — Post-review action handlers wired to execution/resume with confirmation + error-state restore (bb-prqg-post-actions)
+
+- Implemented concrete post-review action handling in `internal/tui/parent_review_state.go`:
+  - `Continue` closes the post-review screen without starting an action.
+  - `Resume one task` now resumes only the selected failed task and carries that task’s review feedback.
+  - `Resume all failed` now resumes only failed tasks and carries per-task review feedback.
+  - `Discard changes` now requires explicit in-modal confirmation before the destructive action is emitted.
+- Added explicit discard confirmation mode to `internal/tui/parent_review_modal.go`:
+  - new modal mode state (`actions` vs `confirm discard`), with cancel/confirm controls and keyboard behavior.
+  - cancel (`esc` or cancel selection) returns to the post-review results screen.
+  - render path includes clear confirmation prompt and keeps destructive styling.
+- Added in-modal post-review action error surfacing and state preservation:
+  - `internal/tui/model.go` now snapshots parent-review form state before resume actions started from post-review.
+  - on resume command error, post-review modal is restored with prior selection/target and inline error text; screen context is retained.
+- Extended resume wrappers in `internal/tui/action_wrappers.go` for feedback-aware post-review resumes:
+  - added `ResumePendingParentFeedbackTarget` and feedback-aware single/multi-target commands.
+  - before `RunResume`, feedback is validated against pending parent-review linkage and injected into pending feedback payload for that task.
+  - preserves existing provider-specific resume semantics and safety checks by continuing through `RunResume` pending-feedback path.
+- Updated parent-review hints in `internal/tui/bottom_bar.go` so discard-confirm mode shows `[1-2]` controls.
+- Added/updated tests:
+  - `internal/tui/parent_review_modal_test.go`
+    - verifies discard confirmation gating, cancel/back behavior, and confirm-to-discard behavior.
+  - `internal/tui/parent_review_state_resume_test.go`
+    - verifies discard confirmation workflow at controller level (confirm and cancel paths).
+  - `internal/tui/model_execute_action_complete_test.go`
+    - verifies resume errors restore post-review modal state and show inline error without losing selection.
+  - `internal/tui/action_wrappers_test.go`
+    - verifies single-target and multi-target post-review resume paths inject per-task review feedback into resume payload context.
+
+Verification:
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui ./internal/execution ./internal/cli -count=1`
+
+## 2026-02-11 — Parent-review post-result visibility + strict JSON prompt hardening (bb-prqg-post-visibility)
+
+- Hardened parent-review prompting in `internal/execution/parent_review_context.go` to require a single strict JSON response (no markdown/text wrapper) and to constrain resume/result task IDs to `parentReview.children` IDs.
+- Updated `internal/execution/parent_review_context_test.go` expected system/reviewer instruction strings for the strict JSON contract.
+- Wired execute completion to carry the latest parent review run when execution ends naturally after a review pass:
+  - `internal/execution/runner.go`
+    - `RunExecute` now returns `ExecuteResult{Reason: completed, Run: <latest review run>}` when the last executed task triggered a parent review.
+    - parent-review gate helper now returns both latest review run context and pause run context.
+    - execute error results now include the latest review run context when available.
+- Updated parent-review gate integration callsites for helper signature changes:
+  - `internal/execution/parent_review_cycle_integration_test.go`.
+- Wired TUI to open the post-review modal when execute completes with a review run context:
+  - `internal/tui/model.go` now opens `ActionModeParentReview` for `completed` results carrying `run_type=review`.
+- Added regression coverage:
+  - `internal/execution/runner_test.go`
+    - `TestRunExecuteCompletedIncludesLatestParentReviewRunWhenReviewPasses`.
+  - `internal/tui/model_execute_action_complete_test.go`
+    - `TestExecuteActionCompleteCompletedWithParentReviewRunOpensModal`.
+
+Verification:
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/execution ./internal/tui -count=1`
+- `GOCACHE=/tmp/blackbird-go-cache go test ./... -count=1`
+
+## 2026-02-11 — Added strict parent-review schema-enforcement spec
+
+- Added `specs/improvements/PARENT_REVIEW_STRICT_JSON_SCHEMA_ENFORCEMENT.md`.
+- Captured required changes for schema-enforced parent review invocation (schema builder, launcher metadata support, parent-review runner wiring, strict provider policy, and tests).
+- Scope keeps existing parent-review gate semantics and parse/validation behavior, while removing prompt-only reliance for structured output guarantees.

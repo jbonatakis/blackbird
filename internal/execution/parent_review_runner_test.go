@@ -102,6 +102,21 @@ func TestRunParentReviewPersistsPassedOutcomeAndKeepsPendingFeedbackUnchanged(t 
 	if record.ParentReviewFeedback != "" {
 		t.Fatalf("record.ParentReviewFeedback = %q, want empty", record.ParentReviewFeedback)
 	}
+	if len(record.ParentReviewResults) != 2 {
+		t.Fatalf("len(record.ParentReviewResults) = %d, want 2", len(record.ParentReviewResults))
+	}
+	for _, childID := range []string{"child-a", "child-b"} {
+		result, ok := record.ParentReviewResults[childID]
+		if !ok {
+			t.Fatalf("missing record.ParentReviewResults[%s]", childID)
+		}
+		if result.Status != ParentReviewTaskStatusPassed {
+			t.Fatalf("record.ParentReviewResults[%s].Status = %q, want %q", childID, result.Status, ParentReviewTaskStatusPassed)
+		}
+		if result.Feedback != "" {
+			t.Fatalf("record.ParentReviewResults[%s].Feedback = %q, want empty", childID, result.Feedback)
+		}
+	}
 	if record.Context.ParentReview == nil {
 		t.Fatalf("expected parent review context payload")
 	}
@@ -146,6 +161,21 @@ func TestRunParentReviewPersistsPassedOutcomeAndKeepsPendingFeedbackUnchanged(t 
 	}
 	if loaded.ParentReviewFeedback != "" {
 		t.Fatalf("loaded.ParentReviewFeedback = %q, want empty", loaded.ParentReviewFeedback)
+	}
+	if len(loaded.ParentReviewResults) != 2 {
+		t.Fatalf("len(loaded.ParentReviewResults) = %d, want 2", len(loaded.ParentReviewResults))
+	}
+	for _, childID := range []string{"child-a", "child-b"} {
+		result, ok := loaded.ParentReviewResults[childID]
+		if !ok {
+			t.Fatalf("missing loaded.ParentReviewResults[%s]", childID)
+		}
+		if result.Status != ParentReviewTaskStatusPassed {
+			t.Fatalf("loaded.ParentReviewResults[%s].Status = %q, want %q", childID, result.Status, ParentReviewTaskStatusPassed)
+		}
+		if result.Feedback != "" {
+			t.Fatalf("loaded.ParentReviewResults[%s].Feedback = %q, want empty", childID, result.Feedback)
+		}
 	}
 	if loaded.Stdout != record.Stdout {
 		t.Fatalf("loaded.Stdout mismatch")
@@ -225,6 +255,24 @@ func TestRunParentReviewPersistsFailedOutcomeAndLinksResumeTargets(t *testing.T)
 	if record.ParentReviewFeedback != "Child outputs miss required validation paths." {
 		t.Fatalf("record.ParentReviewFeedback = %q", record.ParentReviewFeedback)
 	}
+	if len(record.ParentReviewResults) != 3 {
+		t.Fatalf("len(record.ParentReviewResults) = %d, want 3", len(record.ParentReviewResults))
+	}
+	for _, childID := range []string{"child-a", "child-b"} {
+		result, ok := record.ParentReviewResults[childID]
+		if !ok {
+			t.Fatalf("missing record.ParentReviewResults[%s]", childID)
+		}
+		if result.Status != ParentReviewTaskStatusFailed {
+			t.Fatalf("record.ParentReviewResults[%s].Status = %q, want %q", childID, result.Status, ParentReviewTaskStatusFailed)
+		}
+		if result.Feedback != "Child outputs miss required validation paths." {
+			t.Fatalf("record.ParentReviewResults[%s].Feedback = %q", childID, result.Feedback)
+		}
+	}
+	if childC := record.ParentReviewResults["child-c"]; childC.Status != ParentReviewTaskStatusPassed || childC.Feedback != "" {
+		t.Fatalf("record.ParentReviewResults[child-c] = %#v, want passed with empty feedback", childC)
+	}
 	if record.ParentReviewCompletionSignature != "children:child-a,child-b,child-c" {
 		t.Fatalf(
 			"record.ParentReviewCompletionSignature = %q, want %q",
@@ -245,6 +293,24 @@ func TestRunParentReviewPersistsFailedOutcomeAndLinksResumeTargets(t *testing.T)
 	}
 	if loaded.ParentReviewFeedback != "Child outputs miss required validation paths." {
 		t.Fatalf("loaded.ParentReviewFeedback = %q", loaded.ParentReviewFeedback)
+	}
+	if len(loaded.ParentReviewResults) != 3 {
+		t.Fatalf("len(loaded.ParentReviewResults) = %d, want 3", len(loaded.ParentReviewResults))
+	}
+	for _, childID := range []string{"child-a", "child-b"} {
+		result, ok := loaded.ParentReviewResults[childID]
+		if !ok {
+			t.Fatalf("missing loaded.ParentReviewResults[%s]", childID)
+		}
+		if result.Status != ParentReviewTaskStatusFailed {
+			t.Fatalf("loaded.ParentReviewResults[%s].Status = %q, want %q", childID, result.Status, ParentReviewTaskStatusFailed)
+		}
+		if result.Feedback != "Child outputs miss required validation paths." {
+			t.Fatalf("loaded.ParentReviewResults[%s].Feedback = %q", childID, result.Feedback)
+		}
+	}
+	if childC := loaded.ParentReviewResults["child-c"]; childC.Status != ParentReviewTaskStatusPassed || childC.Feedback != "" {
+		t.Fatalf("loaded.ParentReviewResults[child-c] = %#v, want passed with empty feedback", childC)
 	}
 
 	for _, childID := range []string{"child-a", "child-b"} {
@@ -275,6 +341,72 @@ func TestRunParentReviewPersistsFailedOutcomeAndLinksResumeTargets(t *testing.T)
 	}
 	if pendingChildC != nil {
 		t.Fatalf("child-c should not receive pending feedback, got %#v", pendingChildC)
+	}
+}
+
+func TestRunParentReviewPersistsTaskSpecificFeedbackPerResumeTarget(t *testing.T) {
+	baseDir := t.TempDir()
+	planPath := filepath.Join(baseDir, "blackbird.plan.json")
+	now := time.Date(2026, 2, 9, 16, 45, 0, 0, time.UTC)
+	parentID := "parent-review-targeted-feedback"
+
+	g := parentReviewContextTestGraph(
+		now,
+		parentID,
+		"Parent Review Task",
+		[]string{
+			"Child outputs satisfy parent acceptance criteria.",
+		},
+		[]string{"child-a", "child-b"},
+	)
+
+	fixtures := []RunRecord{
+		parentReviewContextTestRun("child-a", "run-a-1", now.Add(1*time.Minute), "child-a summary", []string{"a.go"}),
+		parentReviewContextTestRun("child-b", "run-b-1", now.Add(2*time.Minute), "child-b summary", []string{"b.go"}),
+	}
+	for _, fixture := range fixtures {
+		if err := SaveRun(baseDir, fixture); err != nil {
+			t.Fatalf("SaveRun(%s): %v", fixture.ID, err)
+		}
+	}
+
+	record, err := RunParentReview(context.Background(), ParentReviewRunConfig{
+		PlanPath:            planPath,
+		Graph:               g,
+		ParentTaskID:        parentID,
+		CompletionSignature: "children:child-a,child-b",
+		Runtime: agent.Runtime{
+			Provider: "codex",
+			Command:  `printf '{"passed":false,"resumeTaskIds":["child-a","child-b"],"feedbackForResume":"global fallback","reviewResults":[{"taskId":"child-a","status":"failed","feedback":"fix child-a"},{"taskId":"child-b","status":"failed","feedback":"fix child-b"}]}'`,
+			UseShell: true,
+			Timeout:  2 * time.Second,
+		},
+	})
+	if err != nil {
+		t.Fatalf("RunParentReview: %v", err)
+	}
+
+	if got := record.ParentReviewResults["child-a"]; got.Status != ParentReviewTaskStatusFailed || got.Feedback != "fix child-a" {
+		t.Fatalf("record.ParentReviewResults[child-a] = %#v, want failed with task-specific feedback", got)
+	}
+	if got := record.ParentReviewResults["child-b"]; got.Status != ParentReviewTaskStatusFailed || got.Feedback != "fix child-b" {
+		t.Fatalf("record.ParentReviewResults[child-b] = %#v, want failed with task-specific feedback", got)
+	}
+
+	pendingA, err := LoadPendingParentReviewFeedback(baseDir, "child-a")
+	if err != nil {
+		t.Fatalf("LoadPendingParentReviewFeedback(child-a): %v", err)
+	}
+	if pendingA == nil || pendingA.Feedback != "fix child-a" {
+		t.Fatalf("pending child-a feedback = %#v, want %q", pendingA, "fix child-a")
+	}
+
+	pendingB, err := LoadPendingParentReviewFeedback(baseDir, "child-b")
+	if err != nil {
+		t.Fatalf("LoadPendingParentReviewFeedback(child-b): %v", err)
+	}
+	if pendingB == nil || pendingB.Feedback != "fix child-b" {
+		t.Fatalf("pending child-b feedback = %#v, want %q", pendingB, "fix child-b")
 	}
 }
 

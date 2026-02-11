@@ -84,6 +84,21 @@ type ParentReviewFeedbackContext struct {
 	Feedback     string `json:"feedback,omitempty"`
 }
 
+type ParentReviewTaskStatus string
+
+const (
+	ParentReviewTaskStatusPassed ParentReviewTaskStatus = "passed"
+	ParentReviewTaskStatusFailed ParentReviewTaskStatus = "failed"
+)
+
+type ParentReviewTaskResult struct {
+	TaskID   string                 `json:"task_id"`
+	Status   ParentReviewTaskStatus `json:"status"`
+	Feedback string                 `json:"feedback,omitempty"`
+}
+
+type ParentReviewTaskResults map[string]ParentReviewTaskResult
+
 type ReviewSummary struct {
 	Files    []string        `json:"files,omitempty"`
 	DiffStat string          `json:"diffstat,omitempty"`
@@ -96,29 +111,30 @@ type ReviewSnippet struct {
 }
 
 type RunRecord struct {
-	ID                              string         `json:"id"`
-	TaskID                          string         `json:"taskId"`
-	Type                            RunType        `json:"run_type,omitempty"`
-	Provider                        string         `json:"provider,omitempty"`
-	ProviderSessionRef              string         `json:"provider_session_ref,omitempty"`
-	StartedAt                       time.Time      `json:"startedAt"`
-	CompletedAt                     *time.Time     `json:"completedAt,omitempty"`
-	Status                          RunStatus      `json:"status"`
-	ExitCode                        *int           `json:"exitCode,omitempty"`
-	Stdout                          string         `json:"stdout,omitempty"`
-	Stderr                          string         `json:"stderr,omitempty"`
-	Context                         ContextPack    `json:"context"`
-	Error                           string         `json:"error,omitempty"`
-	DecisionRequired                bool           `json:"decision_required,omitempty"`
-	DecisionState                   DecisionState  `json:"decision_state,omitempty"`
-	DecisionRequestedAt             *time.Time     `json:"decision_requested_at,omitempty"`
-	DecisionResolvedAt              *time.Time     `json:"decision_resolved_at,omitempty"`
-	DecisionFeedback                string         `json:"decision_feedback,omitempty"`
-	ReviewSummary                   *ReviewSummary `json:"review_summary,omitempty"`
-	ParentReviewPassed              *bool          `json:"parent_review_passed,omitempty"`
-	ParentReviewResumeTaskIDs       []string       `json:"parent_review_resume_task_ids,omitempty"`
-	ParentReviewFeedback            string         `json:"parent_review_feedback,omitempty"`
-	ParentReviewCompletionSignature string         `json:"parent_review_completion_signature,omitempty"`
+	ID                              string                  `json:"id"`
+	TaskID                          string                  `json:"taskId"`
+	Type                            RunType                 `json:"run_type,omitempty"`
+	Provider                        string                  `json:"provider,omitempty"`
+	ProviderSessionRef              string                  `json:"provider_session_ref,omitempty"`
+	StartedAt                       time.Time               `json:"startedAt"`
+	CompletedAt                     *time.Time              `json:"completedAt,omitempty"`
+	Status                          RunStatus               `json:"status"`
+	ExitCode                        *int                    `json:"exitCode,omitempty"`
+	Stdout                          string                  `json:"stdout,omitempty"`
+	Stderr                          string                  `json:"stderr,omitempty"`
+	Context                         ContextPack             `json:"context"`
+	Error                           string                  `json:"error,omitempty"`
+	DecisionRequired                bool                    `json:"decision_required,omitempty"`
+	DecisionState                   DecisionState           `json:"decision_state,omitempty"`
+	DecisionRequestedAt             *time.Time              `json:"decision_requested_at,omitempty"`
+	DecisionResolvedAt              *time.Time              `json:"decision_resolved_at,omitempty"`
+	DecisionFeedback                string                  `json:"decision_feedback,omitempty"`
+	ReviewSummary                   *ReviewSummary          `json:"review_summary,omitempty"`
+	ParentReviewPassed              *bool                   `json:"parent_review_passed,omitempty"`
+	ParentReviewResumeTaskIDs       []string                `json:"parent_review_resume_task_ids,omitempty"`
+	ParentReviewFeedback            string                  `json:"parent_review_feedback,omitempty"`
+	ParentReviewResults             ParentReviewTaskResults `json:"parent_review_results,omitempty"`
+	ParentReviewCompletionSignature string                  `json:"parent_review_completion_signature,omitempty"`
 }
 
 func (r RunRecord) MarshalJSON() ([]byte, error) {

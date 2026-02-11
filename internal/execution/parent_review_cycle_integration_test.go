@@ -18,8 +18,9 @@ func TestParentReviewCycleIntegrationExecuteReviewFailurePersistsTargetedFeedbac
 	fixture := newParentReviewCycleFixture(t)
 
 	result, err := RunExecute(context.Background(), ExecuteConfig{
-		PlanPath: fixture.planPath,
-		Runtime:  fixture.runtime,
+		PlanPath:            fixture.planPath,
+		Runtime:             fixture.runtime,
+		ParentReviewEnabled: true,
 	})
 	if err != nil {
 		t.Fatalf(
@@ -77,9 +78,10 @@ func TestParentReviewCycleIntegrationExecuteReviewFailurePersistsTargetedFeedbac
 		t.Fatalf("expected idempotence check to skip rerun for signature %q", firstSignature)
 	}
 
-	pauseRun, err := runParentReviewGateForCompletedTask(context.Background(), ExecuteConfig{
-		PlanPath: fixture.planPath,
-		Runtime:  fixture.runtime,
+	_, pauseRun, err := runParentReviewGateForCompletedTask(context.Background(), ExecuteConfig{
+		PlanPath:            fixture.planPath,
+		Runtime:             fixture.runtime,
+		ParentReviewEnabled: true,
 	}, fixture.childBID)
 	if err != nil {
 		t.Fatalf("runParentReviewGateForCompletedTask: %v", err)
@@ -140,8 +142,9 @@ func TestParentReviewCycleIntegrationResumeFeedbackAndRerunWithNewSignature(t *t
 	fixture := newParentReviewCycleFixture(t)
 
 	executeResult, err := RunExecute(context.Background(), ExecuteConfig{
-		PlanPath: fixture.planPath,
-		Runtime:  fixture.runtime,
+		PlanPath:            fixture.planPath,
+		Runtime:             fixture.runtime,
+		ParentReviewEnabled: true,
 	})
 	if err != nil {
 		t.Fatalf(
@@ -213,9 +216,10 @@ func TestParentReviewCycleIntegrationResumeFeedbackAndRerunWithNewSignature(t *t
 		t.Fatalf("plan.SaveAtomic: %v", err)
 	}
 
-	pauseRun, err := runParentReviewGateForCompletedTask(context.Background(), ExecuteConfig{
-		PlanPath: fixture.planPath,
-		Runtime:  fixture.runtime,
+	_, pauseRun, err := runParentReviewGateForCompletedTask(context.Background(), ExecuteConfig{
+		PlanPath:            fixture.planPath,
+		Runtime:             fixture.runtime,
+		ParentReviewEnabled: true,
 	}, fixture.childBID)
 	if err != nil {
 		t.Fatalf("runParentReviewGateForCompletedTask: %v", err)
@@ -257,9 +261,10 @@ func TestParentReviewCycleIntegrationResumeFeedbackAndRerunWithNewSignature(t *t
 		t.Fatalf("expected second signature to differ from first signature %q", firstSignature)
 	}
 
-	pauseRun, err = runParentReviewGateForCompletedTask(context.Background(), ExecuteConfig{
-		PlanPath: fixture.planPath,
-		Runtime:  fixture.runtime,
+	_, pauseRun, err = runParentReviewGateForCompletedTask(context.Background(), ExecuteConfig{
+		PlanPath:            fixture.planPath,
+		Runtime:             fixture.runtime,
+		ParentReviewEnabled: true,
 	}, fixture.childBID)
 	if err != nil {
 		t.Fatalf("runParentReviewGateForCompletedTask second idempotence check: %v", err)

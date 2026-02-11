@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"io"
-	"sort"
 	"strings"
 
 	"github.com/jbonatakis/blackbird/internal/execution"
@@ -54,24 +53,11 @@ func parentReviewTaskID(fallbackTaskID string, run *execution.RunRecord) string 
 }
 
 func parentReviewResumeTaskIDs(run *execution.RunRecord) []string {
-	if run == nil || len(run.ParentReviewResumeTaskIDs) == 0 {
+	if run == nil {
 		return []string{"(none)"}
 	}
 
-	seen := make(map[string]struct{}, len(run.ParentReviewResumeTaskIDs))
-	ids := make([]string, 0, len(run.ParentReviewResumeTaskIDs))
-	for _, id := range run.ParentReviewResumeTaskIDs {
-		id = strings.TrimSpace(id)
-		if id == "" {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
+	ids := execution.ParentReviewFailedTaskIDs(*run)
 	if len(ids) == 0 {
 		return []string{"(none)"}
 	}
@@ -83,7 +69,7 @@ func parentReviewFeedbackExcerpt(run *execution.RunRecord) string {
 		return "(none)"
 	}
 
-	feedback := strings.Join(strings.Fields(run.ParentReviewFeedback), " ")
+	feedback := strings.Join(strings.Fields(execution.ParentReviewPrimaryFeedback(*run)), " ")
 	if feedback == "" {
 		return "(none)"
 	}

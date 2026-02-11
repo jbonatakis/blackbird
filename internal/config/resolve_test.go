@@ -12,7 +12,8 @@ func TestResolveConfigPrecedence(t *testing.T) {
 			MaxPlanAutoRefinePasses: intPtr(0),
 		},
 		Execution: &RawExecution{
-			StopAfterEachTask: boolPtr(true),
+			StopAfterEachTask:   boolPtr(true),
+			ParentReviewEnabled: boolPtr(false),
 		},
 	}
 	global := RawConfig{
@@ -24,7 +25,8 @@ func TestResolveConfigPrecedence(t *testing.T) {
 			MaxPlanAutoRefinePasses: intPtr(2),
 		},
 		Execution: &RawExecution{
-			StopAfterEachTask: boolPtr(false),
+			StopAfterEachTask:   boolPtr(false),
+			ParentReviewEnabled: boolPtr(true),
 		},
 	}
 
@@ -40,6 +42,9 @@ func TestResolveConfigPrecedence(t *testing.T) {
 	}
 	if resolved.Execution.StopAfterEachTask != true {
 		t.Fatalf("stopAfterEachTask = %v, want true", resolved.Execution.StopAfterEachTask)
+	}
+	if resolved.Execution.ParentReviewEnabled != false {
+		t.Fatalf("parentReviewEnabled = %v, want false", resolved.Execution.ParentReviewEnabled)
 	}
 }
 
@@ -57,12 +62,78 @@ func TestResolveConfigDefaults(t *testing.T) {
 	if resolved.Execution.StopAfterEachTask != DefaultStopAfterEachTask {
 		t.Fatalf("stopAfterEachTask = %v, want %v", resolved.Execution.StopAfterEachTask, DefaultStopAfterEachTask)
 	}
+	if resolved.Execution.ParentReviewEnabled != DefaultParentReviewEnabled {
+		t.Fatalf("parentReviewEnabled = %v, want %v", resolved.Execution.ParentReviewEnabled, DefaultParentReviewEnabled)
+	}
 }
 
 func TestResolveConfigStopAfterEachTaskDefaultsFalse(t *testing.T) {
 	resolved := ResolveConfig(RawConfig{}, RawConfig{})
 	if resolved.Execution.StopAfterEachTask {
 		t.Fatalf("expected stopAfterEachTask default false, got true")
+	}
+}
+
+func TestResolveConfigParentReviewEnabledPrecedence(t *testing.T) {
+	tests := []struct {
+		name       string
+		projectVal *bool
+		globalVal  *bool
+		want       bool
+	}{
+		{
+			name:       "default false when unset in both layers",
+			projectVal: nil,
+			globalVal:  nil,
+			want:       false,
+		},
+		{
+			name:       "global true when project unset",
+			projectVal: nil,
+			globalVal:  boolPtr(true),
+			want:       true,
+		},
+		{
+			name:       "project true overrides global false",
+			projectVal: boolPtr(true),
+			globalVal:  boolPtr(false),
+			want:       true,
+		},
+		{
+			name:       "project false overrides global true",
+			projectVal: boolPtr(false),
+			globalVal:  boolPtr(true),
+			want:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			project := RawConfig{}
+			if tt.projectVal != nil {
+				project.Execution = &RawExecution{
+					ParentReviewEnabled: tt.projectVal,
+				}
+			}
+
+			global := RawConfig{}
+			if tt.globalVal != nil {
+				global.Execution = &RawExecution{
+					ParentReviewEnabled: tt.globalVal,
+				}
+			}
+
+			resolved := ResolveConfig(project, global)
+			if resolved.Execution.ParentReviewEnabled != tt.want {
+				t.Fatalf(
+					"parentReviewEnabled = %v, want %v (project=%#v global=%#v)",
+					resolved.Execution.ParentReviewEnabled,
+					tt.want,
+					tt.projectVal,
+					tt.globalVal,
+				)
+			}
+		})
 	}
 }
 

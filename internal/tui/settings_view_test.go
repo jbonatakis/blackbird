@@ -196,6 +196,58 @@ func TestRenderSettingsPlanningOptionRowDescriptionAndWarnings(t *testing.T) {
 	assertContains(t, footer, fmt.Sprintf("global Planning Max Auto-Refine Passes warning: out_of_range (clamped to %d)", max))
 }
 
+func TestRenderSettingsParentReviewOptionRowAndDescription(t *testing.T) {
+	options := config.OptionRegistry()
+	idx := optionIndex(options, "execution.parentReviewEnabled")
+	if idx < 0 {
+		t.Fatalf("missing parent-review option")
+	}
+	const key = "execution.parentReviewEnabled"
+
+	defaultValue := false
+	state := SettingsState{
+		Options:  options,
+		Selected: idx,
+		Resolution: config.SettingsResolution{
+			Project: config.SettingsLayer{
+				Values: map[string]config.RawOptionValue{},
+			},
+			Global: config.SettingsLayer{
+				Values: map[string]config.RawOptionValue{},
+			},
+			Applied: map[string]config.AppliedOption{
+				key: {
+					Value:  config.RawOptionValue{Bool: &defaultValue},
+					Source: config.ConfigSourceDefault,
+				},
+			},
+		},
+	}
+
+	table := stripANSI(renderSettingsTable(state))
+	row := findLineContaining(strings.Split(table, "\n"), "Execution Parent Review Gate")
+	if row == "" {
+		t.Fatalf("expected parent-review row in settings table")
+	}
+	assertContains(t, row, "false (default)")
+
+	footer := strings.Join(renderSettingsFooter(state), "\n")
+	assertContains(t, footer, "Selected:")
+	assertContains(t, footer, "Execution Parent Review Gate")
+	assertContains(t, footer, "Run parent-review checks after successful child tasks")
+	assertContains(t, footer, "type: bool")
+
+	globalValue := true
+	state.Resolution.Global.Values[key] = config.RawOptionValue{Bool: &globalValue}
+	state.Resolution.Applied[key] = config.AppliedOption{
+		Value:  config.RawOptionValue{Bool: &globalValue},
+		Source: config.ConfigSourceGlobal,
+	}
+	table = stripANSI(renderSettingsTable(state))
+	row = findLineContaining(strings.Split(table, "\n"), "Execution Parent Review Gate")
+	assertContains(t, row, "true (global)")
+}
+
 func findLineContaining(lines []string, needle string) string {
 	for _, line := range lines {
 		if strings.Contains(line, needle) {

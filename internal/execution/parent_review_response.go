@@ -12,12 +12,15 @@ type ParentReviewResponse struct {
 	Passed            bool
 	ResumeTaskIDs     []string
 	FeedbackForResume string
+	TaskResults       ParentReviewTaskResults
 }
 
 type parentReviewResponsePayload struct {
-	Passed            *bool    `json:"passed"`
-	ResumeTaskIDs     []string `json:"resumeTaskIds"`
-	FeedbackForResume string   `json:"feedbackForResume"`
+	Passed            *bool           `json:"passed"`
+	ResumeTaskIDs     []string        `json:"resumeTaskIds"`
+	FeedbackForResume string          `json:"feedbackForResume"`
+	ReviewResults     json.RawMessage `json:"reviewResults"`
+	TaskResults       json.RawMessage `json:"taskResults"`
 }
 
 // ParseParentReviewResponse extracts and validates parent review response JSON from agent output.
@@ -42,6 +45,7 @@ func ParseParentReviewResponse(output, parentTaskID string, parentChildIDs []str
 		Passed:            *payload.Passed,
 		ResumeTaskIDs:     append([]string{}, payload.ResumeTaskIDs...),
 		FeedbackForResume: payload.FeedbackForResume,
+		TaskResults:       parseParentReviewTaskResultsPayload(payload),
 	}
 
 	return ValidateParentReviewResponse(response, parentTaskID, parentChildIDs)
@@ -154,6 +158,14 @@ func ValidateParentReviewResponse(
 
 	sort.Strings(out.ResumeTaskIDs)
 
+	out.TaskResults = NormalizeParentReviewTaskResults(
+		parentChildIDs,
+		out.Passed,
+		out.ResumeTaskIDs,
+		out.FeedbackForResume,
+		response.TaskResults,
+	)
+
 	if out.Passed {
 		if len(out.ResumeTaskIDs) > 0 {
 			return ParentReviewResponse{}, fmt.Errorf(
@@ -184,4 +196,78 @@ func ValidateParentReviewResponse(
 	}
 
 	return out, nil
+}
+
+type parentReviewTaskResultPayload struct {
+	TaskID   string `json:"taskId"`
+	Status   string `json:"status"`
+	Feedback string `json:"feedback"`
+}
+
+func parseParentReviewTaskResultsPayload(payload parentReviewResponsePayload) ParentReviewTaskResults {
+	taskResults := make(ParentReviewTaskResults)
+	appendPayloadResults(taskResults, decodeParentReviewTaskResultPayload(payload.TaskResults))
+	appendPayloadResults(taskResults, decodeParentReviewTaskResultPayload(payload.ReviewResults))
+	if len(taskResults) == 0 {
+		return nil
+	}
+	return taskResults
+}
+
+func appendPayloadResults(taskResults ParentReviewTaskResults, payloadResults []parentReviewTaskResultPayload) {
+	for _, payloadResult := range payloadResults {
+		taskID := strings.TrimSpace(payloadResult.TaskID)
+		if taskID == "" {
+			continue
+		}
+		taskResults[taskID] = ParentReviewTaskResult{
+			TaskID:   taskID,
+			Status:   ParentReviewTaskStatus(strings.TrimSpace(payloadResult.Status)),
+			Feedback: strings.TrimSpace(payloadResult.Feedback),
+		}
+	}
+}
+
+func decodeParentReviewTaskResultPayload(raw json.RawMessage) []parentReviewTaskResultPayload {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" {
+		return nil
+	}
+
+	var list []parentReviewTaskResultPayload
+	if err := json.Unmarshal([]byte(trimmed), &list); err == nil {
+		return list
+	}
+
+	keyed := map[string]json.RawMessage{}
+	if err := json.Unmarshal([]byte(trimmed), &keyed); err != nil {
+		return nil
+	}
+
+	keys := make([]string, 0, len(keyed))
+	for taskID := range keyed {
+		keys = append(keys, taskID)
+	}
+	sort.Strings(keys)
+
+	results := make([]parentReviewTaskResultPayload, 0, len(keys))
+	for _, taskID := range keys {
+		entryRaw := keyed[taskID]
+		entry := parentReviewTaskResultPayload{TaskID: taskID}
+		if err := json.Unmarshal(entryRaw, &entry); err == nil {
+			if strings.TrimSpace(entry.TaskID) == "" {
+				entry.TaskID = taskID
+			}
+			results = append(results, entry)
+			continue
+		}
+
+		var status string
+		if err := json.Unmarshal(entryRaw, &status); err == nil {
+			entry.Status = status
+			results = append(results, entry)
+		}
+	}
+
+	return results
 }

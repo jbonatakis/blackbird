@@ -5,8 +5,11 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/tree"
+	"github.com/jbonatakis/blackbird/internal/execution"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
+
+const reviewingRowMarker = "[REV]"
 
 type FilterMode int
 
@@ -103,20 +106,37 @@ func renderTreeLine(model Model, it plan.WorkItem, readiness string, hasChildren
 	indicatorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
 
 	compactReadiness := readinessAbbrev(readiness)
-	rawTitle := truncateField(it.Title, maxTitleWidth(model.windowWidth, indicator, compactReadiness))
+	showReviewMarker := isReviewingTaskRow(model, it.ID)
+	reviewMarkerToken := ""
+	if showReviewMarker {
+		reviewMarkerToken = reviewingRowMarker
+	}
+	rawTitle := truncateField(it.Title, maxTitleWidth(model.windowWidth, indicator, compactReadiness, reviewMarkerToken))
 
 	readinessLabel := readinessStyle.Render(compactReadiness)
-	line := strings.Join([]string{
-		indicatorStyle.Render(indicator),
-		readinessLabel,
-		rawTitle,
-	}, " ")
+	parts := []string{indicatorStyle.Render(indicator)}
+	if showReviewMarker {
+		reviewStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
+		parts = append(parts, reviewStyle.Render(reviewMarkerToken))
+	}
+	parts = append(parts, readinessLabel, rawTitle)
+	line := strings.Join(parts, " ")
 
 	if it.ID == model.selectedID {
 		selected := lipgloss.NewStyle().Reverse(true).Bold(true)
 		return selected.Render(line)
 	}
 	return line
+}
+
+func isReviewingTaskRow(model Model, taskID string) bool {
+	if strings.TrimSpace(taskID) == "" {
+		return false
+	}
+	if model.executionState.Stage != execution.ExecutionStageReviewing {
+		return false
+	}
+	return strings.TrimSpace(model.executionState.ReviewedTaskID) == taskID
 }
 
 func readinessAbbrev(label string) string {
@@ -156,11 +176,16 @@ func truncateField(value string, max int) string {
 	return string(runes[:max-3]) + "..."
 }
 
-func maxTitleWidth(windowWidth int, indicator string, readiness string) int {
+func maxTitleWidth(windowWidth int, indicator string, readiness string, reviewMarker string) int {
 	if windowWidth <= 0 {
 		return 48
 	}
-	overhead := lipgloss.Width(strings.Join([]string{indicator, readiness}, " "))
+	prefixParts := []string{indicator}
+	if reviewMarker != "" {
+		prefixParts = append(prefixParts, reviewMarker)
+	}
+	prefixParts = append(prefixParts, readiness)
+	overhead := lipgloss.Width(strings.Join(prefixParts, " "))
 	overhead += 4 // tree prefixes and padding
 	available := windowWidth - overhead
 	if available < 10 {

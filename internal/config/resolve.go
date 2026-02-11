@@ -25,6 +25,11 @@ func ResolveConfig(project RawConfig, global RawConfig) ResolvedConfig {
 		valueFromRawExecution(global, func(exec RawExecution) *bool { return exec.StopAfterEachTask }),
 		defaults.Execution.StopAfterEachTask,
 	)
+	parentReviewEnabled := resolveBool(
+		valueFromRawExecution(project, func(exec RawExecution) *bool { return exec.ParentReviewEnabled }),
+		valueFromRawExecution(global, func(exec RawExecution) *bool { return exec.ParentReviewEnabled }),
+		defaults.Execution.ParentReviewEnabled,
+	)
 
 	return ResolvedConfig{
 		SchemaVersion: SchemaVersion,
@@ -36,7 +41,8 @@ func ResolveConfig(project RawConfig, global RawConfig) ResolvedConfig {
 			MaxPlanAutoRefinePasses: maxPlanAutoRefinePasses,
 		},
 		Execution: ResolvedExecution{
-			StopAfterEachTask: stopAfterEachTask,
+			StopAfterEachTask:   stopAfterEachTask,
+			ParentReviewEnabled: parentReviewEnabled,
 		},
 	}
 }

@@ -67,11 +67,11 @@ func TestParentReviewContextIncludesParentTaskAndReviewerInstructions(t *testing
 	if !reflect.DeepEqual(pack.ParentReview.AcceptanceCriteria, wantCriteria) {
 		t.Fatalf("pack.ParentReview.AcceptanceCriteria = %#v, want %#v", pack.ParentReview.AcceptanceCriteria, wantCriteria)
 	}
-	const expectedReviewerInstructions = "Act as a reviewer only. Assess the parent acceptance criteria against child outputs, flag major correctness or security issues, and map failures to child task IDs with actionable feedback."
+	const expectedReviewerInstructions = "Act as a reviewer only. Assess the parent acceptance criteria against child outputs, flag major correctness or security issues, and map failures to child task IDs with actionable feedback. Base resumeTaskIds and reviewResults.taskId values only on IDs present in parentReview.children."
 	if pack.ParentReview.ReviewerInstructions != expectedReviewerInstructions {
 		t.Fatalf("pack.ParentReview.ReviewerInstructions = %q, want %q", pack.ParentReview.ReviewerInstructions, expectedReviewerInstructions)
 	}
-	const expectedSystemPrompt = "You are running a parent-task review. Evaluate whether child-task outputs satisfy the parent acceptance criteria. Do not implement code changes."
+	const expectedSystemPrompt = `You are running a parent-task review. Evaluate whether child-task outputs satisfy the parent acceptance criteria. Do not implement code changes. Respond with exactly one JSON object and no markdown or additional text. Required schema: {"passed": boolean, "resumeTaskIds": string[], "feedbackForResume": string, "reviewResults": [{"taskId": string, "status": "passed"|"failed", "feedback": string}]}. When passed=true, resumeTaskIds must be empty and feedbackForResume must be empty. When passed=false, resumeTaskIds must contain one or more unique child task IDs from parentReview.children and feedbackForResume must be non-empty.`
 	if pack.SystemPrompt != expectedSystemPrompt {
 		t.Fatalf("pack.SystemPrompt = %q, want %q", pack.SystemPrompt, expectedSystemPrompt)
 	}

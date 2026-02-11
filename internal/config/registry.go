@@ -57,6 +57,12 @@ func OptionRegistry() []OptionMetadata {
 			defaults.Execution.StopAfterEachTask,
 			"Pause execution for review after each task",
 		),
+		newBoolOption(
+			"execution.parentReviewEnabled",
+			"Execution Parent Review Gate",
+			defaults.Execution.ParentReviewEnabled,
+			"Run parent-review checks after successful child tasks",
+		),
 	}
 }
 

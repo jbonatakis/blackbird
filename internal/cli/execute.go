@@ -48,9 +48,10 @@ func runExecute(args []string) error {
 	defer stop()
 
 	controller := execution.ExecutionController{
-		PlanPath:          path,
-		Runtime:           runtime,
-		StopAfterEachTask: cfg.Execution.StopAfterEachTask,
+		PlanPath:            path,
+		Runtime:             runtime,
+		StopAfterEachTask:   cfg.Execution.StopAfterEachTask,
+		ParentReviewEnabled: cfg.Execution.ParentReviewEnabled,
 		OnTaskStart: func(taskID string) {
 			fmt.Fprintf(os.Stdout, "starting %s\n", taskID)
 		},

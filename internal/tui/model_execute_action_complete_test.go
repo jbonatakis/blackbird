@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"errors"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -75,6 +77,52 @@ func TestExecuteActionCompleteParentReviewRequiredOpensModalAndResetsActionProgr
 	}
 	if updated.reviewCheckpointForm != nil {
 		t.Fatalf("expected review checkpoint form to clear when parent review modal opens")
+	}
+}
+
+func TestExecuteActionCompleteCompletedWithParentReviewRunOpensModal(t *testing.T) {
+	model := Model{
+		plan: plan.WorkGraph{
+			SchemaVersion: plan.SchemaVersion,
+			Items: map[string]plan.WorkItem{
+				"parent-1": {
+					ID:    "parent-1",
+					Title: "Parent review task",
+				},
+			},
+		},
+		viewMode:         ViewModeMain,
+		planExists:       true,
+		windowWidth:      120,
+		windowHeight:     32,
+		actionInProgress: true,
+		actionName:       "Executing...",
+		actionCancel:     func() {},
+	}
+	parentRun := testExecuteActionCompleteParentReviewPassRun("review-pass")
+
+	updatedModel, _ := model.Update(ExecuteActionComplete{
+		Action:  "execute",
+		Success: true,
+		Output:  "no ready tasks remaining",
+		Result: &execution.ExecuteResult{
+			Reason: execution.ExecuteReasonCompleted,
+			Run:    &parentRun,
+		},
+	})
+	updated := updatedModel.(Model)
+
+	if updated.actionMode != ActionModeParentReview {
+		t.Fatalf("expected parent review modal to open for completed execute with review run, got %v", updated.actionMode)
+	}
+	if updated.parentReviewForm == nil {
+		t.Fatalf("expected parentReviewForm to be set")
+	}
+	if updated.parentReviewForm.run.ID != "review-pass" {
+		t.Fatalf("parentReviewForm.run.ID = %q, want review-pass", updated.parentReviewForm.run.ID)
+	}
+	if updated.actionOutput != nil {
+		t.Fatalf("expected actionOutput cleared when parent review modal opens")
 	}
 }
 
@@ -228,7 +276,7 @@ func TestExecuteActionCompleteParentReviewModalDismissClearsStaleData(t *testing
 	}
 }
 
-func TestExecuteActionCompleteParentReviewModalResumeSelectedStartsAction(t *testing.T) {
+func TestExecuteActionCompleteParentReviewModalResumeOneStartsAction(t *testing.T) {
 	model := Model{
 		plan: plan.WorkGraph{
 			SchemaVersion: plan.SchemaVersion,
@@ -259,6 +307,12 @@ func TestExecuteActionCompleteParentReviewModalResumeSelectedStartsAction(t *tes
 		t.Fatalf("expected parent review form to be set")
 	}
 
+	updatedModel, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}})
+	updated = updatedModel.(Model)
+	if updated.actionInProgress {
+		t.Fatalf("expected action to remain idle until confirm")
+	}
+
 	updatedModel, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	updated = updatedModel.(Model)
 
@@ -276,6 +330,81 @@ func TestExecuteActionCompleteParentReviewModalResumeSelectedStartsAction(t *tes
 	}
 	if cmd == nil {
 		t.Fatalf("expected resume command to be returned")
+	}
+}
+
+func TestExecuteActionCompleteParentReviewResumeErrorRestoresModalState(t *testing.T) {
+	model := Model{
+		plan: plan.WorkGraph{
+			SchemaVersion: plan.SchemaVersion,
+			Items: map[string]plan.WorkItem{
+				"parent-1": {ID: "parent-1", Title: "Parent"},
+			},
+		},
+		viewMode:     ViewModeMain,
+		planExists:   true,
+		windowWidth:  120,
+		windowHeight: 32,
+	}
+	parentRun := testExecuteActionCompleteParentReviewRun("review-1", []string{"child-a", "child-b"})
+
+	updatedModel, _ := model.Update(ExecuteActionComplete{
+		Action:  "execute",
+		Success: true,
+		Result: &execution.ExecuteResult{
+			Reason: execution.ExecuteReasonParentReviewRequired,
+			Run:    &parentRun,
+		},
+	})
+	updated := updatedModel.(Model)
+
+	updatedModel, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}})
+	updated = updatedModel.(Model)
+	updatedModel, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated = updatedModel.(Model)
+
+	if !updated.actionInProgress {
+		t.Fatalf("expected resume action to be in progress before completion message")
+	}
+	if updated.parentReviewForm != nil {
+		t.Fatalf("expected parent review form cleared while resume command is running")
+	}
+
+	updatedModel, _ = updated.Update(ExecuteActionComplete{
+		Action: "resume",
+		Err:    errors.New("provider mismatch"),
+	})
+	updated = updatedModel.(Model)
+
+	if updated.actionInProgress {
+		t.Fatalf("expected actionInProgress=false after resume error")
+	}
+	if updated.actionMode != ActionModeParentReview {
+		t.Fatalf("actionMode = %v, want %v on resume error restore", updated.actionMode, ActionModeParentReview)
+	}
+	if updated.parentReviewForm == nil {
+		t.Fatalf("expected parentReviewForm restored on resume error")
+	}
+	if updated.parentReviewForm.SelectedAction() != parentReviewActionResumeOneTask {
+		t.Fatalf(
+			"SelectedAction() after restore = %d, want %d",
+			updated.parentReviewForm.SelectedAction(),
+			parentReviewActionResumeOneTask,
+		)
+	}
+	if updated.parentReviewForm.SelectedTarget() != "child-a" {
+		t.Fatalf("SelectedTarget() after restore = %q, want child-a", updated.parentReviewForm.SelectedTarget())
+	}
+	if updated.actionOutput != nil {
+		t.Fatalf("expected actionOutput to remain nil when modal is restored with inline error")
+	}
+	if updated.parentReviewResumeState != nil {
+		t.Fatalf("expected parentReviewResumeState cleared after error restore")
+	}
+
+	rendered := stripANSI(RenderParentReviewModal(updated, *updated.parentReviewForm))
+	if !strings.Contains(rendered, "Resume failed: provider mismatch") {
+		t.Fatalf("expected modal to show resume error, got:\n%s", rendered)
 	}
 }
 
@@ -344,11 +473,35 @@ func testExecuteActionCompleteParentReviewRun(runID string, resumeTargets []stri
 	return execution.RunRecord{
 		ID:                        runID,
 		TaskID:                    "parent-1",
+		Type:                      execution.RunTypeReview,
 		StartedAt:                 now,
 		Status:                    execution.RunStatusSuccess,
 		ParentReviewPassed:        &passed,
 		ParentReviewResumeTaskIDs: append([]string{}, resumeTargets...),
 		ParentReviewFeedback:      "Fix parent review findings and retry.",
+		Context: execution.ContextPack{
+			Task: execution.TaskContext{
+				ID:    "parent-1",
+				Title: "Parent",
+			},
+			ParentReview: &execution.ParentReviewContext{
+				ParentTaskID:    "parent-1",
+				ParentTaskTitle: "Parent",
+			},
+		},
+	}
+}
+
+func testExecuteActionCompleteParentReviewPassRun(runID string) execution.RunRecord {
+	passed := true
+	now := time.Date(2026, 2, 9, 9, 0, 0, 0, time.UTC)
+	return execution.RunRecord{
+		ID:                 runID,
+		TaskID:             "parent-1",
+		Type:               execution.RunTypeReview,
+		StartedAt:          now,
+		Status:             execution.RunStatusSuccess,
+		ParentReviewPassed: &passed,
 		Context: execution.ContextPack{
 			Task: execution.TaskContext{
 				ID:    "parent-1",

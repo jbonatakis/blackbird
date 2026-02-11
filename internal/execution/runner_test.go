@@ -203,6 +203,73 @@ func TestRunExecuteReadyOrder(t *testing.T) {
 	}
 }
 
+func TestRunExecuteSkipsParentReviewWhenDisabled(t *testing.T) {
+	tempDir := t.TempDir()
+	planPath := filepath.Join(tempDir, "blackbird.plan.json")
+
+	parentID := "parent"
+	childID := "child"
+	otherID := "other"
+
+	parent := makeItem(parentID, plan.StatusTodo)
+	parent.ChildIDs = []string{childID}
+	parent.AcceptanceCriteria = []string{"Parent criteria must hold across child outputs."}
+
+	child := makeItem(childID, plan.StatusTodo)
+	childParent := parentID
+	child.ParentID = &childParent
+
+	other := makeItem(otherID, plan.StatusTodo)
+
+	g := plan.WorkGraph{
+		SchemaVersion: plan.SchemaVersion,
+		Items: map[string]plan.WorkItem{
+			parentID: parent,
+			childID:  child,
+			otherID:  other,
+		},
+	}
+	if err := plan.SaveAtomic(planPath, g); err != nil {
+		t.Fatalf("save plan: %v", err)
+	}
+
+	result, err := RunExecute(context.Background(), ExecuteConfig{
+		PlanPath:            planPath,
+		ParentReviewEnabled: false,
+		Runtime: agent.Runtime{
+			Provider: "codex",
+			Command:  `printf '{"passed":false,"resumeTaskIds":["child"],"feedbackForResume":"Fix child output before continuing."}'`,
+			UseShell: true,
+			Timeout:  2 * time.Second,
+		},
+	})
+	if err != nil {
+		t.Fatalf("RunExecute: %v", err)
+	}
+	if result.Reason != ExecuteReasonCompleted {
+		t.Fatalf("result.Reason = %q, want %q", result.Reason, ExecuteReasonCompleted)
+	}
+
+	updated, err := plan.Load(planPath)
+	if err != nil {
+		t.Fatalf("load plan: %v", err)
+	}
+	if updated.Items[childID].Status != plan.StatusDone {
+		t.Fatalf("child status = %q, want %q", updated.Items[childID].Status, plan.StatusDone)
+	}
+	if updated.Items[otherID].Status != plan.StatusDone {
+		t.Fatalf("other status = %q, want %q", updated.Items[otherID].Status, plan.StatusDone)
+	}
+
+	parentRuns, err := ListRuns(tempDir, parentID)
+	if err != nil {
+		t.Fatalf("ListRuns(%s): %v", parentID, err)
+	}
+	if len(parentRuns) != 0 {
+		t.Fatalf("expected 0 parent review runs when disabled, got %d", len(parentRuns))
+	}
+}
+
 func TestRunExecuteStopsForParentReviewRequired(t *testing.T) {
 	tempDir := t.TempDir()
 	planPath := filepath.Join(tempDir, "blackbird.plan.json")
@@ -234,7 +301,8 @@ func TestRunExecuteStopsForParentReviewRequired(t *testing.T) {
 	}
 
 	result, err := RunExecute(context.Background(), ExecuteConfig{
-		PlanPath: planPath,
+		PlanPath:            planPath,
+		ParentReviewEnabled: true,
 		Runtime: agent.Runtime{
 			Provider: "codex",
 			Command:  `printf '{"passed":false,"resumeTaskIds":["child"],"feedbackForResume":"Fix child output before continuing."}'`,
@@ -306,6 +374,81 @@ func TestRunExecuteStopsForParentReviewRequired(t *testing.T) {
 	}
 	if len(otherRuns) != 0 {
 		t.Fatalf("expected 0 other runs, got %d", len(otherRuns))
+	}
+}
+
+func TestRunExecuteCompletedIncludesLatestParentReviewRunWhenReviewPasses(t *testing.T) {
+	tempDir := t.TempDir()
+	planPath := filepath.Join(tempDir, "blackbird.plan.json")
+
+	parentID := "parent"
+	childID := "child"
+
+	parent := makeItem(parentID, plan.StatusTodo)
+	parent.ChildIDs = []string{childID}
+	parent.AcceptanceCriteria = []string{"Parent criteria must hold across child outputs."}
+
+	child := makeItem(childID, plan.StatusTodo)
+	childParent := parentID
+	child.ParentID = &childParent
+
+	g := plan.WorkGraph{
+		SchemaVersion: plan.SchemaVersion,
+		Items: map[string]plan.WorkItem{
+			parentID: parent,
+			childID:  child,
+		},
+	}
+	if err := plan.SaveAtomic(planPath, g); err != nil {
+		t.Fatalf("save plan: %v", err)
+	}
+
+	result, err := RunExecute(context.Background(), ExecuteConfig{
+		PlanPath:            planPath,
+		ParentReviewEnabled: true,
+		Runtime: agent.Runtime{
+			Provider: "codex",
+			Command:  `printf '{"passed":true}'`,
+			UseShell: true,
+			Timeout:  2 * time.Second,
+		},
+	})
+	if err != nil {
+		t.Fatalf("RunExecute: %v", err)
+	}
+	if result.Reason != ExecuteReasonCompleted {
+		t.Fatalf("result.Reason = %q, want %q", result.Reason, ExecuteReasonCompleted)
+	}
+	if result.Run == nil {
+		t.Fatalf("expected latest parent review run in completed execute result")
+	}
+	if result.Run.Type != RunTypeReview {
+		t.Fatalf("result.Run.Type = %q, want %q", result.Run.Type, RunTypeReview)
+	}
+	if result.Run.TaskID != parentID {
+		t.Fatalf("result.Run.TaskID = %q, want %q", result.Run.TaskID, parentID)
+	}
+	if result.Run.ParentReviewPassed == nil || !*result.Run.ParentReviewPassed {
+		t.Fatalf("result.Run.ParentReviewPassed = %#v, want true", result.Run.ParentReviewPassed)
+	}
+	if len(result.Run.ParentReviewResumeTaskIDs) != 0 {
+		t.Fatalf("result.Run.ParentReviewResumeTaskIDs = %#v, want empty", result.Run.ParentReviewResumeTaskIDs)
+	}
+
+	updated, err := plan.Load(planPath)
+	if err != nil {
+		t.Fatalf("load plan: %v", err)
+	}
+	if updated.Items[childID].Status != plan.StatusDone {
+		t.Fatalf("child status = %q, want %q", updated.Items[childID].Status, plan.StatusDone)
+	}
+
+	parentRuns, err := ListReviewRuns(tempDir, parentID)
+	if err != nil {
+		t.Fatalf("ListReviewRuns(%s): %v", parentID, err)
+	}
+	if len(parentRuns) != 1 {
+		t.Fatalf("expected 1 parent review run, got %d", len(parentRuns))
 	}
 }
 

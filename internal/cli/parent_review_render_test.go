@@ -48,3 +48,38 @@ func TestParentReviewFeedbackExcerptTruncatesLongFeedback(t *testing.T) {
 		t.Fatalf("feedback length = %d, want %d", len(got), parentReviewFeedbackExcerptMaxLen)
 	}
 }
+
+func TestFormatParentReviewRequiredLinesUsesStructuredTaskResults(t *testing.T) {
+	run := &execution.RunRecord{
+		TaskID: "parent-checkout",
+		ParentReviewResults: execution.ParentReviewTaskResults{
+			"child-c": {
+				TaskID: "child-c",
+				Status: execution.ParentReviewTaskStatusPassed,
+			},
+			"child-b": {
+				TaskID:   "child-b",
+				Status:   execution.ParentReviewTaskStatusFailed,
+				Feedback: "Fix child-b validations.",
+			},
+			"child-a": {
+				TaskID:   "child-a",
+				Status:   execution.ParentReviewTaskStatusFailed,
+				Feedback: "Fix child-a null handling.",
+			},
+		},
+	}
+
+	got := formatParentReviewRequiredLines("ignored-task-id", run)
+	want := []string{
+		"running parent review for parent-checkout",
+		"parent review failed for parent-checkout",
+		"resume tasks: child-a, child-b",
+		"feedback: Fix child-a null handling.",
+		"next step: blackbird resume child-a",
+		"next step: blackbird resume child-b",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("formatParentReviewRequiredLines mismatch:\n got: %#v\nwant: %#v", got, want)
+	}
+}

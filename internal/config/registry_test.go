@@ -5,8 +5,8 @@ import "testing"
 func TestOptionRegistryIncludesKnownOptions(t *testing.T) {
 	defaults := DefaultResolvedConfig()
 	options := OptionRegistry()
-	if len(options) != 4 {
-		t.Fatalf("options count = %d, want 4", len(options))
+	if len(options) != 5 {
+		t.Fatalf("options count = %d, want 5", len(options))
 	}
 
 	byKey := map[string]OptionMetadata{}
@@ -95,6 +95,27 @@ func TestOptionRegistryIncludesKnownOptions(t *testing.T) {
 	}
 	if stop.Description != "Pause execution for review after each task" {
 		t.Fatalf("stop description = %q, want %q", stop.Description, "Pause execution for review after each task")
+	}
+
+	parentReview := requireOption(t, byKey, "execution.parentReviewEnabled")
+	if parentReview.DisplayName != "Execution Parent Review Gate" {
+		t.Fatalf("parent review display name = %q, want %q", parentReview.DisplayName, "Execution Parent Review Gate")
+	}
+	if parentReview.Type != OptionTypeBool {
+		t.Fatalf("parent review type = %q, want %q", parentReview.Type, OptionTypeBool)
+	}
+	if parentReview.DefaultBool != defaults.Execution.ParentReviewEnabled {
+		t.Fatalf("parent review default = %v, want %v", parentReview.DefaultBool, defaults.Execution.ParentReviewEnabled)
+	}
+	if parentReview.Bounds != nil {
+		t.Fatalf("parent review bounds = %v, want nil", parentReview.Bounds)
+	}
+	if parentReview.Description != "Run parent-review checks after successful child tasks" {
+		t.Fatalf(
+			"parent review description = %q, want %q",
+			parentReview.Description,
+			"Run parent-review checks after successful child tasks",
+		)
 	}
 }
 

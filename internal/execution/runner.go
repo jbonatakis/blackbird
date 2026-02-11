@@ -31,14 +31,16 @@ type ExecuteResult struct {
 }
 
 type ExecuteConfig struct {
-	PlanPath          string
-	Graph             *plan.WorkGraph
-	Runtime           agent.Runtime
-	StopAfterEachTask bool
-	StreamStdout      io.Writer
-	StreamStderr      io.Writer
-	OnTaskStart       func(taskID string)
-	OnTaskFinish      func(taskID string, record RunRecord, execErr error)
+	PlanPath            string
+	Graph               *plan.WorkGraph
+	Runtime             agent.Runtime
+	StopAfterEachTask   bool
+	ParentReviewEnabled bool
+	StreamStdout        io.Writer
+	StreamStderr        io.Writer
+	OnStateChange       func(ExecutionStageState)
+	OnTaskStart         func(taskID string)
+	OnTaskFinish        func(taskID string, record RunRecord, execErr error)
 }
 
 type ResumeConfig struct {
@@ -81,6 +83,7 @@ func RunExecute(ctx context.Context, cfg ExecuteConfig) (ExecuteResult, error) {
 
 	baseDir := filepath.Dir(cfg.PlanPath)
 	preloaded := cfg.Graph != nil
+	var latestParentReviewRun *RunRecord
 
 	for {
 		if ctx.Err() != nil {
@@ -94,6 +97,13 @@ func RunExecute(ctx context.Context, cfg ExecuteConfig) (ExecuteResult, error) {
 
 		ready := ReadyTasks(g)
 		if len(ready) == 0 {
+			if latestParentReviewRun != nil {
+				run := *latestParentReviewRun
+				return ExecuteResult{
+					Reason: ExecuteReasonCompleted,
+					Run:    &run,
+				}, nil
+			}
 			return ExecuteResult{Reason: ExecuteReasonCompleted}, nil
 		}
 		if ctx.Err() != nil {
@@ -101,6 +111,10 @@ func RunExecute(ctx context.Context, cfg ExecuteConfig) (ExecuteResult, error) {
 		}
 
 		taskID := ready[0]
+		emitExecutionStageState(cfg.OnStateChange, ExecutionStageState{
+			Stage:  ExecutionStageExecuting,
+			TaskID: taskID,
+		})
 		if cfg.OnTaskStart != nil {
 			cfg.OnTaskStart(taskID)
 		}
@@ -147,13 +161,20 @@ func RunExecute(ctx context.Context, cfg ExecuteConfig) (ExecuteResult, error) {
 			cfg.OnTaskFinish(taskID, record, execErr)
 		}
 
+		var currentParentReviewRun *RunRecord
 		var pauseReviewRun *RunRecord
-		if record.Status == RunStatusSuccess && ctx.Err() == nil {
-			pauseReviewRun, err = runParentReviewGateForCompletedTask(ctx, cfg, taskID)
+		if cfg.ParentReviewEnabled && record.Status == RunStatusSuccess && ctx.Err() == nil {
+			currentParentReviewRun, pauseReviewRun, err = runParentReviewGateForCompletedTask(ctx, cfg, taskID)
 			if err != nil {
-				return ExecuteResult{Reason: ExecuteReasonError, TaskID: taskID, Err: err}, err
+				return ExecuteResult{
+					Reason: ExecuteReasonError,
+					TaskID: taskID,
+					Run:    currentParentReviewRun,
+					Err:    err,
+				}, err
 			}
 		}
+		latestParentReviewRun = currentParentReviewRun
 
 		if record.Status == RunStatusWaitingUser {
 			return ExecuteResult{Reason: ExecuteReasonWaitingUser, TaskID: taskID, Run: &record}, nil
@@ -385,22 +406,31 @@ func runParentReviewGateForCompletedTask(
 	ctx context.Context,
 	cfg ExecuteConfig,
 	changedChildID string,
-) (*RunRecord, error) {
+) (*RunRecord, *RunRecord, error) {
+	if !cfg.ParentReviewEnabled {
+		return nil, nil, nil
+	}
 	if strings.TrimSpace(changedChildID) == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	g, err := loadValidatedPlan(cfg.PlanPath, nil, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
+	var latestReviewRun *RunRecord
 	var pauseRun *RunRecord
 	result, err := RunParentReviewGate(ParentReviewGateInput{
 		PlanPath:       cfg.PlanPath,
 		Graph:          g,
 		ChangedChildID: changedChildID,
 	}, func(candidate ParentReviewGateCandidate) (ParentReviewGateExecutorResult, error) {
+		emitExecutionStageState(cfg.OnStateChange, ExecutionStageState{
+			Stage:          ExecutionStageReviewing,
+			TaskID:         changedChildID,
+			ReviewedTaskID: candidate.ParentTaskID,
+		})
 		reviewRecord, reviewErr := RunParentReview(ctx, ParentReviewRunConfig{
 			PlanPath:            cfg.PlanPath,
 			Graph:               g,
@@ -409,6 +439,14 @@ func runParentReviewGateForCompletedTask(
 			Runtime:             cfg.Runtime,
 			StreamStdout:        cfg.StreamStdout,
 			StreamStderr:        cfg.StreamStderr,
+		})
+		if strings.TrimSpace(reviewRecord.ID) != "" {
+			recordCopy := reviewRecord
+			latestReviewRun = &recordCopy
+		}
+		emitExecutionStageState(cfg.OnStateChange, ExecutionStageState{
+			Stage:  ExecutionStagePostReview,
+			TaskID: changedChildID,
 		})
 		if reviewErr != nil {
 			return ParentReviewGateExecutorResult{}, reviewErr
@@ -423,23 +461,23 @@ func runParentReviewGateForCompletedTask(
 		return ParentReviewGateExecutorResult{State: ParentReviewGateStatePass}, nil
 	})
 	if err != nil {
-		return nil, err
+		return latestReviewRun, nil, err
 	}
 
 	if result.State == ParentReviewGateStatePauseRequired {
 		if pauseRun == nil {
-			return nil, fmt.Errorf("parent review gate pause requested without pause run context")
+			return latestReviewRun, nil, fmt.Errorf("parent review gate pause requested without pause run context")
 		}
-		return pauseRun, nil
+		return latestReviewRun, pauseRun, nil
 	}
-	return nil, nil
+	return latestReviewRun, nil, nil
 }
 
 func requiresParentReviewPause(record RunRecord) bool {
 	if record.ParentReviewPassed == nil || *record.ParentReviewPassed {
 		return false
 	}
-	return len(record.ParentReviewResumeTaskIDs) > 0
+	return len(ParentReviewFailedTaskIDs(record)) > 0
 }
 
 func loadValidatedPlan(planPath string, preloaded *plan.WorkGraph, usePreloaded *bool) (plan.WorkGraph, error) {

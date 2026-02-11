@@ -53,13 +53,24 @@ func ExecuteCmd() tea.Cmd {
 }
 
 func ExecuteCmdWithContext(ctx context.Context) tea.Cmd {
-	return ExecuteCmdWithContextAndStream(ctx, nil, nil, nil, false)
+	return ExecuteCmdWithContextAndStream(ctx, nil, nil, nil, nil, false, false)
 }
 
-func ExecuteCmdWithContextAndStream(ctx context.Context, stdout io.Writer, stderr io.Writer, liveOutput chan liveOutputMsg, stopAfterEachTask bool) tea.Cmd {
+func ExecuteCmdWithContextAndStream(
+	ctx context.Context,
+	stdout io.Writer,
+	stderr io.Writer,
+	liveOutput chan liveOutputMsg,
+	liveStage chan execution.ExecutionStageState,
+	stopAfterEachTask bool,
+	parentReviewEnabled bool,
+) tea.Cmd {
 	return func() tea.Msg {
 		if liveOutput != nil {
 			defer close(liveOutput)
+		}
+		if liveStage != nil {
+			defer close(liveStage)
 		}
 		runtime, err := agent.NewRuntimeFromEnv()
 		if err != nil {
@@ -67,11 +78,18 @@ func ExecuteCmdWithContextAndStream(ctx context.Context, stdout io.Writer, stder
 		}
 
 		result, runErr := execution.RunExecute(ctx, execution.ExecuteConfig{
-			PlanPath:          plan.PlanPath(),
-			Runtime:           runtime,
-			StopAfterEachTask: stopAfterEachTask,
-			StreamStdout:      stdout,
-			StreamStderr:      stderr,
+			PlanPath:            plan.PlanPath(),
+			Runtime:             runtime,
+			StopAfterEachTask:   stopAfterEachTask,
+			ParentReviewEnabled: parentReviewEnabled,
+			StreamStdout:        stdout,
+			StreamStderr:        stderr,
+			OnStateChange: func(state execution.ExecutionStageState) {
+				if liveStage == nil {
+					return
+				}
+				liveStage <- state
+			},
 		})
 		msg := ExecuteActionComplete{
 			Action: "execute",
@@ -133,6 +151,11 @@ func ResumeCmdWithContextAndStream(ctx context.Context, taskID string, answers [
 	}
 }
 
+type ResumePendingParentFeedbackTarget struct {
+	TaskID   string
+	Feedback string
+}
+
 func ResumePendingParentFeedbackCmd(taskID string) tea.Cmd {
 	ctx := context.Background()
 	return ResumePendingParentFeedbackCmdWithContext(ctx, taskID)
@@ -143,6 +166,31 @@ func ResumePendingParentFeedbackCmdWithContext(ctx context.Context, taskID strin
 }
 
 func ResumePendingParentFeedbackCmdWithContextAndStream(ctx context.Context, taskID string, stdout io.Writer, stderr io.Writer, liveOutput chan liveOutputMsg) tea.Cmd {
+	return ResumePendingParentFeedbackTargetCmdWithContextAndStream(
+		ctx,
+		ResumePendingParentFeedbackTarget{TaskID: taskID},
+		stdout,
+		stderr,
+		liveOutput,
+	)
+}
+
+func ResumePendingParentFeedbackTargetCmd(target ResumePendingParentFeedbackTarget) tea.Cmd {
+	ctx := context.Background()
+	return ResumePendingParentFeedbackTargetCmdWithContext(ctx, target)
+}
+
+func ResumePendingParentFeedbackTargetCmdWithContext(ctx context.Context, target ResumePendingParentFeedbackTarget) tea.Cmd {
+	return ResumePendingParentFeedbackTargetCmdWithContextAndStream(ctx, target, nil, nil, nil)
+}
+
+func ResumePendingParentFeedbackTargetCmdWithContextAndStream(
+	ctx context.Context,
+	target ResumePendingParentFeedbackTarget,
+	stdout io.Writer,
+	stderr io.Writer,
+	liveOutput chan liveOutputMsg,
+) tea.Cmd {
 	return func() tea.Msg {
 		if liveOutput != nil {
 			defer close(liveOutput)
@@ -152,7 +200,14 @@ func ResumePendingParentFeedbackCmdWithContextAndStream(ctx context.Context, tas
 			return ExecuteActionComplete{Action: "resume", Success: false, Err: err}
 		}
 
-		record, runErr := runPendingParentFeedbackResumeTask(ctx, runtime, taskID, stdout, stderr)
+		record, runErr := runPendingParentFeedbackResumeTaskWithFeedback(
+			ctx,
+			runtime,
+			target.TaskID,
+			target.Feedback,
+			stdout,
+			stderr,
+		)
 		msg := ExecuteActionComplete{
 			Action: "resume",
 			Record: &record,
@@ -162,7 +217,7 @@ func ResumePendingParentFeedbackCmdWithContextAndStream(ctx context.Context, tas
 			return msg
 		}
 		msg.Success = true
-		msg.Output = summarizeResumeRecord(record, taskID)
+		msg.Output = summarizeResumeRecord(record, strings.TrimSpace(target.TaskID))
 		return msg
 	}
 }
@@ -177,12 +232,38 @@ func ResumePendingParentFeedbackTargetsCmdWithContext(ctx context.Context, taskI
 }
 
 func ResumePendingParentFeedbackTargetsCmdWithContextAndStream(ctx context.Context, taskIDs []string, stdout io.Writer, stderr io.Writer, liveOutput chan liveOutputMsg) tea.Cmd {
+	targets := make([]ResumePendingParentFeedbackTarget, 0, len(taskIDs))
+	for _, taskID := range taskIDs {
+		targets = append(targets, ResumePendingParentFeedbackTarget{TaskID: taskID})
+	}
+	return ResumePendingParentFeedbackTargetsWithFeedbackCmdWithContextAndStream(ctx, targets, stdout, stderr, liveOutput)
+}
+
+func ResumePendingParentFeedbackTargetsWithFeedbackCmd(targets []ResumePendingParentFeedbackTarget) tea.Cmd {
+	ctx := context.Background()
+	return ResumePendingParentFeedbackTargetsWithFeedbackCmdWithContext(ctx, targets)
+}
+
+func ResumePendingParentFeedbackTargetsWithFeedbackCmdWithContext(
+	ctx context.Context,
+	targets []ResumePendingParentFeedbackTarget,
+) tea.Cmd {
+	return ResumePendingParentFeedbackTargetsWithFeedbackCmdWithContextAndStream(ctx, targets, nil, nil, nil)
+}
+
+func ResumePendingParentFeedbackTargetsWithFeedbackCmdWithContextAndStream(
+	ctx context.Context,
+	targets []ResumePendingParentFeedbackTarget,
+	stdout io.Writer,
+	stderr io.Writer,
+	liveOutput chan liveOutputMsg,
+) tea.Cmd {
 	return func() tea.Msg {
 		if liveOutput != nil {
 			defer close(liveOutput)
 		}
-		normalizedTaskIDs := normalizeResumeTaskIDs(taskIDs)
-		if len(normalizedTaskIDs) == 0 {
+		normalizedTargets := normalizeResumeTargetsWithFeedback(targets)
+		if len(normalizedTargets) == 0 {
 			return ExecuteActionComplete{
 				Action: "resume",
 				Err:    fmt.Errorf("resume requires at least 1 task id"),
@@ -194,14 +275,21 @@ func ResumePendingParentFeedbackTargetsCmdWithContextAndStream(ctx context.Conte
 			return ExecuteActionComplete{Action: "resume", Success: false, Err: err}
 		}
 
-		lines := make([]string, 0, len(normalizedTaskIDs))
-		for _, taskID := range normalizedTaskIDs {
-			record, runErr := runPendingParentFeedbackResumeTask(ctx, runtime, taskID, stdout, stderr)
+		lines := make([]string, 0, len(normalizedTargets))
+		for _, target := range normalizedTargets {
+			record, runErr := runPendingParentFeedbackResumeTaskWithFeedback(
+				ctx,
+				runtime,
+				target.TaskID,
+				target.Feedback,
+				stdout,
+				stderr,
+			)
 			if runErr != nil {
-				lines = append(lines, summarizeResumeError(taskID, runErr))
+				lines = append(lines, summarizeResumeError(target.TaskID, runErr))
 				continue
 			}
-			lines = append(lines, summarizeResumeRecord(record, taskID))
+			lines = append(lines, summarizeResumeRecord(record, target.TaskID))
 		}
 
 		return ExecuteActionComplete{
@@ -213,6 +301,17 @@ func ResumePendingParentFeedbackTargetsCmdWithContextAndStream(ctx context.Conte
 }
 
 func runPendingParentFeedbackResumeTask(ctx context.Context, runtime agent.Runtime, taskID string, stdout io.Writer, stderr io.Writer) (execution.RunRecord, error) {
+	return runPendingParentFeedbackResumeTaskWithFeedback(ctx, runtime, taskID, "", stdout, stderr)
+}
+
+func runPendingParentFeedbackResumeTaskWithFeedback(
+	ctx context.Context,
+	runtime agent.Runtime,
+	taskID string,
+	feedback string,
+	stdout io.Writer,
+	stderr io.Writer,
+) (execution.RunRecord, error) {
 	taskID = strings.TrimSpace(taskID)
 	if taskID == "" {
 		return execution.RunRecord{}, fmt.Errorf("task id required")
@@ -227,6 +326,18 @@ func runPendingParentFeedbackResumeTask(ctx context.Context, runtime agent.Runti
 	if resolvedFeedback.Source != execution.ResumeFeedbackSourcePendingParentReview {
 		return execution.RunRecord{}, fmt.Errorf("no pending parent-review feedback for %s", taskID)
 	}
+	feedback = strings.TrimSpace(feedback)
+	if feedback != "" && feedback != strings.TrimSpace(resolvedFeedback.Feedback) {
+		if _, err := execution.UpsertPendingParentReviewFeedback(
+			baseDir,
+			taskID,
+			resolvedFeedback.ParentTaskID,
+			resolvedFeedback.ReviewRunID,
+			feedback,
+		); err != nil {
+			return execution.RunRecord{}, err
+		}
+	}
 
 	return execution.RunResume(ctx, execution.ResumeConfig{
 		PlanPath:     planPath,
@@ -237,11 +348,41 @@ func runPendingParentFeedbackResumeTask(ctx context.Context, runtime agent.Runti
 	})
 }
 
-func ResolveDecisionCmdWithContext(ctx context.Context, taskID string, runID string, action execution.DecisionState, feedback string, stopAfterEachTask bool) tea.Cmd {
-	return ResolveDecisionCmdWithContextAndStream(ctx, taskID, runID, action, feedback, stopAfterEachTask, nil, nil, nil)
+func ResolveDecisionCmdWithContext(
+	ctx context.Context,
+	taskID string,
+	runID string,
+	action execution.DecisionState,
+	feedback string,
+	stopAfterEachTask bool,
+	parentReviewEnabled bool,
+) tea.Cmd {
+	return ResolveDecisionCmdWithContextAndStream(
+		ctx,
+		taskID,
+		runID,
+		action,
+		feedback,
+		stopAfterEachTask,
+		parentReviewEnabled,
+		nil,
+		nil,
+		nil,
+	)
 }
 
-func ResolveDecisionCmdWithContextAndStream(ctx context.Context, taskID string, runID string, action execution.DecisionState, feedback string, stopAfterEachTask bool, stdout io.Writer, stderr io.Writer, liveOutput chan liveOutputMsg) tea.Cmd {
+func ResolveDecisionCmdWithContextAndStream(
+	ctx context.Context,
+	taskID string,
+	runID string,
+	action execution.DecisionState,
+	feedback string,
+	stopAfterEachTask bool,
+	parentReviewEnabled bool,
+	stdout io.Writer,
+	stderr io.Writer,
+	liveOutput chan liveOutputMsg,
+) tea.Cmd {
 	return func() tea.Msg {
 		if liveOutput != nil {
 			defer close(liveOutput)
@@ -252,11 +393,12 @@ func ResolveDecisionCmdWithContextAndStream(ctx context.Context, taskID string, 
 		}
 
 		controller := execution.ExecutionController{
-			PlanPath:          plan.PlanPath(),
-			Runtime:           runtime,
-			StopAfterEachTask: stopAfterEachTask,
-			StreamStdout:      stdout,
-			StreamStderr:      stderr,
+			PlanPath:            plan.PlanPath(),
+			Runtime:             runtime,
+			StopAfterEachTask:   stopAfterEachTask,
+			ParentReviewEnabled: parentReviewEnabled,
+			StreamStdout:        stdout,
+			StreamStderr:        stderr,
 		}
 
 		result, err := controller.ResolveDecision(ctx, execution.DecisionRequest{
@@ -386,6 +528,30 @@ func normalizeResumeTaskIDs(taskIDs []string) []string {
 		}
 		seen[taskID] = struct{}{}
 		normalized = append(normalized, taskID)
+	}
+	return normalized
+}
+
+func normalizeResumeTargetsWithFeedback(targets []ResumePendingParentFeedbackTarget) []ResumePendingParentFeedbackTarget {
+	seen := make(map[string]int, len(targets))
+	normalized := make([]ResumePendingParentFeedbackTarget, 0, len(targets))
+	for _, target := range targets {
+		taskID := strings.TrimSpace(target.TaskID)
+		if taskID == "" {
+			continue
+		}
+		feedback := strings.TrimSpace(target.Feedback)
+		if idx, ok := seen[taskID]; ok {
+			if normalized[idx].Feedback == "" && feedback != "" {
+				normalized[idx].Feedback = feedback
+			}
+			continue
+		}
+		seen[taskID] = len(normalized)
+		normalized = append(normalized, ResumePendingParentFeedbackTarget{
+			TaskID:   taskID,
+			Feedback: feedback,
+		})
 	}
 	return normalized
 }

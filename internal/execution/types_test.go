@@ -159,6 +159,9 @@ func TestRunRecordJSONOmitEmptyFields(t *testing.T) {
 	if strings.Contains(payload, "parent_review_feedback") {
 		t.Fatalf("expected parent_review_feedback to be omitted, got %s", payload)
 	}
+	if strings.Contains(payload, "parent_review_results") {
+		t.Fatalf("expected parent_review_results to be omitted, got %s", payload)
+	}
 	if strings.Contains(payload, "parent_review_completion_signature") {
 		t.Fatalf("expected parent_review_completion_signature to be omitted, got %s", payload)
 	}
@@ -190,6 +193,9 @@ func TestRunRecordJSONUnmarshalLegacyShapeDefaultsRunType(t *testing.T) {
 	if decoded.ParentReviewFeedback != "" {
 		t.Fatalf("expected parent_review_feedback empty, got %#v", decoded.ParentReviewFeedback)
 	}
+	if len(decoded.ParentReviewResults) != 0 {
+		t.Fatalf("expected parent_review_results empty, got %#v", decoded.ParentReviewResults)
+	}
 	if decoded.ParentReviewCompletionSignature != "" {
 		t.Fatalf("expected parent_review_completion_signature empty, got %#v", decoded.ParentReviewCompletionSignature)
 	}
@@ -211,9 +217,25 @@ func TestRunRecordJSONReviewShapeRoundTrip(t *testing.T) {
 				Title: "Parent Review",
 			},
 		},
-		ParentReviewPassed:              &passed,
-		ParentReviewResumeTaskIDs:       []string{"child-a", "child-b"},
-		ParentReviewFeedback:            "Child task output misses acceptance criteria coverage.",
+		ParentReviewPassed:        &passed,
+		ParentReviewResumeTaskIDs: []string{"child-a", "child-b"},
+		ParentReviewFeedback:      "Child task output misses acceptance criteria coverage.",
+		ParentReviewResults: ParentReviewTaskResults{
+			"child-c": {
+				TaskID: "child-c",
+				Status: ParentReviewTaskStatusPassed,
+			},
+			"child-b": {
+				TaskID:   "child-b",
+				Status:   ParentReviewTaskStatusFailed,
+				Feedback: "Fix child-b coverage.",
+			},
+			"child-a": {
+				TaskID:   "child-a",
+				Status:   ParentReviewTaskStatusFailed,
+				Feedback: "Fix child-a coverage.",
+			},
+		},
 		ParentReviewCompletionSignature: "children:child-a,child-b",
 	}
 
@@ -233,6 +255,9 @@ func TestRunRecordJSONReviewShapeRoundTrip(t *testing.T) {
 	}
 	if !strings.Contains(payload, "\"parent_review_feedback\":\"Child task output misses acceptance criteria coverage.\"") {
 		t.Fatalf("expected parent review feedback, got %s", payload)
+	}
+	if !strings.Contains(payload, "\"parent_review_results\"") {
+		t.Fatalf("expected parent review task results, got %s", payload)
 	}
 	if !strings.Contains(payload, "\"parent_review_completion_signature\":\"children:child-a,child-b\"") {
 		t.Fatalf("expected parent review completion signature, got %s", payload)
@@ -257,6 +282,18 @@ func TestRunRecordJSONReviewShapeRoundTrip(t *testing.T) {
 	}
 	if decoded.ParentReviewFeedback != "Child task output misses acceptance criteria coverage." {
 		t.Fatalf("parent_review_feedback mismatch: %#v", decoded.ParentReviewFeedback)
+	}
+	if len(decoded.ParentReviewResults) != 3 {
+		t.Fatalf("parent_review_results length mismatch: %#v", decoded.ParentReviewResults)
+	}
+	if got := decoded.ParentReviewResults["child-a"]; got.Status != ParentReviewTaskStatusFailed || got.Feedback != "Fix child-a coverage." {
+		t.Fatalf("parent_review_results[child-a] mismatch: %#v", got)
+	}
+	if got := decoded.ParentReviewResults["child-b"]; got.Status != ParentReviewTaskStatusFailed || got.Feedback != "Fix child-b coverage." {
+		t.Fatalf("parent_review_results[child-b] mismatch: %#v", got)
+	}
+	if got := decoded.ParentReviewResults["child-c"]; got.Status != ParentReviewTaskStatusPassed || got.Feedback != "" {
+		t.Fatalf("parent_review_results[child-c] mismatch: %#v", got)
 	}
 	if decoded.ParentReviewCompletionSignature != "children:child-a,child-b" {
 		t.Fatalf("parent_review_completion_signature mismatch: %#v", decoded.ParentReviewCompletionSignature)

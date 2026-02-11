@@ -102,8 +102,9 @@ func applyParentReviewOutcome(record *RunRecord, response ParentReviewResponse) 
 
 	passed := response.Passed
 	record.ParentReviewPassed = &passed
-	record.ParentReviewResumeTaskIDs = append([]string{}, response.ResumeTaskIDs...)
-	record.ParentReviewFeedback = response.FeedbackForResume
+	record.ParentReviewResults = cloneParentReviewTaskResults(response.TaskResults)
+	record.ParentReviewResumeTaskIDs = ParentReviewFailedTaskIDs(*record)
+	record.ParentReviewFeedback = ParentReviewPrimaryFeedback(*record)
 }
 
 func persistPendingParentReviewFeedbackLinks(
@@ -112,13 +113,27 @@ func persistPendingParentReviewFeedbackLinks(
 	reviewRunID string,
 	response ParentReviewResponse,
 ) error {
-	for _, childTaskID := range response.ResumeTaskIDs {
+	failedTaskIDs := ParentReviewFailedTaskIDs(RunRecord{
+		ParentReviewResults:       response.TaskResults,
+		ParentReviewResumeTaskIDs: response.ResumeTaskIDs,
+		ParentReviewFeedback:      response.FeedbackForResume,
+	})
+	if len(failedTaskIDs) == 0 {
+		failedTaskIDs = append([]string{}, response.ResumeTaskIDs...)
+	}
+	for _, childTaskID := range failedTaskIDs {
+		feedback := strings.TrimSpace(response.FeedbackForResume)
+		if result, ok := response.TaskResults[childTaskID]; ok {
+			if taskFeedback := strings.TrimSpace(result.Feedback); taskFeedback != "" {
+				feedback = taskFeedback
+			}
+		}
 		if _, err := UpsertPendingParentReviewFeedback(
 			baseDir,
 			childTaskID,
 			parentTaskID,
 			reviewRunID,
-			response.FeedbackForResume,
+			feedback,
 		); err != nil {
 			return fmt.Errorf("persist pending parent review feedback for child %q: %w", childTaskID, err)
 		}

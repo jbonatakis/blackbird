@@ -86,6 +86,8 @@ type Model struct {
 	actionName              string
 	actionCancel            context.CancelFunc
 	spinnerIndex            int
+	executionState          execution.ExecutionStageState
+	executionStateChan      chan execution.ExecutionStageState
 	runData                 map[string]execution.RunRecord
 	pendingParentFeedback   map[string]execution.PendingParentReviewFeedback
 	timerActive             bool
@@ -102,6 +104,7 @@ type Model struct {
 	planReviewForm          *PlanReviewForm
 	reviewCheckpointForm    *ReviewCheckpointForm
 	parentReviewForm        *ParentReviewForm
+	parentReviewResumeState *ParentReviewForm
 	pendingPlanRequest      PendingPlanRequest
 	pendingResumeTask       string
 	agentSelection          agent.AgentSelection
@@ -127,6 +130,9 @@ func NewModel(g plan.WorkGraph) Model {
 		agentSelection: agent.AgentSelection{
 			Agent:         agent.DefaultAgent(),
 			ConfigPresent: false,
+		},
+		executionState: execution.ExecutionStageState{
+			Stage: execution.ExecutionStageIdle,
 		},
 		config:   config.DefaultResolvedConfig(),
 		settings: defaultSettingsState(),
@@ -251,15 +257,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.actionCancel = nil
 		if typed.Action == "execute" || typed.Action == "resume" {
 			m.clearLiveOutput()
+			m.executionStateChan = nil
 		}
 		parentReviewRequired := typed.Result != nil && typed.Result.Reason == execution.ExecuteReasonParentReviewRequired
+		parentReviewCompleted := typed.Result != nil &&
+			typed.Result.Reason == execution.ExecuteReasonCompleted &&
+			typed.Result.Run != nil &&
+			typed.Result.Run.Type == execution.RunTypeReview
 		decisionRequired := typed.Result != nil && typed.Result.Reason == execution.ExecuteReasonDecisionRequired
+		if !parentReviewRequired {
+			m.executionState = execution.ExecutionStageState{Stage: execution.ExecutionStageIdle}
+		}
+		restoreParentReview := false
+		if typed.Action == "resume" && typed.Err != nil {
+			var restored bool
+			m, restored = m.restoreParentReviewAfterResumeError(typed.Err)
+			restoreParentReview = restored
+		}
 		if typed.Err != nil {
-			m.actionOutput = &ActionOutput{
-				Message: fmt.Sprintf("Action failed: %v\n\n%s", typed.Err, typed.Output),
-				IsError: true,
+			if !restoreParentReview {
+				m.actionOutput = &ActionOutput{
+					Message: fmt.Sprintf("Action failed: %v\n\n%s", typed.Err, typed.Output),
+					IsError: true,
+				}
 			}
 		} else if parentReviewRequired {
+			m.actionOutput = nil
+			if typed.Result != nil && typed.Result.Run != nil {
+				m = openParentReviewModal(m, *typed.Result.Run)
+			}
+		} else if parentReviewCompleted {
 			m.actionOutput = nil
 			if typed.Result != nil && typed.Result.Run != nil {
 				m = openParentReviewModal(m, *typed.Result.Run)
@@ -285,6 +312,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					IsError: false,
 				}
 			}
+		}
+		if typed.Action == "resume" {
+			m.parentReviewResumeState = nil
 		}
 		if typed.Action == "execute" || typed.Action == "resume" || typed.Action == "set-status" {
 			return m, tea.Batch(m.LoadRunData(), m.LoadPlanData())
@@ -329,12 +359,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if typed.Action == execution.DecisionStateApprovedContinue {
 			m.actionInProgress = true
 			m.actionName = "Executing..."
+			m.executionState = execution.ExecutionStageState{Stage: execution.ExecutionStageIdle}
 			ctx, cancel := context.WithCancel(context.Background())
 			m.actionCancel = cancel
 			streamCh, stdout, stderr := m.startLiveOutput()
+			stageCh := m.startLiveExecutionStage()
 			return m, tea.Batch(
-				ExecuteCmdWithContextAndStream(ctx, stdout, stderr, streamCh, m.config.Execution.StopAfterEachTask),
+				ExecuteCmdWithContextAndStream(
+					ctx,
+					stdout,
+					stderr,
+					streamCh,
+					stageCh,
+					m.config.Execution.StopAfterEachTask,
+					m.config.Execution.ParentReviewEnabled,
+				),
 				listenLiveOutputCmd(streamCh),
+				listenExecutionStageCmd(stageCh),
 				spinnerTickCmd(),
 				m.LoadRunData(),
 				m.LoadPlanData(),
@@ -431,6 +472,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case liveOutputDoneMsg:
 		m.liveOutputChan = nil
+		return m, nil
+	case executionStageMsg:
+		m.executionState = typed.state
+		if m.executionStateChan != nil {
+			return m, listenExecutionStageCmd(m.executionStateChan)
+		}
+		return m, nil
+	case executionStageDoneMsg:
+		m.executionStateChan = nil
 		return m, nil
 	case runDataRefreshMsg:
 		return m, tea.Batch(m.LoadRunData(), m.RunDataRefreshCmd())
@@ -604,12 +654,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				m.actionInProgress = true
 				m.actionName = "Executing..."
+				m.executionState = execution.ExecutionStageState{Stage: execution.ExecutionStageIdle}
 				ctx, cancel := context.WithCancel(context.Background())
 				m.actionCancel = cancel
 				streamCh, stdout, stderr := m.startLiveOutput()
+				stageCh := m.startLiveExecutionStage()
 				return m, tea.Batch(
-					ExecuteCmdWithContextAndStream(ctx, stdout, stderr, streamCh, m.config.Execution.StopAfterEachTask),
+					ExecuteCmdWithContextAndStream(
+						ctx,
+						stdout,
+						stderr,
+						streamCh,
+						stageCh,
+						m.config.Execution.StopAfterEachTask,
+						m.config.Execution.ParentReviewEnabled,
+					),
 					listenLiveOutputCmd(streamCh),
+					listenExecutionStageCmd(stageCh),
 					spinnerTickCmd(),
 				)
 			case "c":
@@ -751,12 +812,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.actionInProgress = true
 			m.actionName = "Executing..."
+			m.executionState = execution.ExecutionStageState{Stage: execution.ExecutionStageIdle}
 			ctx, cancel := context.WithCancel(context.Background())
 			m.actionCancel = cancel
 			streamCh, stdout, stderr := m.startLiveOutput()
+			stageCh := m.startLiveExecutionStage()
 			return m, tea.Batch(
-				ExecuteCmdWithContextAndStream(ctx, stdout, stderr, streamCh, m.config.Execution.StopAfterEachTask),
+				ExecuteCmdWithContextAndStream(
+					ctx,
+					stdout,
+					stderr,
+					streamCh,
+					stageCh,
+					m.config.Execution.StopAfterEachTask,
+					m.config.Execution.ParentReviewEnabled,
+				),
 				listenLiveOutputCmd(streamCh),
+				listenExecutionStageCmd(stageCh),
 				spinnerTickCmd(),
 			)
 		case "s":
@@ -850,10 +922,12 @@ func (m Model) startFeedbackResumeAction(taskIDs []string) (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	m.parentReviewResumeState = nil
 	m.actionMode = ActionModeNone
 	m.parentReviewForm = nil
 	m.actionInProgress = true
 	m.actionName = "Resuming..."
+	m.executionState = execution.ExecutionStageState{Stage: execution.ExecutionStageIdle}
 	ctx, cancel := context.WithCancel(context.Background())
 	m.actionCancel = cancel
 	streamCh, stdout, stderr := m.startLiveOutput()
@@ -870,6 +944,69 @@ func (m Model) startFeedbackResumeAction(taskIDs []string) (Model, tea.Cmd) {
 		listenLiveOutputCmd(streamCh),
 		spinnerTickCmd(),
 	)
+}
+
+func (m Model) startParentReviewResumeAction(
+	targets []ResumePendingParentFeedbackTarget,
+	snapshot ParentReviewForm,
+) (Model, tea.Cmd) {
+	normalizedTargets := normalizeResumeTargetsWithFeedback(targets)
+	if len(normalizedTargets) == 0 {
+		snapshot.SetActionError("Resume failed: no resume targets selected")
+		m.parentReviewForm = &snapshot
+		m.actionMode = ActionModeParentReview
+		return m, nil
+	}
+
+	snapshot.SetActionError("")
+	m.parentReviewResumeState = &snapshot
+	m.actionMode = ActionModeNone
+	m.parentReviewForm = nil
+	m.actionInProgress = true
+	m.actionName = "Resuming..."
+	m.executionState = execution.ExecutionStageState{Stage: execution.ExecutionStageIdle}
+	ctx, cancel := context.WithCancel(context.Background())
+	m.actionCancel = cancel
+	streamCh, stdout, stderr := m.startLiveOutput()
+
+	var resumeCmd tea.Cmd
+	if len(normalizedTargets) == 1 {
+		resumeCmd = ResumePendingParentFeedbackTargetCmdWithContextAndStream(
+			ctx,
+			normalizedTargets[0],
+			stdout,
+			stderr,
+			streamCh,
+		)
+	} else {
+		resumeCmd = ResumePendingParentFeedbackTargetsWithFeedbackCmdWithContextAndStream(
+			ctx,
+			normalizedTargets,
+			stdout,
+			stderr,
+			streamCh,
+		)
+	}
+
+	return m, tea.Batch(
+		resumeCmd,
+		listenLiveOutputCmd(streamCh),
+		spinnerTickCmd(),
+	)
+}
+
+func (m Model) restoreParentReviewAfterResumeError(err error) (Model, bool) {
+	if m.parentReviewResumeState == nil {
+		return m, false
+	}
+
+	restored := *m.parentReviewResumeState
+	restored.SetActionError(fmt.Sprintf("Resume failed: %v", err))
+	restored.SetSize(m.windowWidth, m.windowHeight)
+	m.parentReviewForm = &restored
+	m.actionMode = ActionModeParentReview
+	m.actionOutput = nil
+	return m, true
 }
 
 func cancelRunningAction(m Model) Model {
@@ -1052,6 +1189,12 @@ func (m *Model) startLiveOutput() (chan liveOutputMsg, io.Writer, io.Writer) {
 	return streamCh,
 		liveOutputWriter{ch: streamCh, stream: "stdout"},
 		liveOutputWriter{ch: streamCh, stream: "stderr"}
+}
+
+func (m *Model) startLiveExecutionStage() chan execution.ExecutionStageState {
+	stageCh := make(chan execution.ExecutionStageState, 64)
+	m.executionStateChan = stageCh
+	return stageCh
 }
 
 func (m *Model) clearLiveOutput() {

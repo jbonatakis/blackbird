@@ -320,14 +320,33 @@ func startReviewDecision(m Model, action execution.DecisionState, feedback strin
 	if action == execution.DecisionStateChangesRequested {
 		streamCh, stdout, stderr := m.startLiveOutput()
 		return m, tea.Batch(
-			ResolveDecisionCmdWithContextAndStream(ctx, taskID, runID, action, feedback, m.config.Execution.StopAfterEachTask, stdout, stderr, streamCh),
+			ResolveDecisionCmdWithContextAndStream(
+				ctx,
+				taskID,
+				runID,
+				action,
+				feedback,
+				m.config.Execution.StopAfterEachTask,
+				m.config.Execution.ParentReviewEnabled,
+				stdout,
+				stderr,
+				streamCh,
+			),
 			listenLiveOutputCmd(streamCh),
 			spinnerTickCmd(),
 		)
 	}
 
 	return m, tea.Batch(
-		ResolveDecisionCmdWithContext(ctx, taskID, runID, action, feedback, m.config.Execution.StopAfterEachTask),
+		ResolveDecisionCmdWithContext(
+			ctx,
+			taskID,
+			runID,
+			action,
+			feedback,
+			m.config.Execution.StopAfterEachTask,
+			m.config.Execution.ParentReviewEnabled,
+		),
 		spinnerTickCmd(),
 	)
 }

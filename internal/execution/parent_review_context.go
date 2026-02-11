@@ -126,9 +126,9 @@ func parentReviewArtifactRefsForChildRun(run RunRecord) []string {
 }
 
 func parentReviewSystemPrompt() string {
-	return "You are running a parent-task review. Evaluate whether child-task outputs satisfy the parent acceptance criteria. Do not implement code changes."
+	return `You are running a parent-task review. Evaluate whether child-task outputs satisfy the parent acceptance criteria. Do not implement code changes. Respond with exactly one JSON object and no markdown or additional text. Required schema: {"passed": boolean, "resumeTaskIds": string[], "feedbackForResume": string, "reviewResults": [{"taskId": string, "status": "passed"|"failed", "feedback": string}]}. When passed=true, resumeTaskIds must be empty and feedbackForResume must be empty. When passed=false, resumeTaskIds must contain one or more unique child task IDs from parentReview.children and feedbackForResume must be non-empty.`
 }
 
 func parentReviewerInstructions() string {
-	return "Act as a reviewer only. Assess the parent acceptance criteria against child outputs, flag major correctness or security issues, and map failures to child task IDs with actionable feedback."
+	return "Act as a reviewer only. Assess the parent acceptance criteria against child outputs, flag major correctness or security issues, and map failures to child task IDs with actionable feedback. Base resumeTaskIds and reviewResults.taskId values only on IDs present in parentReview.children."
 }

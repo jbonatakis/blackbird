@@ -2,13 +2,16 @@ package tui
 
 import (
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/jbonatakis/blackbird/internal/execution"
 	"github.com/jbonatakis/blackbird/internal/plan"
+	"github.com/muesli/termenv"
 )
 
 func TestNewParentReviewFormNormalizesTargetsAndFeedback(t *testing.T) {
@@ -50,108 +53,216 @@ func TestNewParentReviewFormNormalizesTargetsAndFeedback(t *testing.T) {
 	if got, want := form.ResumeTargets(), []string{"child-a", "child-b"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("ResumeTargets() = %#v, want %#v", got, want)
 	}
-	if form.selectedTarget != 0 {
-		t.Fatalf("selectedTarget = %d, want 0", form.selectedTarget)
+	if form.SelectedTarget() != "child-a" {
+		t.Fatalf("SelectedTarget() = %q, want %q", form.SelectedTarget(), "child-a")
+	}
+	if form.SelectedAction() != parentReviewActionContinue {
+		t.Fatalf("SelectedAction() = %d, want %d", form.SelectedAction(), parentReviewActionContinue)
 	}
 	if got := form.Feedback(); got != "Missing validation coverage.\nRetry with stricter checks." {
 		t.Fatalf("Feedback() = %q", got)
 	}
 }
 
-func TestParentReviewFormUpdateNavigatesTargets(t *testing.T) {
-	form := NewParentReviewForm(testParentReviewRun(), plan.NewEmptyWorkGraph())
-
-	if form.SelectedTarget() != "child-a" {
-		t.Fatalf("initial SelectedTarget() = %q, want child-a", form.SelectedTarget())
+func TestNewParentReviewFormUsesStructuredResultsForTargetsAndFeedback(t *testing.T) {
+	run := execution.RunRecord{
+		ID:     "review-100",
+		TaskID: "parent-checkout",
+		ParentReviewResults: execution.ParentReviewTaskResults{
+			"child-c": {
+				TaskID: "child-c",
+				Status: execution.ParentReviewTaskStatusPassed,
+			},
+			"child-b": {
+				TaskID:   "child-b",
+				Status:   execution.ParentReviewTaskStatusFailed,
+				Feedback: "Fix child-b checkout retries.",
+			},
+			"child-a": {
+				TaskID:   "child-a",
+				Status:   execution.ParentReviewTaskStatusFailed,
+				Feedback: "Fix child-a tax calculations.",
+			},
+		},
+		Context: execution.ContextPack{
+			Task: execution.TaskContext{
+				ID:    "parent-checkout",
+				Title: "Parent Checkout Review",
+			},
+		},
 	}
 
-	var action ParentReviewModalAction
-	form, action = form.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	if action != ParentReviewModalActionNone {
-		t.Fatalf("action after down = %v, want none", action)
-	}
-	if form.SelectedTarget() != "child-b" {
-		t.Fatalf("SelectedTarget() after down = %q, want child-b", form.SelectedTarget())
-	}
-
-	form, action = form.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	if action != ParentReviewModalActionNone {
-		t.Fatalf("action after second down = %v, want none", action)
-	}
-	if form.SelectedTarget() != "child-c" {
-		t.Fatalf("SelectedTarget() after second down = %q, want child-c", form.SelectedTarget())
-	}
-
-	form, action = form.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	if action != ParentReviewModalActionNone {
-		t.Fatalf("action after third down = %v, want none", action)
-	}
-	if form.SelectedTarget() != "child-c" {
-		t.Fatalf("SelectedTarget() should stay at last target, got %q", form.SelectedTarget())
-	}
-
-	form, action = form.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
-	if action != ParentReviewModalActionNone {
-		t.Fatalf("action after up = %v, want none", action)
-	}
-	if form.SelectedTarget() != "child-b" {
-		t.Fatalf("SelectedTarget() after up = %q, want child-b", form.SelectedTarget())
-	}
-}
-
-func TestParentReviewFormUpdateReturnsExplicitActions(t *testing.T) {
-	form := NewParentReviewForm(testParentReviewRun(), plan.NewEmptyWorkGraph())
-	form, _ = form.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-
-	_, action := form.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if action != ParentReviewModalActionResumeSelected {
-		t.Fatalf("enter action = %v, want resume selected", action)
-	}
-
-	_, action = form.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
-	if action != ParentReviewModalActionResumeSelected {
-		t.Fatalf("1 action = %v, want resume selected", action)
-	}
-
-	_, action = form.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
-	if action != ParentReviewModalActionResumeAll {
-		t.Fatalf("2 action = %v, want resume all", action)
-	}
-
-	_, action = form.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}})
-	if action != ParentReviewModalActionDismiss {
-		t.Fatalf("3 action = %v, want dismiss", action)
-	}
-
-	_, action = form.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	if action != ParentReviewModalActionDismiss {
-		t.Fatalf("esc action = %v, want dismiss", action)
-	}
-}
-
-func TestParentReviewFormUpdateNoTargetsDisablesResumeActions(t *testing.T) {
-	run := testParentReviewRun()
-	run.ParentReviewResumeTaskIDs = nil
 	form := NewParentReviewForm(run, plan.NewEmptyWorkGraph())
-
-	if form.SelectedTarget() != "" {
-		t.Fatalf("SelectedTarget() = %q, want empty", form.SelectedTarget())
+	if got, want := form.ReviewedTaskIDs(), []string{"child-a", "child-b", "child-c"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("ReviewedTaskIDs() = %#v, want %#v", got, want)
 	}
-
-	_, action := form.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if action != ParentReviewModalActionNone {
-		t.Fatalf("enter action with no targets = %v, want none", action)
+	if got, want := form.ResumeTargets(), []string{"child-a", "child-b"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("ResumeTargets() = %#v, want %#v", got, want)
 	}
-
-	_, action = form.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
-	if action != ParentReviewModalActionNone {
-		t.Fatalf("2 action with no targets = %v, want none", action)
+	if form.SelectedTarget() != "child-a" {
+		t.Fatalf("SelectedTarget() = %q, want %q", form.SelectedTarget(), "child-a")
+	}
+	if form.Feedback() != "Fix child-a tax calculations." {
+		t.Fatalf("Feedback() = %q", form.Feedback())
 	}
 }
 
-func TestRenderParentReviewModalIncludesDeterministicContent(t *testing.T) {
+func TestParentReviewFormUpdateMatchesInterruptionKeybindings(t *testing.T) {
+	form := NewParentReviewForm(testParentReviewRun(), plan.NewEmptyWorkGraph())
+	if form.SelectedAction() != parentReviewActionContinue {
+		t.Fatalf("initial SelectedAction() = %d, want %d", form.SelectedAction(), parentReviewActionContinue)
+	}
+
+	updated, action := form.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+	if action != ParentReviewModalActionNone {
+		t.Fatalf("2 action = %v, want none", action)
+	}
+	if updated.SelectedAction() != parentReviewActionResumeAllFailed {
+		t.Fatalf("SelectedAction() after 2 = %d, want %d", updated.SelectedAction(), parentReviewActionResumeAllFailed)
+	}
+
+	updated, action = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if action != ParentReviewModalActionResumeAllFailed {
+		t.Fatalf("enter action = %v, want resume all failed", action)
+	}
+
+	updated, action = form.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if action != ParentReviewModalActionNone {
+		t.Fatalf("down action = %v, want none", action)
+	}
+	if updated.SelectedAction() != parentReviewActionResumeAllFailed {
+		t.Fatalf("SelectedAction() after down = %d, want %d", updated.SelectedAction(), parentReviewActionResumeAllFailed)
+	}
+
+	updated, action = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	if action != ParentReviewModalActionNone {
+		t.Fatalf("j action = %v, want none", action)
+	}
+	if updated.SelectedAction() != parentReviewActionResumeOneTask {
+		t.Fatalf("SelectedAction() after j = %d, want %d", updated.SelectedAction(), parentReviewActionResumeOneTask)
+	}
+
+	updated, action = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	if action != ParentReviewModalActionNone {
+		t.Fatalf("k action = %v, want none", action)
+	}
+	if updated.SelectedAction() != parentReviewActionResumeAllFailed {
+		t.Fatalf("SelectedAction() after k = %d, want %d", updated.SelectedAction(), parentReviewActionResumeAllFailed)
+	}
+
+	updated, action = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}})
+	if action != ParentReviewModalActionNone {
+		t.Fatalf("3 action = %v, want none", action)
+	}
+	if updated.SelectedAction() != parentReviewActionResumeOneTask {
+		t.Fatalf("SelectedAction() after 3 = %d, want %d", updated.SelectedAction(), parentReviewActionResumeOneTask)
+	}
+
+	_, action = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if action != ParentReviewModalActionResumeOneTask {
+		t.Fatalf("enter action on resume-one = %v, want resume one", action)
+	}
+
+	updated, action = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'4'}})
+	if action != ParentReviewModalActionNone {
+		t.Fatalf("4 action = %v, want none", action)
+	}
+	if updated.SelectedAction() != parentReviewActionDiscardChanges {
+		t.Fatalf("SelectedAction() after 4 = %d, want %d", updated.SelectedAction(), parentReviewActionDiscardChanges)
+	}
+
+	updated, action = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if action != ParentReviewModalActionNone {
+		t.Fatalf("enter action on discard = %v, want none while confirm prompt opens", action)
+	}
+	if updated.Mode() != ParentReviewModalModeConfirmDiscard {
+		t.Fatalf("mode after discard enter = %v, want %v", updated.Mode(), ParentReviewModalModeConfirmDiscard)
+	}
+
+	updated, action = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if action != ParentReviewModalActionNone {
+		t.Fatalf("esc action in discard confirmation = %v, want none", action)
+	}
+	if updated.Mode() != ParentReviewModalModeActions {
+		t.Fatalf("mode after discard confirm escape = %v, want %v", updated.Mode(), ParentReviewModalModeActions)
+	}
+	_, action = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if action != ParentReviewModalActionContinue {
+		t.Fatalf("esc action = %v, want continue", action)
+	}
+
+	updated, action = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if action != ParentReviewModalActionNone {
+		t.Fatalf("enter action reopening discard confirmation = %v, want none", action)
+	}
+	if updated.Mode() != ParentReviewModalModeConfirmDiscard {
+		t.Fatalf("mode after reopening discard confirm = %v, want %v", updated.Mode(), ParentReviewModalModeConfirmDiscard)
+	}
+
+	updated, action = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+	if action != ParentReviewModalActionNone {
+		t.Fatalf("2 action in discard confirmation = %v, want none", action)
+	}
+	_, action = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if action != ParentReviewModalActionDiscardChanges {
+		t.Fatalf("enter action on discard confirmation = %v, want discard", action)
+	}
+}
+
+func TestParentReviewFormUpdateNoFailedDisablesResumeActions(t *testing.T) {
+	form := NewParentReviewForm(testParentReviewAllPassedRun(), plan.NewEmptyWorkGraph())
+	if form.HasFailedTasks() {
+		t.Fatalf("expected HasFailedTasks() false")
+	}
+
+	updated, action := form.Update(tea.KeyMsg{Type: tea.KeyDown})
+	if action != ParentReviewModalActionNone {
+		t.Fatalf("down action = %v, want none", action)
+	}
+	if updated.SelectedAction() != parentReviewActionDiscardChanges {
+		t.Fatalf("SelectedAction() after down = %d, want %d", updated.SelectedAction(), parentReviewActionDiscardChanges)
+	}
+
+	updated, action = updated.Update(tea.KeyMsg{Type: tea.KeyUp})
+	if action != ParentReviewModalActionNone {
+		t.Fatalf("up action = %v, want none", action)
+	}
+	if updated.SelectedAction() != parentReviewActionContinue {
+		t.Fatalf("SelectedAction() after up = %d, want %d", updated.SelectedAction(), parentReviewActionContinue)
+	}
+
+	updated, action = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+	if action != ParentReviewModalActionNone {
+		t.Fatalf("2 action = %v, want none", action)
+	}
+	if updated.SelectedAction() != parentReviewActionContinue {
+		t.Fatalf("SelectedAction() should remain continue when resume-all disabled, got %d", updated.SelectedAction())
+	}
+
+	updated, action = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}})
+	if action != ParentReviewModalActionNone {
+		t.Fatalf("3 action = %v, want none", action)
+	}
+	if updated.SelectedAction() != parentReviewActionContinue {
+		t.Fatalf("SelectedAction() should remain continue when resume-one disabled, got %d", updated.SelectedAction())
+	}
+
+	updated.selectedAction = parentReviewActionResumeAllFailed
+	_, action = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if action != ParentReviewModalActionNone {
+		t.Fatalf("enter action on disabled resume-all = %v, want none", action)
+	}
+
+	updated.selectedAction = parentReviewActionResumeOneTask
+	_, action = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if action != ParentReviewModalActionNone {
+		t.Fatalf("enter action on disabled resume-one = %v, want none", action)
+	}
+}
+
+func TestRenderParentReviewModalRendersStructuredReviewContentAndActionOrder(t *testing.T) {
 	run := testParentReviewRun()
-	m := Model{windowWidth: 100, windowHeight: 30}
+	m := Model{windowWidth: 110, windowHeight: 34}
 	form := NewParentReviewForm(run, plan.NewEmptyWorkGraph())
 
 	first := stripANSI(RenderParentReviewModal(m, form))
@@ -161,35 +272,81 @@ func TestRenderParentReviewModalIncludesDeterministicContent(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"Parent review failed",
+		"Post-review results",
 		"Parent task: parent-checkout - Parent Checkout Review",
 		"Review run: review-42",
 		"Outcome: failed",
-		"Resume targets:",
-		"1. child-a",
-		"2. child-b",
-		"3. child-c",
-		"Feedback:",
-		"Child outputs miss required validation paths.",
-		"Retry with stricter coverage.",
+		"Reviewed tasks:",
+		"[FAIL] child-a",
+		"feedback: Fix child-a validation gaps.",
+		"[FAIL] child-b",
+		"feedback: Improve child-b retry handling.",
+		"[PASS] child-c",
 		"Actions:",
-		"1. Resume selected target",
-		"2. Resume all targets",
-		"3. Dismiss",
+		"1. Continue",
+		"2. Resume all failed",
+		"3. Resume one task",
+		"4. Discard changes",
 	} {
 		if !strings.Contains(first, want) {
 			t.Fatalf("expected modal to include %q, got:\n%s", want, first)
 		}
 	}
 
-	childAIdx := strings.Index(first, "1. child-a")
-	childBIdx := strings.Index(first, "2. child-b")
-	childCIdx := strings.Index(first, "3. child-c")
-	if childAIdx == -1 || childBIdx == -1 || childCIdx == -1 {
-		t.Fatalf("expected all sorted resume targets in output")
+	continueIdx := strings.Index(first, "1. Continue")
+	resumeAllIdx := strings.Index(first, "2. Resume all failed")
+	resumeOneIdx := strings.Index(first, "3. Resume one task")
+	discardIdx := strings.Index(first, "4. Discard changes")
+	if continueIdx == -1 || resumeAllIdx == -1 || resumeOneIdx == -1 || discardIdx == -1 {
+		t.Fatalf("expected all four actions in output")
 	}
-	if !(childAIdx < childBIdx && childBIdx < childCIdx) {
-		t.Fatalf("expected sorted resume target order, got:\n%s", first)
+	if !(continueIdx < resumeAllIdx && resumeAllIdx < resumeOneIdx && resumeOneIdx < discardIdx) {
+		t.Fatalf("expected action order Continue -> Resume all -> Resume one -> Discard, got:\n%s", first)
+	}
+}
+
+func TestRenderParentReviewModalDiscardActionUsesDestructiveStyling(t *testing.T) {
+	profile := lipgloss.ColorProfile()
+	lipgloss.SetColorProfile(termenv.ANSI256)
+	t.Cleanup(func() {
+		lipgloss.SetColorProfile(profile)
+	})
+
+	run := testParentReviewRun()
+	m := Model{windowWidth: 100, windowHeight: 32}
+	form := NewParentReviewForm(run, plan.NewEmptyWorkGraph())
+
+	rendered := RenderParentReviewModal(m, form)
+	discardLine := findLineContaining(strings.Split(rendered, "\n"), "4. Discard changes")
+	if discardLine == "" {
+		t.Fatalf("expected discard action line in output")
+	}
+
+	redStyle := regexp.MustCompile(`\x1b\[[0-9;]*196m`)
+	if !redStyle.MatchString(discardLine) {
+		t.Fatalf("expected discard action line to include destructive red styling, line=%q", discardLine)
+	}
+
+	stripped := stripANSI(discardLine)
+	if !strings.Contains(stripped, "4. Discard changes") {
+		t.Fatalf("expected discard action to remain selectable/readable, line=%q", stripped)
+	}
+}
+
+func TestRenderParentReviewModalNoFailedShowsDisabledResumeActionsAndExplanation(t *testing.T) {
+	run := testParentReviewAllPassedRun()
+	m := Model{windowWidth: 100, windowHeight: 30}
+	form := NewParentReviewForm(run, plan.NewEmptyWorkGraph())
+
+	out := stripANSI(RenderParentReviewModal(m, form))
+	for _, want := range []string{
+		"No failed tasks were reported; resume actions are disabled.",
+		"2. Resume all failed (disabled)",
+		"3. Resume one task (disabled)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected no-fail modal text %q, got:\n%s", want, out)
+		}
 	}
 }
 
@@ -199,12 +356,23 @@ func testParentReviewRun() execution.RunRecord {
 		ID:                 "review-42",
 		TaskID:             "parent-checkout",
 		ParentReviewPassed: &passed,
-		ParentReviewResumeTaskIDs: []string{
-			"child-b",
-			" child-c ",
-			"child-a",
+		ParentReviewResults: execution.ParentReviewTaskResults{
+			"child-b": {
+				TaskID:   "child-b",
+				Status:   execution.ParentReviewTaskStatusFailed,
+				Feedback: "Improve child-b retry handling.",
+			},
+			"child-c": {
+				TaskID: "child-c",
+				Status: execution.ParentReviewTaskStatusPassed,
+			},
+			"child-a": {
+				TaskID:   "child-a",
+				Status:   execution.ParentReviewTaskStatusFailed,
+				Feedback: "Fix child-a validation gaps.",
+			},
 		},
-		ParentReviewFeedback: "Child outputs miss required validation paths.\n\nRetry with stricter coverage.",
+		ParentReviewFeedback: "Fallback review feedback.",
 		Context: execution.ContextPack{
 			Task: execution.TaskContext{
 				ID:    "parent-checkout",
@@ -213,6 +381,31 @@ func testParentReviewRun() execution.RunRecord {
 			ParentReview: &execution.ParentReviewContext{
 				ParentTaskID:    "parent-checkout",
 				ParentTaskTitle: "Parent Checkout Review",
+			},
+		},
+	}
+}
+
+func testParentReviewAllPassedRun() execution.RunRecord {
+	passed := true
+	return execution.RunRecord{
+		ID:                 "review-77",
+		TaskID:             "parent-checkout",
+		ParentReviewPassed: &passed,
+		ParentReviewResults: execution.ParentReviewTaskResults{
+			"child-a": {
+				TaskID: "child-a",
+				Status: execution.ParentReviewTaskStatusPassed,
+			},
+			"child-b": {
+				TaskID: "child-b",
+				Status: execution.ParentReviewTaskStatusPassed,
+			},
+		},
+		Context: execution.ContextPack{
+			Task: execution.TaskContext{
+				ID:    "parent-checkout",
+				Title: "Parent Checkout Review",
 			},
 		},
 	}

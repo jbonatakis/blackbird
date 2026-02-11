@@ -14,14 +14,16 @@ import (
 
 // ExecutionController centralizes execution and decision checkpoint flows for CLI/TUI.
 type ExecutionController struct {
-	PlanPath          string
-	Graph             *plan.WorkGraph
-	Runtime           agent.Runtime
-	StreamStdout      io.Writer
-	StreamStderr      io.Writer
-	StopAfterEachTask bool
-	OnTaskStart       func(taskID string)
-	OnTaskFinish      func(taskID string, record RunRecord, execErr error)
+	PlanPath            string
+	Graph               *plan.WorkGraph
+	Runtime             agent.Runtime
+	StreamStdout        io.Writer
+	StreamStderr        io.Writer
+	StopAfterEachTask   bool
+	ParentReviewEnabled bool
+	OnStateChange       func(ExecutionStageState)
+	OnTaskStart         func(taskID string)
+	OnTaskFinish        func(taskID string, record RunRecord, execErr error)
 }
 
 // DecisionRequest captures a user decision for a run checkpoint.
@@ -42,14 +44,16 @@ type DecisionResult struct {
 
 func (c ExecutionController) Execute(ctx context.Context) (ExecuteResult, error) {
 	return RunExecute(ctx, ExecuteConfig{
-		PlanPath:          c.PlanPath,
-		Graph:             c.Graph,
-		Runtime:           c.Runtime,
-		StopAfterEachTask: c.StopAfterEachTask,
-		StreamStdout:      c.StreamStdout,
-		StreamStderr:      c.StreamStderr,
-		OnTaskStart:       c.OnTaskStart,
-		OnTaskFinish:      c.OnTaskFinish,
+		PlanPath:            c.PlanPath,
+		Graph:               c.Graph,
+		Runtime:             c.Runtime,
+		StopAfterEachTask:   c.StopAfterEachTask,
+		ParentReviewEnabled: c.ParentReviewEnabled,
+		StreamStdout:        c.StreamStdout,
+		StreamStderr:        c.StreamStderr,
+		OnStateChange:       c.OnStateChange,
+		OnTaskStart:         c.OnTaskStart,
+		OnTaskFinish:        c.OnTaskFinish,
 	})
 }
 

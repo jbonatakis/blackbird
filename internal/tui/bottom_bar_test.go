@@ -196,10 +196,74 @@ func TestBottomBarParentReviewHintsShowResumeTargetActions(t *testing.T) {
 	}
 
 	out := RenderBottomBar(model)
-	for _, hint := range []string{"[1/enter]resume-target", "[2]resume-all", "[3/esc]dismiss"} {
+	for _, hint := range []string{"[↑/↓]navigate", "[1-4]select", "[enter]confirm", "[esc]back"} {
 		if !strings.Contains(out, hint) {
 			t.Fatalf("expected parent-review hint %q, got %q", hint, out)
 		}
+	}
+}
+
+func TestBottomBarShowsReviewingTextOnlyWhileReviewingStageActive(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
+	baseModel := Model{
+		viewMode:         ViewModeMain,
+		planExists:       true,
+		actionInProgress: true,
+		actionName:       "Executing...",
+		windowWidth:      160,
+		windowHeight:     10,
+	}
+
+	reviewingModel := baseModel
+	reviewingModel.executionState = execution.ExecutionStageState{
+		Stage:          execution.ExecutionStageReviewing,
+		ReviewedTaskID: "parent-1",
+	}
+	reviewingOut := RenderBottomBar(reviewingModel)
+	if !strings.Contains(reviewingOut, "Reviewing...") {
+		t.Fatalf("expected reviewing status text while reviewing stage is active, got %q", reviewingOut)
+	}
+	if strings.Contains(reviewingOut, "Executing...") {
+		t.Fatalf("expected execute text to be replaced by reviewing text, got %q", reviewingOut)
+	}
+
+	executingModel := baseModel
+	executingModel.executionState = execution.ExecutionStageState{
+		Stage: execution.ExecutionStageExecuting,
+	}
+	executingOut := RenderBottomBar(executingModel)
+	if !strings.Contains(executingOut, "Executing...") {
+		t.Fatalf("expected execute text outside reviewing stage, got %q", executingOut)
+	}
+	if strings.Contains(executingOut, "Reviewing...") {
+		t.Fatalf("expected reviewing text to be absent outside reviewing stage, got %q", executingOut)
+	}
+}
+
+func TestBottomBarReviewingTextClearsWhenActionStops(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
+	model := Model{
+		viewMode:     ViewModeMain,
+		planExists:   true,
+		actionName:   "Executing...",
+		windowWidth:  160,
+		windowHeight: 10,
+		executionState: execution.ExecutionStageState{
+			Stage:          execution.ExecutionStageReviewing,
+			ReviewedTaskID: "parent-1",
+		},
+	}
+
+	model.actionInProgress = true
+	activeOut := RenderBottomBar(model)
+	if !strings.Contains(activeOut, "Reviewing...") {
+		t.Fatalf("expected reviewing text while action is in progress, got %q", activeOut)
+	}
+
+	model.actionInProgress = false
+	inactiveOut := RenderBottomBar(model)
+	if strings.Contains(inactiveOut, "Reviewing...") {
+		t.Fatalf("expected reviewing text to clear once action is no longer in progress, got %q", inactiveOut)
 	}
 }
 
