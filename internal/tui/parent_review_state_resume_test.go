@@ -82,73 +82,68 @@ func TestUpdateParentReviewResumeAllStartsAction(t *testing.T) {
 	}
 }
 
-func TestUpdateParentReviewDiscardRequiresConfirmationAndCancelReturnsToScreen(t *testing.T) {
+func TestUpdateParentReviewQuitClosesScreenWithoutRestartingExecute(t *testing.T) {
 	model := testParentReviewStateModel()
+	model.resumeExecuteAfterParentReview = true
 
 	updatedModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'4'}})
 	updated := updatedModel.(Model)
-	updatedModel, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	updated = updatedModel.(Model)
-
-	if cmd != nil {
-		t.Fatalf("expected no command while opening discard confirmation")
-	}
-	if updated.actionMode != ActionModeParentReview {
-		t.Fatalf("actionMode = %v, want %v while confirming discard", updated.actionMode, ActionModeParentReview)
-	}
-	if updated.parentReviewForm == nil {
-		t.Fatalf("expected parentReviewForm to remain active during discard confirmation")
-	}
-	if updated.parentReviewForm.Mode() != ParentReviewModalModeConfirmDiscard {
-		t.Fatalf(
-			"parentReviewForm.Mode() = %v, want %v",
-			updated.parentReviewForm.Mode(),
-			ParentReviewModalModeConfirmDiscard,
-		)
-	}
-	if updated.actionInProgress {
-		t.Fatalf("expected actionInProgress=false while confirming discard")
-	}
-
-	updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	updated = updatedModel.(Model)
-	if cmd != nil {
-		t.Fatalf("expected no command when canceling discard confirmation")
-	}
-	if updated.actionMode != ActionModeParentReview {
-		t.Fatalf("actionMode = %v, want %v after discard cancel", updated.actionMode, ActionModeParentReview)
-	}
-	if updated.parentReviewForm == nil {
-		t.Fatalf("expected parentReviewForm to remain after discard cancel")
-	}
-	if updated.parentReviewForm.Mode() != ParentReviewModalModeActions {
-		t.Fatalf("mode after discard cancel = %v, want actions", updated.parentReviewForm.Mode())
-	}
-}
-
-func TestUpdateParentReviewDiscardConfirmClosesScreen(t *testing.T) {
-	model := testParentReviewStateModel()
-
-	updatedModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'4'}})
-	updated := updatedModel.(Model)
-	updatedModel, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	updated = updatedModel.(Model)
-	updatedModel, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
-	updated = updatedModel.(Model)
 	updatedModel, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	updated = updatedModel.(Model)
 
 	if updated.actionMode != ActionModeNone {
-		t.Fatalf("actionMode = %v, want %v after discard confirm", updated.actionMode, ActionModeNone)
+		t.Fatalf("actionMode = %v, want %v after quit", updated.actionMode, ActionModeNone)
 	}
 	if updated.parentReviewForm != nil {
-		t.Fatalf("expected parentReviewForm cleared on discard confirm")
+		t.Fatalf("expected parentReviewForm cleared on quit")
 	}
 	if updated.actionInProgress {
-		t.Fatalf("expected actionInProgress=false on discard confirm")
+		t.Fatalf("expected actionInProgress=false on quit")
 	}
 	if cmd != nil {
-		t.Fatalf("expected no command for discard confirm")
+		t.Fatalf("expected no command for quit")
+	}
+	if updated.resumeExecuteAfterParentReview {
+		t.Fatalf("expected resumeExecuteAfterParentReview cleared on quit")
+	}
+}
+
+func TestUpdateParentReviewQuitCancelsExecutingAction(t *testing.T) {
+	model := testParentReviewStateModel()
+	canceled := false
+	model.actionInProgress = true
+	model.actionName = "Executing..."
+	model.actionCancel = func() { canceled = true }
+	model.resumeExecuteAfterParentReview = true
+	model.queuedParentReviewRuns = []execution.RunRecord{
+		{ID: "queued-review-1", TaskID: "parent-queued"},
+	}
+
+	updatedModel, _ := model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'4'}})
+	updated := updatedModel.(Model)
+	updatedModel, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated = updatedModel.(Model)
+
+	if cmd != nil {
+		t.Fatalf("expected no command for quit while executing")
+	}
+	if !canceled {
+		t.Fatalf("expected quit to cancel in-flight execute action")
+	}
+	if updated.actionCancel != nil {
+		t.Fatalf("expected actionCancel cleared after quit cancel path")
+	}
+	if updated.actionMode != ActionModeNone {
+		t.Fatalf("actionMode = %v, want %v after quit", updated.actionMode, ActionModeNone)
+	}
+	if updated.parentReviewForm != nil {
+		t.Fatalf("expected parentReviewForm cleared on quit")
+	}
+	if updated.resumeExecuteAfterParentReview {
+		t.Fatalf("expected resumeExecuteAfterParentReview cleared on quit")
+	}
+	if len(updated.queuedParentReviewRuns) != 0 {
+		t.Fatalf("expected queued parent review runs cleared on quit")
 	}
 }
 

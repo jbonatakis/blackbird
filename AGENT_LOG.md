@@ -1,5 +1,27 @@
 # AGENT_LOG
 
+## 2026-02-11 — Post-review action simplified: `Discard changes` replaced with `Quit`
+
+- Updated post-review parent-review modal actions to:
+  - `1. Continue`
+  - `2. Resume all failed`
+  - `3. Resume one task`
+  - `4. Quit`
+- Removed discard-specific UX:
+  - deleted confirm-discard mode/state machine,
+  - removed destructive red styling and warning copy,
+  - removed discard confirmation key-hint branch from bottom bar.
+- Behavioral change:
+  - `Quit` now closes the post-review modal and does **not** continue executing tasks.
+  - `Continue` behavior is unchanged (it can continue execution when deferred restart is pending).
+  - When quitting during an in-flight execute review pause, execute is canceled to prevent continuation.
+- Updated/expanded tests across modal, state, and integration flows:
+  - `internal/tui/parent_review_modal_test.go`
+  - `internal/tui/parent_review_state_resume_test.go`
+  - `internal/tui/post_review_decision_integration_test.go`
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui ./internal/execution -count=1`
+
 ## 2026-02-11 — Removed banner cruft after top-banner deprecation
 
 - Deleted unused banner renderer file: `internal/tui/review_checkpoint_banner.go`.
@@ -2542,32 +2564,3 @@ Verification:
   - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -run ParentReview -count=1`
   - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui ./internal/execution`
   - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
-
-## 2026-02-11 — Minimal Go FizzBuzz implementation (child_go_fizzbuzz_impl)
-
-- Added `go/fizzbuzz/fizzbuzz.go` with `FizzBuzz(n int) string` using straightforward modulo checks and `strconv.Itoa` fallback.
-- Kept implementation standard-library only and intentionally scoped to a single function (no test files added per task constraints).
-
-Verification:
-- `GOCACHE=/tmp/blackbird-go-cache go build -buildvcs=false ./...`
-- Manual sample check via `go run`:
-  - `1 -> 1`
-  - `3 -> Fizz`
-  - `5 -> Buzz`
-  - `15 -> FizzBuzz`
-
-## 2026-02-11 — Minimal Python FizzBuzz implementation (child_python_fizzbuzz_impl)
-
-- Added `python/fizzbuzz.py` with `fizzbuzz(n: int) -> str` using simple modulo checks:
-  - multiples of 15 return `"FizzBuzz"`
-  - multiples of 3 return `"Fizz"`
-  - multiples of 5 return `"Buzz"`
-  - all other positive integers return `str(n)`
-- Kept implementation dependency-free and intentionally scoped to pure function logic (no test files added per task constraints).
-
-Verification:
-- `python -c 'from python.fizzbuzz import fizzbuzz; print("1 ->", fizzbuzz(1)); print("3 ->", fizzbuzz(3)); print("5 ->", fizzbuzz(5)); print("15 ->", fizzbuzz(15))'`
-  - `1 -> 1`
-  - `3 -> Fizz`
-  - `5 -> Buzz`
-  - `15 -> FizzBuzz`

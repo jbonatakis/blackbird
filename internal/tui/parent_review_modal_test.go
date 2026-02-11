@@ -2,16 +2,13 @@ package tui
 
 import (
 	"reflect"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/jbonatakis/blackbird/internal/execution"
 	"github.com/jbonatakis/blackbird/internal/plan"
-	"github.com/muesli/termenv"
 )
 
 func TestNewParentReviewFormNormalizesTargetsAndFeedback(t *testing.T) {
@@ -167,45 +164,18 @@ func TestParentReviewFormUpdateMatchesInterruptionKeybindings(t *testing.T) {
 	if action != ParentReviewModalActionNone {
 		t.Fatalf("4 action = %v, want none", action)
 	}
-	if updated.SelectedAction() != parentReviewActionDiscardChanges {
-		t.Fatalf("SelectedAction() after 4 = %d, want %d", updated.SelectedAction(), parentReviewActionDiscardChanges)
+	if updated.SelectedAction() != parentReviewActionQuit {
+		t.Fatalf("SelectedAction() after 4 = %d, want %d", updated.SelectedAction(), parentReviewActionQuit)
 	}
 
-	updated, action = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if action != ParentReviewModalActionNone {
-		t.Fatalf("enter action on discard = %v, want none while confirm prompt opens", action)
-	}
-	if updated.Mode() != ParentReviewModalModeConfirmDiscard {
-		t.Fatalf("mode after discard enter = %v, want %v", updated.Mode(), ParentReviewModalModeConfirmDiscard)
+	_, action = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if action != ParentReviewModalActionQuit {
+		t.Fatalf("enter action on quit = %v, want quit", action)
 	}
 
-	updated, action = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	if action != ParentReviewModalActionNone {
-		t.Fatalf("esc action in discard confirmation = %v, want none", action)
-	}
-	if updated.Mode() != ParentReviewModalModeActions {
-		t.Fatalf("mode after discard confirm escape = %v, want %v", updated.Mode(), ParentReviewModalModeActions)
-	}
 	_, action = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if action != ParentReviewModalActionContinue {
 		t.Fatalf("esc action = %v, want continue", action)
-	}
-
-	updated, action = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if action != ParentReviewModalActionNone {
-		t.Fatalf("enter action reopening discard confirmation = %v, want none", action)
-	}
-	if updated.Mode() != ParentReviewModalModeConfirmDiscard {
-		t.Fatalf("mode after reopening discard confirm = %v, want %v", updated.Mode(), ParentReviewModalModeConfirmDiscard)
-	}
-
-	updated, action = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
-	if action != ParentReviewModalActionNone {
-		t.Fatalf("2 action in discard confirmation = %v, want none", action)
-	}
-	_, action = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if action != ParentReviewModalActionDiscardChanges {
-		t.Fatalf("enter action on discard confirmation = %v, want discard", action)
 	}
 }
 
@@ -219,8 +189,8 @@ func TestParentReviewFormUpdateNoFailedDisablesResumeActions(t *testing.T) {
 	if action != ParentReviewModalActionNone {
 		t.Fatalf("down action = %v, want none", action)
 	}
-	if updated.SelectedAction() != parentReviewActionDiscardChanges {
-		t.Fatalf("SelectedAction() after down = %d, want %d", updated.SelectedAction(), parentReviewActionDiscardChanges)
+	if updated.SelectedAction() != parentReviewActionQuit {
+		t.Fatalf("SelectedAction() after down = %d, want %d", updated.SelectedAction(), parentReviewActionQuit)
 	}
 
 	updated, action = updated.Update(tea.KeyMsg{Type: tea.KeyUp})
@@ -286,7 +256,7 @@ func TestRenderParentReviewModalRendersStructuredReviewContentAndActionOrder(t *
 		"1. Continue",
 		"2. Resume all failed",
 		"3. Resume one task",
-		"4. Discard changes",
+		"4. Quit",
 	} {
 		if !strings.Contains(first, want) {
 			t.Fatalf("expected modal to include %q, got:\n%s", want, first)
@@ -296,40 +266,12 @@ func TestRenderParentReviewModalRendersStructuredReviewContentAndActionOrder(t *
 	continueIdx := strings.Index(first, "1. Continue")
 	resumeAllIdx := strings.Index(first, "2. Resume all failed")
 	resumeOneIdx := strings.Index(first, "3. Resume one task")
-	discardIdx := strings.Index(first, "4. Discard changes")
-	if continueIdx == -1 || resumeAllIdx == -1 || resumeOneIdx == -1 || discardIdx == -1 {
+	quitIdx := strings.Index(first, "4. Quit")
+	if continueIdx == -1 || resumeAllIdx == -1 || resumeOneIdx == -1 || quitIdx == -1 {
 		t.Fatalf("expected all four actions in output")
 	}
-	if !(continueIdx < resumeAllIdx && resumeAllIdx < resumeOneIdx && resumeOneIdx < discardIdx) {
-		t.Fatalf("expected action order Continue -> Resume all -> Resume one -> Discard, got:\n%s", first)
-	}
-}
-
-func TestRenderParentReviewModalDiscardActionUsesDestructiveStyling(t *testing.T) {
-	profile := lipgloss.ColorProfile()
-	lipgloss.SetColorProfile(termenv.ANSI256)
-	t.Cleanup(func() {
-		lipgloss.SetColorProfile(profile)
-	})
-
-	run := testParentReviewRun()
-	m := Model{windowWidth: 100, windowHeight: 32}
-	form := NewParentReviewForm(run, plan.NewEmptyWorkGraph())
-
-	rendered := RenderParentReviewModal(m, form)
-	discardLine := findLineContaining(strings.Split(rendered, "\n"), "4. Discard changes")
-	if discardLine == "" {
-		t.Fatalf("expected discard action line in output")
-	}
-
-	redStyle := regexp.MustCompile(`\x1b\[[0-9;]*196m`)
-	if !redStyle.MatchString(discardLine) {
-		t.Fatalf("expected discard action line to include destructive red styling, line=%q", discardLine)
-	}
-
-	stripped := stripANSI(discardLine)
-	if !strings.Contains(stripped, "4. Discard changes") {
-		t.Fatalf("expected discard action to remain selectable/readable, line=%q", stripped)
+	if !(continueIdx < resumeAllIdx && resumeAllIdx < resumeOneIdx && resumeOneIdx < quitIdx) {
+		t.Fatalf("expected action order Continue -> Resume all -> Resume one -> Quit, got:\n%s", first)
 	}
 }
 

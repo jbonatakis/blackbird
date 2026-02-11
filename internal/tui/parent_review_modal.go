@@ -18,26 +18,20 @@ const (
 	ParentReviewModalActionContinue
 	ParentReviewModalActionResumeAllFailed
 	ParentReviewModalActionResumeOneTask
-	ParentReviewModalActionDiscardChanges
+	ParentReviewModalActionQuit
 )
 
 type ParentReviewModalMode int
 
 const (
 	ParentReviewModalModeActions ParentReviewModalMode = iota
-	ParentReviewModalModeConfirmDiscard
 )
 
 const (
 	parentReviewActionContinue = iota
 	parentReviewActionResumeAllFailed
 	parentReviewActionResumeOneTask
-	parentReviewActionDiscardChanges
-)
-
-const (
-	parentReviewDiscardChoiceCancel = iota
-	parentReviewDiscardChoiceConfirm
+	parentReviewActionQuit
 )
 
 type ParentReviewForm struct {
@@ -49,8 +43,6 @@ type ParentReviewForm struct {
 	selectedAction   int
 	selectedTarget   int
 	fallbackFeedback string
-	mode             ParentReviewModalMode
-	discardChoice    int
 	actionError      string
 	width            int
 	height           int
@@ -74,8 +66,6 @@ func NewParentReviewForm(run execution.RunRecord, g plan.WorkGraph) ParentReview
 		selectedAction:   parentReviewActionContinue,
 		selectedTarget:   selectedTarget,
 		fallbackFeedback: normalizeParentReviewModalFeedback(execution.ParentReviewPrimaryFeedback(run)),
-		mode:             ParentReviewModalModeActions,
-		discardChoice:    parentReviewDiscardChoiceCancel,
 		width:            90,
 		height:           30,
 	}
@@ -123,7 +113,7 @@ func (f ParentReviewForm) ResumeFeedbackForTask(taskID string) string {
 }
 
 func (f ParentReviewForm) Mode() ParentReviewModalMode {
-	return f.mode
+	return ParentReviewModalModeActions
 }
 
 func (f *ParentReviewForm) SetActionError(message string) {
@@ -135,11 +125,6 @@ func (f ParentReviewForm) Update(msg tea.Msg) (ParentReviewForm, ParentReviewMod
 	if !ok {
 		return f, ParentReviewModalActionNone
 	}
-
-	if f.mode == ParentReviewModalModeConfirmDiscard {
-		return f.updateDiscardConfirm(keyMsg)
-	}
-
 	return f.updateActionSelection(keyMsg)
 }
 
@@ -183,47 +168,14 @@ func (f ParentReviewForm) updateActionSelection(keyMsg tea.KeyMsg) (ParentReview
 		return f, ParentReviewModalActionNone
 	case "4":
 		f.actionError = ""
-		f.selectedAction = parentReviewActionDiscardChanges
+		f.selectedAction = parentReviewActionQuit
 		return f, ParentReviewModalActionNone
 	case "enter":
 		f.actionError = ""
-		if f.selectedAction == parentReviewActionDiscardChanges {
-			f.mode = ParentReviewModalModeConfirmDiscard
-			f.discardChoice = parentReviewDiscardChoiceCancel
-			return f, ParentReviewModalActionNone
-		}
 		return f, f.actionForSelection()
 	case "esc":
 		f.actionError = ""
 		return f, ParentReviewModalActionContinue
-	default:
-		return f, ParentReviewModalActionNone
-	}
-}
-
-func (f ParentReviewForm) updateDiscardConfirm(keyMsg tea.KeyMsg) (ParentReviewForm, ParentReviewModalAction) {
-	switch keyMsg.String() {
-	case "up", "k", "left", "1":
-		f.actionError = ""
-		f.discardChoice = parentReviewDiscardChoiceCancel
-		return f, ParentReviewModalActionNone
-	case "down", "j", "right", "2":
-		f.actionError = ""
-		f.discardChoice = parentReviewDiscardChoiceConfirm
-		return f, ParentReviewModalActionNone
-	case "enter":
-		f.actionError = ""
-		if f.discardChoice == parentReviewDiscardChoiceConfirm {
-			return f, ParentReviewModalActionDiscardChanges
-		}
-		f.mode = ParentReviewModalModeActions
-		f.discardChoice = parentReviewDiscardChoiceCancel
-		return f, ParentReviewModalActionNone
-	case "esc":
-		f.actionError = ""
-		f.mode = ParentReviewModalModeActions
-		f.discardChoice = parentReviewDiscardChoiceCancel
-		return f, ParentReviewModalActionNone
 	default:
 		return f, ParentReviewModalActionNone
 	}
@@ -246,8 +198,8 @@ func (f ParentReviewForm) actionForSelection() ParentReviewModalAction {
 			return ParentReviewModalActionNone
 		}
 		return ParentReviewModalActionResumeOneTask
-	case parentReviewActionDiscardChanges:
-		return ParentReviewModalActionNone
+	case parentReviewActionQuit:
+		return ParentReviewModalActionQuit
 	default:
 		return ParentReviewModalActionNone
 	}
@@ -255,7 +207,7 @@ func (f ParentReviewForm) actionForSelection() ParentReviewModalAction {
 
 func (f ParentReviewForm) isSelectableAction(action int) bool {
 	switch action {
-	case parentReviewActionContinue, parentReviewActionDiscardChanges:
+	case parentReviewActionContinue, parentReviewActionQuit:
 		return true
 	case parentReviewActionResumeAllFailed, parentReviewActionResumeOneTask:
 		return f.HasFailedTasks()
@@ -265,7 +217,7 @@ func (f ParentReviewForm) isSelectableAction(action int) bool {
 }
 
 func (f ParentReviewForm) nextSelectableAction(current int) int {
-	for candidate := current + 1; candidate <= parentReviewActionDiscardChanges; candidate++ {
+	for candidate := current + 1; candidate <= parentReviewActionQuit; candidate++ {
 		if f.isSelectableAction(candidate) {
 			return candidate
 		}
@@ -317,16 +269,6 @@ func RenderParentReviewModal(m Model, form ParentReviewForm) string {
 		Padding(0, 2).
 		Background(lipgloss.Color("236")).
 		Foreground(lipgloss.Color("242"))
-	destructiveStyle := lipgloss.NewStyle().
-		Padding(0, 2).
-		Foreground(lipgloss.Color("196")).
-		Background(lipgloss.Color("52")).
-		Bold(true)
-	selectedDestructiveStyle := lipgloss.NewStyle().
-		Padding(0, 2).
-		Foreground(lipgloss.Color("15")).
-		Background(lipgloss.Color("196")).
-		Bold(true)
 	errorStyle := lipgloss.NewStyle().
 		Padding(0, 1).
 		Foreground(lipgloss.Color("196")).
@@ -415,56 +357,33 @@ func RenderParentReviewModal(m Model, form ParentReviewForm) string {
 		lines = append(lines, "")
 	}
 
-	if form.mode == ParentReviewModalModeConfirmDiscard {
-		lines = append(lines, labelStyle.Render("Confirm discard"), "")
-		lines = append(lines, failStyle.Render("Discarding will exit this post-review screen without resuming failed tasks."))
-		lines = append(lines, "")
-
-		cancelLabel := "1. Cancel discard"
-		confirmLabel := "2. Confirm discard changes"
-		if form.discardChoice == parentReviewDiscardChoiceCancel {
-			lines = append(lines, selectedStyle.Render(cancelLabel))
-			lines = append(lines, destructiveStyle.Render(confirmLabel))
-		} else {
-			lines = append(lines, unselectedStyle.Render(cancelLabel))
-			lines = append(lines, selectedDestructiveStyle.Render(confirmLabel))
+	lines = append(lines, labelStyle.Render("Actions:"))
+	lines = append(lines, "")
+	actions := []struct {
+		index int
+		label string
+	}{
+		{index: parentReviewActionContinue, label: "1. Continue"},
+		{index: parentReviewActionResumeAllFailed, label: "2. Resume all failed"},
+		{index: parentReviewActionResumeOneTask, label: "3. Resume one task"},
+		{index: parentReviewActionQuit, label: "4. Quit"},
+	}
+	for _, action := range actions {
+		if !form.isSelectableAction(action.index) {
+			lines = append(lines, disabledStyle.Render(action.label+" (disabled)"))
+			continue
 		}
-		lines = append(lines, "")
-		lines = append(lines, mutedStyle.Render("[↑/↓]navigate  [1-2]select  [enter]confirm  [esc]back"))
+		if form.selectedAction == action.index {
+			lines = append(lines, selectedStyle.Render(action.label))
+		} else {
+			lines = append(lines, unselectedStyle.Render(action.label))
+		}
+	}
+	lines = append(lines, "")
+	if len(form.resumeTaskIDs) > 1 {
+		lines = append(lines, mutedStyle.Render("[↑/↓]navigate  [←/→]target  [1-4]select  [enter]confirm  [esc]back"))
 	} else {
-		lines = append(lines, labelStyle.Render("Actions:"))
-		lines = append(lines, "")
-		actions := []struct {
-			index int
-			label string
-		}{
-			{index: parentReviewActionContinue, label: "1. Continue"},
-			{index: parentReviewActionResumeAllFailed, label: "2. Resume all failed"},
-			{index: parentReviewActionResumeOneTask, label: "3. Resume one task"},
-			{index: parentReviewActionDiscardChanges, label: "4. Discard changes"},
-		}
-		for _, action := range actions {
-			if !form.isSelectableAction(action.index) {
-				lines = append(lines, disabledStyle.Render(action.label+" (disabled)"))
-				continue
-			}
-			switch {
-			case action.index == parentReviewActionDiscardChanges && form.selectedAction == action.index:
-				lines = append(lines, selectedDestructiveStyle.Render(action.label))
-			case action.index == parentReviewActionDiscardChanges:
-				lines = append(lines, destructiveStyle.Render(action.label))
-			case form.selectedAction == action.index:
-				lines = append(lines, selectedStyle.Render(action.label))
-			default:
-				lines = append(lines, unselectedStyle.Render(action.label))
-			}
-		}
-		lines = append(lines, "")
-		if len(form.resumeTaskIDs) > 1 {
-			lines = append(lines, mutedStyle.Render("[↑/↓]navigate  [←/→]target  [1-4]select  [enter]confirm  [esc]back"))
-		} else {
-			lines = append(lines, mutedStyle.Render("[↑/↓]navigate  [1-4]select  [enter]confirm  [esc]back"))
-		}
+		lines = append(lines, mutedStyle.Render("[↑/↓]navigate  [1-4]select  [enter]confirm  [esc]back"))
 	}
 
 	modalStyle := lipgloss.NewStyle().

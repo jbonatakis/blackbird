@@ -138,9 +138,6 @@ func actionHints(model Model, readyCount int) []string {
 		}
 	}
 	if model.actionMode == ActionModeParentReview {
-		if model.parentReviewForm != nil && model.parentReviewForm.Mode() == ParentReviewModalModeConfirmDiscard {
-			return []string{"[↑/↓]navigate", "[1-2]select", "[enter]confirm", "[esc]back", "[ctrl+c]quit"}
-		}
 		return []string{"[↑/↓]navigate", "[1-4]select", "[enter]confirm", "[esc]back", "[ctrl+c]quit"}
 	}
 	if model.actionMode == ActionModeSelectAgent {

@@ -67,15 +67,14 @@ func HandleParentReviewKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 			})
 		}
 		return m.startParentReviewResumeAction(targets, updatedForm)
-	case ParentReviewModalActionDiscardChanges:
-		m = m.releaseLiveParentReviewAckIfExecuting()
+	case ParentReviewModalActionQuit:
+		m.resumeExecuteAfterParentReview = false
+		if m.actionInProgress && m.actionName == "Executing..." {
+			m = cancelRunningAction(m)
+		}
 		m.actionMode = ActionModeNone
 		m.parentReviewForm = nil
-		m = m.showNextQueuedParentReview()
-		if m.actionMode == ActionModeNone && m.resumeExecuteAfterParentReview {
-			m.resumeExecuteAfterParentReview = false
-			return m.startExecuteAction(true)
-		}
+		m.queuedParentReviewRuns = nil
 		return m, nil
 	default:
 		return m, nil

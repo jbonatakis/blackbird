@@ -91,7 +91,7 @@ func TestPostReviewContinueLeavesTaskStateUnchanged(t *testing.T) {
 	}
 }
 
-func TestPostReviewDiscardCancelAndConfirmBranches(t *testing.T) {
+func TestPostReviewQuitClosesWithoutMutatingState(t *testing.T) {
 	now := time.Date(2026, 1, 31, 9, 10, 0, 0, time.UTC)
 	g := postReviewIntegrationGraph(now, map[string]plan.Status{
 		"parent-1":     plan.StatusDone,
@@ -112,46 +112,16 @@ func TestPostReviewDiscardCancelAndConfirmBranches(t *testing.T) {
 	updatedModel, cmd := updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	updated = updatedModel.(Model)
 	if cmd != nil {
-		t.Fatalf("expected no command when opening discard confirmation")
-	}
-	if updated.parentReviewForm == nil || updated.parentReviewForm.Mode() != ParentReviewModalModeConfirmDiscard {
-		t.Fatalf("expected discard confirmation mode to open")
-	}
-	if updated.actionMode != ActionModeParentReview {
-		t.Fatalf("actionMode = %v, want %v while confirming discard", updated.actionMode, ActionModeParentReview)
-	}
-
-	updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	updated = updatedModel.(Model)
-	if cmd != nil {
-		t.Fatalf("expected no command when canceling discard confirmation")
-	}
-	if updated.parentReviewForm == nil || updated.parentReviewForm.Mode() != ParentReviewModalModeActions {
-		t.Fatalf("expected discard cancel to return to action mode")
-	}
-	if updated.actionMode != ActionModeParentReview {
-		t.Fatalf("actionMode = %v, want %v after discard cancel", updated.actionMode, ActionModeParentReview)
-	}
-
-	updatedModel, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'4'}})
-	updated = updatedModel.(Model)
-	updatedModel, _ = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	updated = updatedModel.(Model)
-	updatedModel, _ = updated.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
-	updated = updatedModel.(Model)
-	updatedModel, cmd = updated.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	updated = updatedModel.(Model)
-	if cmd != nil {
-		t.Fatalf("expected no command for confirmed discard")
+		t.Fatalf("expected no command for quit")
 	}
 	if updated.actionMode != ActionModeNone {
-		t.Fatalf("actionMode = %v, want %v after discard confirm", updated.actionMode, ActionModeNone)
+		t.Fatalf("actionMode = %v, want %v after quit", updated.actionMode, ActionModeNone)
 	}
 	if updated.parentReviewForm != nil {
-		t.Fatalf("expected parentReviewForm cleared after discard confirm")
+		t.Fatalf("expected parentReviewForm cleared after quit")
 	}
 	if !reflect.DeepEqual(updated.plan, beforePlan) {
-		t.Fatalf("discard flow should not mutate task content/state")
+		t.Fatalf("quit flow should not mutate task content/state")
 	}
 }
 
