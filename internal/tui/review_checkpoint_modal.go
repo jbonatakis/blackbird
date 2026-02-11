@@ -312,7 +312,7 @@ func startReviewDecision(m Model, action execution.DecisionState, feedback strin
 	m.actionMode = ActionModeNone
 	m.reviewCheckpointForm = nil
 	m.actionInProgress = true
-	m.actionName = reviewDecisionActionName(action)
+	m.actionName = reviewDecisionActionName(action, m.config.Execution.ParentReviewEnabled)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	m.actionCancel = cancel
@@ -351,9 +351,12 @@ func startReviewDecision(m Model, action execution.DecisionState, feedback strin
 	)
 }
 
-func reviewDecisionActionName(action execution.DecisionState) string {
+func reviewDecisionActionName(action execution.DecisionState, parentReviewEnabled bool) string {
 	switch action {
 	case execution.DecisionStateApprovedContinue:
+		if parentReviewEnabled {
+			return "Reviewing..."
+		}
 		return "Recording decision..."
 	case execution.DecisionStateApprovedQuit:
 		return "Recording decision..."

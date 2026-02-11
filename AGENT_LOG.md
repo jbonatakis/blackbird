@@ -1,5 +1,15 @@
 # AGENT_LOG
 
+## 2026-02-11 — Review checkpoint spinner label now reflects deferred parent review
+
+- Updated `internal/tui/review_checkpoint_modal.go` action label selection so `Approve & Continue` displays `Reviewing...` when parent review is enabled.
+- Kept non-review decision actions unchanged:
+  - `Approved quit` / `Rejected` => `Recording decision...`
+  - `Request changes` => `Resuming...`
+- This aligns the in-progress indicator with actual behavior now that deferred parent review runs during decision resolution.
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+
 ## 2026-02-11 — Parent review now starts only after child decision approval
 
 - Fixed execution semantics so parent review does not start while a child run is still awaiting stop-after-task approval.
