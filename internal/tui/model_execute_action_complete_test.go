@@ -467,6 +467,54 @@ func TestExecuteActionCompleteParentReviewModalPausesNormalExecuteShortcut(t *te
 	}
 }
 
+func TestDecisionActionCompleteApprovedContinueWithParentReviewNextOpensModalBeforeExecute(t *testing.T) {
+	model := Model{
+		plan: plan.WorkGraph{
+			SchemaVersion: plan.SchemaVersion,
+			Items: map[string]plan.WorkItem{
+				"parent-1": {ID: "parent-1", Title: "Parent"},
+				"child-1":  {ID: "child-1", Title: "Child"},
+			},
+		},
+		viewMode:         ViewModeMain,
+		planExists:       true,
+		windowWidth:      120,
+		windowHeight:     32,
+		actionInProgress: true,
+		actionName:       "Recording decision...",
+	}
+	nextRun := testExecuteActionCompleteParentReviewPassRun("review-after-approve")
+
+	updatedModel, cmd := model.Update(DecisionActionComplete{
+		Action: execution.DecisionStateApprovedContinue,
+		Result: execution.DecisionResult{
+			Action: execution.DecisionStateApprovedContinue,
+			Next: &execution.ExecuteResult{
+				Reason: execution.ExecuteReasonCompleted,
+				TaskID: "child-1",
+				Run:    &nextRun,
+			},
+		},
+	})
+	updated := updatedModel.(Model)
+
+	if cmd != nil {
+		t.Fatalf("expected no execute command before parent-review modal resolution")
+	}
+	if updated.actionMode != ActionModeParentReview {
+		t.Fatalf("expected parent review modal before execute restart, got mode %v", updated.actionMode)
+	}
+	if updated.parentReviewForm == nil {
+		t.Fatalf("expected parent review form to be set")
+	}
+	if updated.parentReviewForm.run.ID != "review-after-approve" {
+		t.Fatalf("parentReviewForm.run.ID = %q, want review-after-approve", updated.parentReviewForm.run.ID)
+	}
+	if !updated.resumeExecuteAfterParentReview {
+		t.Fatalf("expected execute restart to be deferred until parent-review modal continue")
+	}
+}
+
 func testExecuteActionCompleteParentReviewRun(runID string, resumeTargets []string) execution.RunRecord {
 	passed := false
 	now := time.Date(2026, 2, 9, 8, 0, 0, 0, time.UTC)

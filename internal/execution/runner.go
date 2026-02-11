@@ -164,7 +164,7 @@ func RunExecute(ctx context.Context, cfg ExecuteConfig) (ExecuteResult, error) {
 
 		var currentParentReviewRun *RunRecord
 		var pauseReviewRun *RunRecord
-		if cfg.ParentReviewEnabled && record.Status == RunStatusSuccess && ctx.Err() == nil {
+		if cfg.ParentReviewEnabled && record.Status == RunStatusSuccess && ctx.Err() == nil && !decisionGate {
 			currentParentReviewRun, pauseReviewRun, err = runParentReviewGateForCompletedTask(ctx, cfg, taskID)
 			if err != nil {
 				return ExecuteResult{

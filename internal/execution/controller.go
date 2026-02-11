@@ -110,6 +110,43 @@ func (c ExecutionController) ResolveDecision(ctx context.Context, req DecisionRe
 	switch req.Action {
 	case DecisionStateApprovedContinue:
 		result.Continue = true
+		if c.ParentReviewEnabled && record.Status == RunStatusSuccess {
+			reviewRun, pauseRun, gateErr := runParentReviewGateForCompletedTask(ctx, ExecuteConfig{
+				PlanPath:            c.PlanPath,
+				Graph:               c.Graph,
+				Runtime:             c.Runtime,
+				ParentReviewEnabled: c.ParentReviewEnabled,
+				StreamStdout:        c.StreamStdout,
+				StreamStderr:        c.StreamStderr,
+				OnStateChange:       c.OnStateChange,
+				OnParentReview:      c.OnParentReview,
+			}, req.TaskID)
+			if gateErr != nil {
+				return result, gateErr
+			}
+			if pauseRun != nil {
+				pauseTaskID := strings.TrimSpace(pauseRun.TaskID)
+				if pauseTaskID == "" {
+					pauseTaskID = req.TaskID
+				}
+				pauseCopy := *pauseRun
+				result.Next = &ExecuteResult{
+					Reason: ExecuteReasonParentReviewRequired,
+					TaskID: pauseTaskID,
+					Run:    &pauseCopy,
+				}
+				result.Continue = false
+				return result, nil
+			}
+			if reviewRun != nil {
+				reviewCopy := *reviewRun
+				result.Next = &ExecuteResult{
+					Reason: ExecuteReasonCompleted,
+					TaskID: req.TaskID,
+					Run:    &reviewCopy,
+				}
+			}
+		}
 		return result, nil
 	case DecisionStateApprovedQuit:
 		return result, nil

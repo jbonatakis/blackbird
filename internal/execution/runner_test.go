@@ -452,6 +452,59 @@ func TestRunExecuteCompletedIncludesLatestParentReviewRunWhenReviewPasses(t *tes
 	}
 }
 
+func TestRunExecuteDecisionGateDefersParentReviewUntilDecisionResolved(t *testing.T) {
+	tempDir := t.TempDir()
+	planPath := filepath.Join(tempDir, "blackbird.plan.json")
+
+	parentID := "parent"
+	childID := "child"
+
+	parent := makeItem(parentID, plan.StatusTodo)
+	parent.ChildIDs = []string{childID}
+	parent.AcceptanceCriteria = []string{"Parent criteria must hold across child outputs."}
+
+	child := makeItem(childID, plan.StatusTodo)
+	childParent := parentID
+	child.ParentID = &childParent
+
+	g := plan.WorkGraph{
+		SchemaVersion: plan.SchemaVersion,
+		Items: map[string]plan.WorkItem{
+			parentID: parent,
+			childID:  child,
+		},
+	}
+	if err := plan.SaveAtomic(planPath, g); err != nil {
+		t.Fatalf("save plan: %v", err)
+	}
+
+	result, err := RunExecute(context.Background(), ExecuteConfig{
+		PlanPath:            planPath,
+		ParentReviewEnabled: true,
+		StopAfterEachTask:   true,
+		Runtime: agent.Runtime{
+			Provider: "codex",
+			Command:  `printf '{"passed":true}'`,
+			UseShell: true,
+			Timeout:  2 * time.Second,
+		},
+	})
+	if err != nil {
+		t.Fatalf("RunExecute: %v", err)
+	}
+	if result.Reason != ExecuteReasonDecisionRequired {
+		t.Fatalf("result.Reason = %q, want %q", result.Reason, ExecuteReasonDecisionRequired)
+	}
+
+	parentRuns, err := ListReviewRuns(tempDir, parentID)
+	if err != nil {
+		t.Fatalf("ListReviewRuns(%s): %v", parentID, err)
+	}
+	if len(parentRuns) != 0 {
+		t.Fatalf("expected 0 parent review runs before decision approval, got %d", len(parentRuns))
+	}
+}
+
 func TestRunResumeUpdatesStatusAndReturnsRecord(t *testing.T) {
 	tests := []struct {
 		name          string

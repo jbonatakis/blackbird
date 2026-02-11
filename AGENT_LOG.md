@@ -1,5 +1,27 @@
 # AGENT_LOG
 
+## 2026-02-11 — Parent review now starts only after child decision approval
+
+- Fixed execution semantics so parent review does not start while a child run is still awaiting stop-after-task approval.
+- `RunExecute` now skips parent-review gate invocation when the decision gate is active for that completed child (`decision_required` branch).
+- Parent review is now triggered from decision resolution on `approved_continue`:
+  - `ExecutionController.ResolveDecision` runs the parent-review gate for the approved child task when parent-review is enabled.
+  - If parent review fails, `decision.Next` is returned as `parent_review_required` with run context.
+  - If parent review passes, `decision.Next` returns the completed review run context.
+- TUI decision handling updated to honor this:
+  - when `DecisionActionComplete` includes `Next` parent-review results, TUI opens the parent-review modal before restarting execute,
+  - for pass outcomes, execute restart is deferred until parent-review modal is resolved.
+- Added regression coverage:
+  - `internal/execution/runner_test.go`:
+    - `TestRunExecuteDecisionGateDefersParentReviewUntilDecisionResolved`
+  - `internal/execution/decision_controller_test.go`:
+    - `TestResolveDecisionApproveContinueRunsDeferredParentReview`
+  - `internal/tui/model_execute_action_complete_test.go`:
+    - `TestDecisionActionCompleteApprovedContinueWithParentReviewNextOpensModalBeforeExecute`
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/execution ./internal/tui`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
 ## 2026-02-11 — Stop-after-task and parent-review modal ordering fix
 
 - Addressed TUI sequencing when both execution gates are enabled:

@@ -364,10 +364,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Message: summarizeExecuteResult(*next),
 					IsError: false,
 				}
+			case execution.ExecuteReasonParentReviewRequired:
+				if next.Run != nil {
+					m = m.enqueueParentReviewRun(*next.Run)
+					m = m.showNextQueuedParentReview()
+					m.resumeExecuteAfterParentReview = false
+				}
+			case execution.ExecuteReasonCompleted:
+				if next.Run != nil && next.Run.Type == execution.RunTypeReview {
+					m = m.enqueueParentReviewRun(*next.Run)
+					m = m.showNextQueuedParentReview()
+					m.resumeExecuteAfterParentReview = parentReviewModalPassed(*next.Run)
+				}
 			}
 		}
 
 		if typed.Action == execution.DecisionStateApprovedContinue {
+			if m.actionMode == ActionModeParentReview && m.parentReviewForm != nil {
+				return m, nil
+			}
 			if len(m.queuedParentReviewRuns) > 0 {
 				m.resumeExecuteAfterParentReview = true
 				m = m.showNextQueuedParentReview()
