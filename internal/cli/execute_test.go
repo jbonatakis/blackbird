@@ -345,6 +345,142 @@ func TestRunExecuteDecisionApproveContinueRunsNext(t *testing.T) {
 	}
 }
 
+func TestRunExecuteDecisionApproveContinueHonorsDeferredParentReviewPause(t *testing.T) {
+	tempDir := t.TempDir()
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("chdir temp: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldWD) })
+
+	t.Setenv("BLACKBIRD_AGENT_PROVIDER", "codex")
+	t.Setenv(
+		"BLACKBIRD_AGENT_CMD",
+		`printf '{"passed":false,"resumeTaskIds":["child"],"feedbackForResume":"Fix child output before continuing."}'`,
+	)
+
+	configDir := filepath.Join(tempDir, ".blackbird")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("mkdir config: %v", err)
+	}
+	if err := os.WriteFile(
+		filepath.Join(configDir, "config.json"),
+		[]byte(`{"schemaVersion":1,"execution":{"stopAfterEachTask":true,"parentReviewEnabled":true}}`),
+		0o644,
+	); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	oldTerminal := isTerminal
+	isTerminal = func(fd uintptr) bool { return false }
+	t.Cleanup(func() { isTerminal = oldTerminal })
+
+	setPromptReader(strings.NewReader("1\n"))
+	t.Cleanup(func() { setPromptReader(os.Stdin) })
+
+	now := time.Date(2026, 2, 14, 12, 0, 0, 0, time.UTC)
+	parentID := "parent"
+	childID := "child"
+	otherID := "other"
+
+	parent := plan.WorkItem{
+		ID:                 parentID,
+		Title:              "Parent Review",
+		Description:        "",
+		AcceptanceCriteria: []string{"Parent acceptance criteria"},
+		Prompt:             "Review child output",
+		ParentID:           nil,
+		ChildIDs:           []string{childID},
+		Deps:               []string{},
+		Status:             plan.StatusTodo,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
+	childParentID := parentID
+	child := plan.WorkItem{
+		ID:                 childID,
+		Title:              "Child",
+		Description:        "",
+		AcceptanceCriteria: []string{"Do child work"},
+		Prompt:             "Implement child",
+		ParentID:           &childParentID,
+		ChildIDs:           []string{},
+		Deps:               []string{},
+		Status:             plan.StatusTodo,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
+	other := plan.WorkItem{
+		ID:                 otherID,
+		Title:              "Other",
+		Description:        "",
+		AcceptanceCriteria: []string{"Other work"},
+		Prompt:             "Implement other",
+		ParentID:           nil,
+		ChildIDs:           []string{},
+		Deps:               []string{},
+		Status:             plan.StatusTodo,
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
+
+	g := plan.WorkGraph{
+		SchemaVersion: plan.SchemaVersion,
+		Items: map[string]plan.WorkItem{
+			parentID: parent,
+			childID:  child,
+			otherID:  other,
+		},
+	}
+	if err := plan.SaveAtomic(plan.PlanPath(), g); err != nil {
+		t.Fatalf("save plan: %v", err)
+	}
+
+	output, err := captureStdout(func() error { return runExecute([]string{}) })
+	if err != nil {
+		t.Fatalf("runExecute: %v", err)
+	}
+
+	wantLines := []string{
+		"starting child",
+		"completed child",
+		"running parent review for parent",
+		"parent review failed for parent",
+		"resume tasks: child",
+		"next step: blackbird resume child",
+	}
+	for _, line := range wantLines {
+		if !strings.Contains(output, line) {
+			t.Fatalf("expected output to contain %q, got %q", line, output)
+		}
+	}
+	if strings.Contains(output, "starting other") {
+		t.Fatalf("expected deferred parent-review pause before running %s, got %q", otherID, output)
+	}
+
+	updated, err := plan.Load(plan.PlanPath())
+	if err != nil {
+		t.Fatalf("load plan: %v", err)
+	}
+	if updated.Items[childID].Status != plan.StatusDone {
+		t.Fatalf("expected %s done, got %s", childID, updated.Items[childID].Status)
+	}
+	if updated.Items[otherID].Status != plan.StatusTodo {
+		t.Fatalf("expected %s todo after deferred parent-review pause, got %s", otherID, updated.Items[otherID].Status)
+	}
+
+	parentRuns, err := execution.ListRuns(tempDir, parentID)
+	if err != nil {
+		t.Fatalf("ListRuns(%s): %v", parentID, err)
+	}
+	if len(parentRuns) != 1 {
+		t.Fatalf("expected 1 deferred parent review run, got %d", len(parentRuns))
+	}
+}
+
 func TestRunExecuteDecisionRequestChangesCancelReturnsToPrompt(t *testing.T) {
 	tempDir := t.TempDir()
 	oldWD, err := os.Getwd()

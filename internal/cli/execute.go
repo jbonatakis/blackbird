@@ -178,6 +178,16 @@ func handleDecisionRequired(ctx context.Context, controller execution.ExecutionC
 
 		switch decision.Action {
 		case execution.DecisionStateApprovedContinue:
+			if decision.Next != nil {
+				// Deferred parent-review failures (and any non-completed outcomes)
+				// must pause before execute continues.
+				if decision.Next.Reason != execution.ExecuteReasonCompleted || !decision.Continue {
+					return decision.Next, nil
+				}
+			}
+			if !decision.Continue {
+				return nil, nil
+			}
 			next, err := controller.Execute(ctx)
 			if err != nil {
 				return nil, err

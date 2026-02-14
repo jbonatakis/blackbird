@@ -2596,3 +2596,11 @@ Verification:
 - Added `specs/improvements/PARENT_REVIEW_RESUME_REREVIEW_LOOP.md`.
 - Captures the behavior gap where successful `RunResume` currently does not trigger parent-review gate re-checks.
 - Specifies proposed changes for execution orchestration, CLI/TUI resume handling, bulk-resume short-circuit semantics, and test coverage to support repeated fail -> resume -> review cycles.
+
+## 2026-02-14 — Fixed CLI approved-continue to honor deferred parent-review pause
+
+- Updated `internal/cli/execute.go` decision flow for `approved_continue` to honor `DecisionResult.Next`/`DecisionResult.Continue` before invoking `Execute()` again.
+- This prevents CLI from bypassing `parent_review_required` pauses returned by deferred parent review in stop-after mode.
+- Added regression test `TestRunExecuteDecisionApproveContinueHonorsDeferredParentReviewPause` in `internal/cli/execute_test.go`.
+  - Covers stop-after + parent-review-enabled path where deferred parent review fails after approved-continue.
+  - Asserts parent-review-required summary is rendered and that execution does not start unrelated ready tasks.
