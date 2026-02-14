@@ -2578,3 +2578,21 @@ Verification:
 Verification:
 - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
 - `GOCACHE=/tmp/blackbird-go-cache go test ./... -count=1`
+
+## 2026-02-14 — Diagnosis: resumed child success does not re-enter parent-review gate
+
+- Investigated continuation of `specs/improvements/PARENT_REVIEW_QUALITY_GATE.md` behavior for post-failure resume loops.
+- Confirmed root cause: `RunResume` persists resumed child outcomes and returns immediately; it does **not** call `runParentReviewGateForCompletedTask` on resumed success.
+- Confirmed parent-review gate is currently invoked from execute/decision paths only:
+  - `RunExecute` success path in `internal/execution/runner.go`.
+  - deferred decision approval path in `ExecutionController.ResolveDecision`.
+- Impact: after a parent review fails and a child is resumed to success, no automatic re-review occurs unless another execution path manually triggers the gate.
+- Proposed implementation direction:
+  - add parent-review gate invocation after successful resume when parent review is enabled,
+  - return/surface a resumable stop reason (`parent_review_required`) from resume callsites (CLI/TUI) so modal/summary loops can repeat until pass or user quit.
+
+## 2026-02-14 — Added spec: parent-review re-review loop after resume
+
+- Added `specs/improvements/PARENT_REVIEW_RESUME_REREVIEW_LOOP.md`.
+- Captures the behavior gap where successful `RunResume` currently does not trigger parent-review gate re-checks.
+- Specifies proposed changes for execution orchestration, CLI/TUI resume handling, bulk-resume short-circuit semantics, and test coverage to support repeated fail -> resume -> review cycles.
