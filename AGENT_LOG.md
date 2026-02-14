@@ -2604,3 +2604,18 @@ Verification:
 - Added regression test `TestRunExecuteDecisionApproveContinueHonorsDeferredParentReviewPause` in `internal/cli/execute_test.go`.
   - Covers stop-after + parent-review-enabled path where deferred parent review fails after approved-continue.
   - Asserts parent-review-required summary is rendered and that execution does not start unrelated ready tasks.
+
+## 2026-02-14 — Added PR `differ` breakdown comment workflow
+
+- Updated `.github/workflows/ci.yml` with a new `pr-differ-comment` job that runs on `pull_request` events.
+- The job installs `differ` via Go (`go install github.com/jackbonatakis/differ/cmd/differ@latest`), generates a JSON report for the exact PR range (`base.sha` -> `head.sha`), and posts a breakdown comment on the PR.
+- Implemented sticky upsert behavior using `actions/github-script`:
+  - identifies the bot comment via `<!-- blackbird-differ-breakdown -->`,
+  - updates the existing comment on reruns instead of posting duplicates,
+  - comment includes totals, per-category table, and top churned files.
+- Added fork-safe behavior:
+  - workflow still computes `differ` output for fork PRs,
+  - comment-writing step is gated to non-fork PRs to avoid token permission failures.
+
+Verification:
+- `GOCACHE=/tmp/blackbird-go-cache go test ./...`
