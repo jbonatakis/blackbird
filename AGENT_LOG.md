@@ -2608,7 +2608,7 @@ Verification:
 ## 2026-02-14 — Added PR `differ` breakdown comment workflow
 
 - Updated `.github/workflows/ci.yml` with a new `pr-differ-comment` job that runs on `pull_request` events.
-- The job installs `differ` via Go (`go install github.com/jackbonatakis/differ/cmd/differ@latest`), generates a JSON report for the exact PR range (`base.sha` -> `head.sha`), and posts a breakdown comment on the PR.
+- The job installs `differ` via Go (`go install github.com/jbonatakis/differ/cmd/differ@latest`), generates a JSON report for the exact PR range (`base.sha` -> `head.sha`), and posts a breakdown comment on the PR.
 - Implemented sticky upsert behavior using `actions/github-script`:
   - identifies the bot comment via `<!-- blackbird-differ-breakdown -->`,
   - updates the existing comment on reruns instead of posting duplicates,

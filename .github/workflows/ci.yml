@@ -52,7 +52,7 @@ jobs:
 
       - name: Install differ
         run: |
-          go install github.com/jackbonatakis/differ/cmd/differ@latest
+          go install github.com/jbonatakis/differ/cmd/differ@latest
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Generate differ report
