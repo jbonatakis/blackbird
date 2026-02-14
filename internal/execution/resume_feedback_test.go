@@ -2,6 +2,7 @@ package execution
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,11 @@ import (
 
 func TestResumeWithFeedbackCodex(t *testing.T) {
 	script, argsPath, stdinPath := writeCaptureScript(t)
+	wantFeedback := ParentReviewFeedbackContext{
+		ParentTaskID: "parent-123",
+		ReviewRunID:  "review-456",
+		Feedback:     "retry with tighter acceptance checks",
+	}
 
 	prev := RunRecord{
 		ID:                 "run-1",
@@ -24,6 +30,11 @@ func TestResumeWithFeedbackCodex(t *testing.T) {
 		Context: ContextPack{
 			SchemaVersion: ContextPackSchemaVersion,
 			Task:          TaskContext{ID: "task-1", Title: "Task"},
+			ParentReviewFeedback: &ParentReviewFeedbackContext{
+				ParentTaskID: wantFeedback.ParentTaskID,
+				ReviewRunID:  wantFeedback.ReviewRunID,
+				Feedback:     wantFeedback.Feedback,
+			},
 		},
 	}
 
@@ -50,10 +61,16 @@ func TestResumeWithFeedbackCodex(t *testing.T) {
 	if stdin != "fix this" {
 		t.Fatalf("stdin mismatch: got %q", stdin)
 	}
+	assertParentReviewFeedbackPayload(t, record.Context, wantFeedback)
 }
 
 func TestResumeWithFeedbackClaude(t *testing.T) {
 	script, argsPath, stdinPath := writeCaptureScript(t)
+	wantFeedback := ParentReviewFeedbackContext{
+		ParentTaskID: "parent-789",
+		ReviewRunID:  "review-111",
+		Feedback:     "fix edge-case handling in resume flow",
+	}
 
 	prev := RunRecord{
 		ID:                 "run-2",
@@ -63,6 +80,11 @@ func TestResumeWithFeedbackClaude(t *testing.T) {
 		Context: ContextPack{
 			SchemaVersion: ContextPackSchemaVersion,
 			Task:          TaskContext{ID: "task-2", Title: "Task"},
+			ParentReviewFeedback: &ParentReviewFeedbackContext{
+				ParentTaskID: wantFeedback.ParentTaskID,
+				ReviewRunID:  wantFeedback.ReviewRunID,
+				Feedback:     wantFeedback.Feedback,
+			},
 		},
 	}
 
@@ -89,6 +111,7 @@ func TestResumeWithFeedbackClaude(t *testing.T) {
 	if stdin != "review and fix" {
 		t.Fatalf("stdin mismatch: got %q", stdin)
 	}
+	assertParentReviewFeedbackPayload(t, record.Context, wantFeedback)
 }
 
 func TestResumeWithFeedbackRequiresFeedback(t *testing.T) {
@@ -205,4 +228,42 @@ func readFile(t *testing.T, path string) string {
 		t.Fatalf("read file: %v", err)
 	}
 	return string(data)
+}
+
+func assertParentReviewFeedbackPayload(t *testing.T, ctx ContextPack, want ParentReviewFeedbackContext) {
+	t.Helper()
+
+	if ctx.ParentReviewFeedback == nil {
+		t.Fatalf("expected parent review feedback context")
+	}
+	if *ctx.ParentReviewFeedback != want {
+		t.Fatalf("parent review feedback mismatch: got %#v want %#v", *ctx.ParentReviewFeedback, want)
+	}
+
+	data, err := json.Marshal(ctx)
+	if err != nil {
+		t.Fatalf("marshal context: %v", err)
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("decode context payload: %v", err)
+	}
+	rawSection, ok := payload["parentReviewFeedback"]
+	if !ok {
+		t.Fatalf("context payload missing parentReviewFeedback section")
+	}
+	section, ok := rawSection.(map[string]any)
+	if !ok {
+		t.Fatalf("parentReviewFeedback payload has unexpected type %T", rawSection)
+	}
+	if got, _ := section["parentTaskId"].(string); got != want.ParentTaskID {
+		t.Fatalf("payload parentTaskId = %q, want %q", got, want.ParentTaskID)
+	}
+	if got, _ := section["reviewRunId"].(string); got != want.ReviewRunID {
+		t.Fatalf("payload reviewRunId = %q, want %q", got, want.ReviewRunID)
+	}
+	if got, _ := section["feedback"].(string); got != want.Feedback {
+		t.Fatalf("payload feedback = %q, want %q", got, want.Feedback)
+	}
 }

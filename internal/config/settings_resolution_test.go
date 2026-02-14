@@ -19,7 +19,7 @@ func TestResolveSettingsPrecedenceAndSource(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
 		t.Fatalf("mkdir global: %v", err)
 	}
-	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":12},"planning":{"maxPlanAutoRefinePasses":2}}`), 0o644); err != nil {
+	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":12},"planning":{"maxPlanAutoRefinePasses":2},"execution":{"parentReviewEnabled":true}}`), 0o644); err != nil {
 		t.Fatalf("write global config: %v", err)
 	}
 
@@ -40,6 +40,79 @@ func TestResolveSettingsPrecedenceAndSource(t *testing.T) {
 	assertAppliedInt(t, resolution, keyTuiPlanDataRefreshIntervalSeconds, 21, ConfigSourceLocal)
 	assertAppliedInt(t, resolution, keyPlanningMaxPlanAutoRefinePasses, 3, ConfigSourceLocal)
 	assertAppliedBool(t, resolution, keyExecutionStopAfterEachTask, DefaultStopAfterEachTask, ConfigSourceDefault)
+	assertAppliedBool(t, resolution, keyExecutionParentReviewEnabled, true, ConfigSourceGlobal)
+}
+
+func TestResolveSettingsParentReviewEnabledPrecedence(t *testing.T) {
+	tests := []struct {
+		name          string
+		globalConfig  string
+		projectConfig string
+		wantValue     bool
+		wantSource    ConfigSource
+	}{
+		{
+			name:          "unset in both layers defaults false",
+			globalConfig:  `{"schemaVersion":1,"execution":{"stopAfterEachTask":true}}`,
+			projectConfig: `{"schemaVersion":1,"planning":{"maxPlanAutoRefinePasses":2}}`,
+			wantValue:     false,
+			wantSource:    ConfigSourceDefault,
+		},
+		{
+			name:          "local true overrides global false",
+			globalConfig:  `{"schemaVersion":1,"execution":{"parentReviewEnabled":false}}`,
+			projectConfig: `{"schemaVersion":1,"execution":{"parentReviewEnabled":true}}`,
+			wantValue:     true,
+			wantSource:    ConfigSourceLocal,
+		},
+		{
+			name:          "local false overrides global true",
+			globalConfig:  `{"schemaVersion":1,"execution":{"parentReviewEnabled":true}}`,
+			projectConfig: `{"schemaVersion":1,"execution":{"parentReviewEnabled":false}}`,
+			wantValue:     false,
+			wantSource:    ConfigSourceLocal,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			homeDir := t.TempDir()
+			projectDir := t.TempDir()
+			restore := overrideUserHomeDir(func() (string, error) {
+				return homeDir, nil
+			})
+			t.Cleanup(restore)
+
+			globalPath := filepath.Join(homeDir, ".blackbird", "config.json")
+			if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
+				t.Fatalf("mkdir global: %v", err)
+			}
+			if err := os.WriteFile(globalPath, []byte(tt.globalConfig), 0o644); err != nil {
+				t.Fatalf("write global config: %v", err)
+			}
+
+			projectPath := filepath.Join(projectDir, ".blackbird", "config.json")
+			if err := os.MkdirAll(filepath.Dir(projectPath), 0o755); err != nil {
+				t.Fatalf("mkdir project: %v", err)
+			}
+			if err := os.WriteFile(projectPath, []byte(tt.projectConfig), 0o644); err != nil {
+				t.Fatalf("write project config: %v", err)
+			}
+
+			resolution, err := ResolveSettings(projectDir)
+			if err != nil {
+				t.Fatalf("resolve settings: %v", err)
+			}
+
+			assertAppliedBool(
+				t,
+				resolution,
+				keyExecutionParentReviewEnabled,
+				tt.wantValue,
+				tt.wantSource,
+			)
+		})
+	}
 }
 
 func TestResolveSettingsOutOfRangeWarnings(t *testing.T) {
@@ -74,6 +147,7 @@ func TestResolveSettingsOutOfRangeWarnings(t *testing.T) {
 	assertAppliedInt(t, resolution, keyTuiRunDataRefreshIntervalSeconds, MaxRefreshIntervalSeconds, ConfigSourceLocal)
 	assertAppliedInt(t, resolution, keyTuiPlanDataRefreshIntervalSeconds, MinRefreshIntervalSeconds, ConfigSourceGlobal)
 	assertAppliedInt(t, resolution, keyPlanningMaxPlanAutoRefinePasses, MinPlanAutoRefinePasses, ConfigSourceLocal)
+	assertAppliedBool(t, resolution, keyExecutionParentReviewEnabled, DefaultParentReviewEnabled, ConfigSourceDefault)
 
 	runWarning, ok := findOptionWarning(resolution.OptionWarnings, ConfigSourceLocal, keyTuiRunDataRefreshIntervalSeconds)
 	if !ok {
@@ -155,6 +229,7 @@ func TestResolveSettingsLayerWarnings(t *testing.T) {
 	assertAppliedInt(t, resolution, keyTuiPlanDataRefreshIntervalSeconds, DefaultPlanDataRefreshIntervalSeconds, ConfigSourceDefault)
 	assertAppliedInt(t, resolution, keyPlanningMaxPlanAutoRefinePasses, DefaultMaxPlanAutoRefinePasses, ConfigSourceDefault)
 	assertAppliedBool(t, resolution, keyExecutionStopAfterEachTask, DefaultStopAfterEachTask, ConfigSourceDefault)
+	assertAppliedBool(t, resolution, keyExecutionParentReviewEnabled, DefaultParentReviewEnabled, ConfigSourceDefault)
 }
 
 func TestResolveSettingsGlobalUnavailable(t *testing.T) {

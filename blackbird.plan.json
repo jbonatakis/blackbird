@@ -1,415 +1,119 @@
 {
   "schemaVersion": 1,
   "items": {
-    "plqg_01": {
-      "id": "plqg_01",
-      "title": "Deterministic Plan Quality Lint Package",
-      "description": "Implement a shared `internal/planquality` package that scores generated plans for execution readiness using deterministic, rule-based checks instead of subjective scoring. Scope is linting and finding construction only; execution/UX behavior is handled by downstream deliverables.",
+    "child_go_fizzbuzz_impl": {
+      "id": "child_go_fizzbuzz_impl",
+      "title": "Implement Minimal FizzBuzz in Go",
+      "description": "Create a minimal Go implementation of FizzBuzz for positive integers. Scope is limited to a single function with clear logic and quick compile-time validation; do not add automated tests.",
       "acceptanceCriteria": [
-        "`internal/planquality` exists with lint entrypoints that operate on `plan.WorkGraph`.",
-        "Findings are deterministic in content and order for the same input graph.",
-        "The package distinguishes blocking vs warning findings with stable rule codes.",
-        "Unit tests cover rule behavior, leaf-only scope, and deterministic ordering."
+        "A Go source file defines a `FizzBuzz(n int) string` function that returns `FizzBuzz` for multiples of 15, `Fizz` for multiples of 3, `Buzz` for multiples of 5, and the decimal string for all other positive integers.",
+        "The implementation uses only the Go standard library and straightforward control flow.",
+        "The code compiles successfully with a fast command such as `go build ./...` in the relevant Go module/workspace.",
+        "Task output includes brief manual sample checks showing expected results for representative inputs such as 1, 3, 5, and 15."
       ],
-      "prompt": "Create the plan quality lint foundation in `internal/planquality` for use by both CLI and TUI plan generation paths. Keep implementation deterministic, dependency-light, and test-first. Do not add runtime-specific behavior in this deliverable.",
-      "parentId": null,
-      "childIds": [
-        "plqg_01a",
-        "plqg_01b",
-        "plqg_01c"
-      ],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:24:08.368977Z"
-    },
-    "plqg_01a": {
-      "id": "plqg_01a",
-      "title": "Define Finding Schema and Deterministic Traversal",
-      "description": "Define the core finding model and stable traversal helpers that normalize task text and iterate leaf tasks in a deterministic order. This task sets the foundation for all lint rules and must avoid map-order nondeterminism.",
-      "acceptanceCriteria": [
-        "`PlanQualityFinding` is defined with fields `Severity`, `Code`, `TaskID`, `Field`, `Message`, and `Suggestion`.",
-        "Severity constants are constrained to `blocking` and `warning` and used consistently in emitted findings.",
-        "Leaf-task traversal is deterministic (stable ordering by task ID) and excludes non-leaf tasks.",
-        "Shared text-normalization helpers are added for placeholder and vague-language detection.",
-        "Tests verify leaf-only traversal and deterministic ordering across repeated runs."
-      ],
-      "prompt": "Implement `internal/planquality` core types and deterministic traversal helpers (e.g., `types.go`, `helpers.go`). Keep APIs small and pure so lint and orchestration code can reuse them. Add focused tests proving stable ordering and non-leaf exclusion.",
-      "parentId": "plqg_01",
+      "prompt": "Implement Go FizzBuzz in a focused package (for example `go/fizzbuzz/`). Add `fizzbuzz.go` with `FizzBuzz(n int) string`. Do not add test files. Run a quick validation command such as `go build ./...` and include brief manual sample checks for core values.",
+      "parentId": "parent_go_fizzbuzz",
       "childIds": [],
       "deps": [],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:12:42.657078Z"
+      "status": "todo",
+      "createdAt": "2026-02-11T05:00:24.505814Z",
+      "updatedAt": "2026-02-14T16:02:02.377593Z"
     },
-    "plqg_01b": {
-      "id": "plqg_01b",
-      "title": "Implement Blocking and Warning Lint Rules",
-      "description": "Implement the deterministic quality rules from the spec for leaf tasks, including both blocking and warning findings. Rules must prioritize objective checks and use word-count only as a weak warning signal.",
+    "child_go_fizzbuzz_noop": {
+      "id": "child_go_fizzbuzz_noop",
+      "title": "Go FizzBuzz No-Op Child",
+      "description": "A deliberate no-op child task for the Go FizzBuzz parent. This task exists only to satisfy structure requirements and must not introduce code, configuration, or behavior changes.",
       "acceptanceCriteria": [
-        "Blocking rules are implemented with exact codes: `leaf_description_missing_or_placeholder`, `leaf_acceptance_criteria_missing`, `leaf_acceptance_criteria_non_verifiable`, `leaf_prompt_missing`, and `leaf_prompt_not_actionable`.",
-        "Warning rules are implemented with exact codes: `leaf_description_too_thin`, `leaf_acceptance_criteria_low_count`, `leaf_prompt_missing_verification_hint`, and `vague_language_detected`.",
-        "`leaf_acceptance_criteria_non_verifiable` only triggers when criteria are present but entirely vague/non-testable.",
-        "Word-count heuristics never produce blocking findings by themselves.",
-        "Rule tests include both triggering and non-triggering fixtures for each rule code."
+        "No files are created, modified, moved, or deleted when this task is executed.",
+        "No commands that change repository state are required for completion.",
+        "Task can be marked complete by recording that no action was needed.",
+        "Parent/child linkage remains valid with this task attached to the Go parent."
       ],
-      "prompt": "Add lint rule evaluation in `internal/planquality/lint.go` (or equivalent) and comprehensive tests in `internal/planquality/lint_test.go`. Make each rule code explicit and stable; include field/message/suggestion values so downstream UX can render actionable output.",
-      "parentId": "plqg_01",
-      "childIds": [],
-      "deps": [
-        "plqg_01a"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:18:27.576536Z"
-    },
-    "plqg_01c": {
-      "id": "plqg_01c",
-      "title": "Add Finding Summaries and Refine-Request Builder",
-      "description": "Provide shared helpers that summarize findings and build a deterministic `plan_refine` change request from lint failures. This output is the contract consumed by bounded auto-refine orchestration.",
-      "acceptanceCriteria": [
-        "`HasBlocking(findings)` returns true only when at least one finding has `Severity=blocking`.",
-        "`Summarize(findings)` returns deterministic counts by severity and stable grouping suitable for CLI/TUI rendering.",
-        "`BuildRefineRequest(findings)` groups requested edits by task ID and field in deterministic order.",
-        "Refine request text includes explicit constraints to preserve IDs, hierarchy, and dependencies unless a finding requires structural change.",
-        "Tests snapshot/verify deterministic summary and refine-request output for fixed findings input."
-      ],
-      "prompt": "Implement `HasBlocking`, `Summarize`, and `BuildRefineRequest` helpers in `internal/planquality`. Keep formatting deterministic and concise so identical findings always produce identical refine prompts. Add tests for grouping and output stability.",
-      "parentId": "plqg_01",
-      "childIds": [],
-      "deps": [
-        "plqg_01b"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:24:08.368977Z"
-    },
-    "plqg_02": {
-      "id": "plqg_02",
-      "title": "Shared Bounded Auto-Refine Quality-Gate Orchestration",
-      "description": "Add shared orchestration that always lints generated plans, optionally runs bounded auto-refine passes, and returns structured quality-gate results. The loop must be finite, deterministic, and reusable by CLI and TUI.",
-      "acceptanceCriteria": [
-        "Generation flow always runs lint on the initial proposed plan before save/review decisions.",
-        "When blocking findings exist and passes remain, plan_refine is called with deterministic refine request text and lint is rerun.",
-        "Auto-refine attempts never exceed configured max passes and `0` disables auto-refine.",
-        "Shared result payload exposes initial/final findings and passes-run metadata for downstream UX."
-      ],
-      "prompt": "Implement shared quality-gate orchestration for generated plans. Reuse `plan_refine` path for semantic fixes, keep the loop bounded, and return structured results consumable by both CLI and TUI flows.",
-      "parentId": null,
-      "childIds": [
-        "plqg_02a",
-        "plqg_02b"
-      ],
-      "deps": [
-        "plqg_01",
-        "plqg_03"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:47:16.773096Z"
-    },
-    "plqg_02a": {
-      "id": "plqg_02a",
-      "title": "Implement Reusable Quality-Gate Loop Helper",
-      "description": "Create a reusable orchestration helper that executes lint -\u003e optional refine -\u003e relint cycles and returns a final plan plus pass metadata. This helper should be pure orchestration and not perform direct UI I/O.",
-      "acceptanceCriteria": [
-        "Helper accepts initial plan, max pass count, and refine callback contract.",
-        "Refine callback is invoked only when blocking findings exist and attempts remain.",
-        "Each refined plan is validated before continuing to the next pass.",
-        "Returned result includes final plan, initial findings, final findings, and auto-refine passes run.",
-        "Unit tests cover: no blocking, max passes zero, clears after one pass, remains blocking after max, and callback error handling."
-      ],
-      "prompt": "Add a reusable quality-gate loop helper in a shared package (e.g., `internal/planquality` or a shared plan-action helper) that can be called by CLI and TUI generation flows. Keep the API deterministic and test with mocked refine callbacks.",
-      "parentId": "plqg_02",
-      "childIds": [],
-      "deps": [
-        "plqg_01c",
-        "plqg_03a"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:33:15.253611Z"
-    },
-    "plqg_02b": {
-      "id": "plqg_02b",
-      "title": "Wire Quality-Gate Orchestration into Shared Plan Generation Paths",
-      "description": "Integrate the loop helper into both CLI and in-process TUI generation plumbing so both interfaces share identical auto-refine behavior. Keep question-round handling intact and avoid duplicate orchestration code.",
-      "acceptanceCriteria": [
-        "CLI and TUI generation paths invoke the same quality-gate orchestration function.",
-        "Refine callbacks reuse existing `plan_refine` request/response conversion logic.",
-        "Question rounds still respect `agent.MaxPlanQuestionRounds` and resume correctly after answers.",
-        "Config-resolved `planning.maxPlanAutoRefinePasses` controls pass limits for both interfaces.",
-        "Tests verify parity of pass counts/findings for equivalent mocked agent responses."
-      ],
-      "prompt": "Refactor generation plumbing in `internal/cli` and `internal/tui/action_wrappers.go` to share quality-gate orchestration, not duplicated loops. Ensure agent question handling still works and quality gating runs on the final generated plan.",
-      "parentId": "plqg_02",
-      "childIds": [],
-      "deps": [
-        "plqg_02a"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:47:16.773096Z"
-    },
-    "plqg_03": {
-      "id": "plqg_03",
-      "title": "Planning Config and Settings Integration",
-      "description": "Add and surface `planning.maxPlanAutoRefinePasses` so auto-refine behavior is controllable with the same precedence and warning model as existing settings. Keep bounds strict (`0`-`3`) with default `1`.",
-      "acceptanceCriteria": [
-        "`planning.maxPlanAutoRefinePasses` is supported in raw and resolved config models.",
-        "Config precedence remains project \u003e global \u003e default with clamping to 0-3.",
-        "Out-of-range warnings surface through existing settings warning mechanisms.",
-        "TUI Settings view can display and edit the option in local/global columns."
-      ],
-      "prompt": "Implement config plumbing for `planning.maxPlanAutoRefinePasses` across `internal/config` and TUI settings state/render/key handling. Follow existing patterns for option metadata, resolution, clamping, and warning display.",
-      "parentId": null,
-      "childIds": [
-        "plqg_03a",
-        "plqg_03b"
-      ],
-      "deps": [],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:50:28.911558Z"
-    },
-    "plqg_03a": {
-      "id": "plqg_03a",
-      "title": "Plumb Planning Auto-Refine Option Through Config Resolution",
-      "description": "Extend config schemas, defaults, resolution, and option-value serialization to include `planning.maxPlanAutoRefinePasses`. This task should keep backward compatibility for existing config files.",
-      "acceptanceCriteria": [
-        "`RawConfig`/`ResolvedConfig` include planning fields for max auto-refine passes.",
-        "Defaults include `planning.maxPlanAutoRefinePasses=1`.",
-        "Resolution clamps values to min `0` and max `3` and preserves precedence project \u003e global \u003e default.",
-        "`OptionRegistry`, `RawOptionValues`, `ResolvedOptionValues`, and `SaveConfigValues` support the new key path.",
-        "Tests cover defaults, precedence, clamping warnings, and read/write round trips with existing keys unchanged."
-      ],
-      "prompt": "Update `internal/config/types.go`, `internal/config/resolve.go`, `internal/config/settings.go`, `internal/config/settings_resolution.go`, and `internal/config/registry.go` to add `planning.maxPlanAutoRefinePasses`. Add/extend tests in config test files for precedence and clamp behavior.",
-      "parentId": "plqg_03",
+      "prompt": "Perform no implementation changes. Confirm this is an intentional no-op task and leave the repository unchanged.",
+      "parentId": "parent_go_fizzbuzz",
       "childIds": [],
       "deps": [],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:28:44.188813Z"
+      "status": "todo",
+      "createdAt": "2026-02-11T22:03:29.45281Z",
+      "updatedAt": "2026-02-14T16:02:02.400751Z"
     },
-    "plqg_03b": {
-      "id": "plqg_03b",
-      "title": "Expose Planning Auto-Refine Option in TUI Settings",
-      "description": "Expose the new planning option in the settings table and editing workflow so users can set local/global values and see applied source plus clamp warnings. Preserve existing navigation/edit semantics.",
+    "child_python_fizzbuzz_impl": {
+      "id": "child_python_fizzbuzz_impl",
+      "title": "Implement Minimal FizzBuzz in Python",
+      "description": "Create a minimal Python implementation of FizzBuzz for positive integers. Scope includes only pure function logic and quick execution/import validation; do not add automated tests.",
       "acceptanceCriteria": [
-        "Settings table renders a row for `planning.maxPlanAutoRefinePasses` with clear display name and bounds-aware description.",
-        "Editing local/global columns writes to the correct config layer and refreshes applied value/source.",
-        "Out-of-range values produce warning lines consistent with current settings warning format.",
-        "Keyboard navigation/editing behavior remains unchanged for existing options.",
-        "Tests cover rendering, editing, and warning behavior for the new option."
+        "A Python module defines `fizzbuzz(n: int) -\u003e str` returning `\"FizzBuzz\"` for multiples of 15, `\"Fizz\"` for multiples of 3, `\"Buzz\"` for multiples of 5, and `str(n)` otherwise for positive integers.",
+        "The solution uses simple control flow and no third-party dependencies.",
+        "A quick verification command (for example `python -c` import/run) executes successfully in the project environment.",
+        "Task output includes brief manual sample checks showing expected results for representative inputs such as 1, 3, 5, and 15."
       ],
-      "prompt": "Update TUI settings integration (`internal/tui/settings_state.go`, `internal/tui/settings_view.go`, key/edit handlers and tests) so `planning.maxPlanAutoRefinePasses` is visible/editable in Local and Global columns with applied-source highlighting.",
-      "parentId": "plqg_03",
+      "prompt": "Implement Python FizzBuzz in a dedicated path (for example `python/fizzbuzz.py`) with `fizzbuzz(n: int) -\u003e str`. Do not add test files. Run a quick import/run validation command and include brief manual sample checks for core values.",
+      "parentId": "parent_python_fizzbuzz",
       "childIds": [],
-      "deps": [
-        "plqg_03a"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:50:28.911558Z"
+      "deps": [],
+      "status": "todo",
+      "createdAt": "2026-02-11T05:00:24.505814Z",
+      "updatedAt": "2026-02-14T16:02:02.42267Z"
     },
-    "plqg_04": {
-      "id": "plqg_04",
-      "title": "CLI Quality-Gate UX and Override Decisions",
-      "description": "Update `blackbird plan generate` CLI UX to surface lint outcomes, report auto-refine progress, and require explicit user intent when blocking findings remain. Preserve current manual revise flow semantics.",
+    "child_python_fizzbuzz_noop": {
+      "id": "child_python_fizzbuzz_noop",
+      "title": "Python FizzBuzz No-Op Child",
+      "description": "A deliberate no-op child task for the Python FizzBuzz parent. This task exists only to satisfy structure requirements and must not introduce code, configuration, or behavior changes.",
       "acceptanceCriteria": [
-        "CLI prints quality summaries (blocking/warning counts) before plan acceptance.",
-        "Auto-refine passes are surfaced as progress lines (e.g., pass `1/1`).",
-        "When blocking findings remain, save is not implicit and user must choose revise, accept_anyway, or cancel.",
-        "CLI tests validate behavior for success, remaining-blocking, and explicit override paths."
+        "No files are created, modified, moved, or deleted when this task is executed.",
+        "No commands that change repository state are required for completion.",
+        "Task can be marked complete by recording that no action was needed.",
+        "Parent/child linkage remains valid with this task attached to the Python parent."
       ],
-      "prompt": "Implement CLI output and decision flow changes in plan-generate command handling so quality-gate behavior is explicit. Keep prompts concise and deterministic, and verify file-save side effects in tests.",
+      "prompt": "Perform no implementation changes. Confirm this is an intentional no-op task and leave the repository unchanged.",
+      "parentId": "parent_python_fizzbuzz",
+      "childIds": [],
+      "deps": [],
+      "status": "todo",
+      "createdAt": "2026-02-11T22:03:29.45281Z",
+      "updatedAt": "2026-02-14T16:02:02.443887Z"
+    },
+    "parent_go_fizzbuzz": {
+      "id": "parent_go_fizzbuzz",
+      "title": "Go FizzBuzz Minimal Deliverable",
+      "description": "Deliver a minimal Go-based FizzBuzz implementation with a fast compile/build verification step. This parent groups lightweight coding and smoke validation into one deliverable.",
+      "acceptanceCriteria": [
+        "The Go child task is completed with a minimal `FizzBuzz` implementation and no automated test files.",
+        "All files introduced by the Go child task are in a dedicated Go path and follow idiomatic Go style.",
+        "A repeatable quick verification command (for example `go build ./...`) is documented in the child task prompt/output.",
+        "No external runtime dependencies are added for the Go solution."
+      ],
+      "prompt": "Complete the child task to implement minimal Go FizzBuzz quickly, without adding tests, and verify with a fast build/smoke command.",
       "parentId": null,
       "childIds": [
-        "plqg_04a",
-        "plqg_04b"
+        "child_go_fizzbuzz_impl",
+        "child_go_fizzbuzz_noop"
       ],
-      "deps": [
-        "plqg_02"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T06:02:20.168355Z"
+      "deps": [],
+      "status": "todo",
+      "createdAt": "2026-02-11T05:00:24.505814Z",
+      "updatedAt": "2026-02-14T16:02:02.463427Z"
     },
-    "plqg_04a": {
-      "id": "plqg_04a",
-      "title": "Render CLI Quality Summaries and Auto-Refine Progress",
-      "description": "Add CLI reporting for lint findings and auto-refine pass execution so users can see why a plan is or is not auto-acceptable. Warnings should be visible but non-blocking.",
+    "parent_python_fizzbuzz": {
+      "id": "parent_python_fizzbuzz",
+      "title": "Python FizzBuzz Minimal Deliverable",
+      "description": "Deliver a minimal Python-based FizzBuzz implementation with quick runtime/import verification. This parent groups lightweight coding and smoke validation into one deliverable.",
       "acceptanceCriteria": [
-        "Initial lint summary is printed after proposal generation with blocking and warning counts.",
-        "Auto-refine execution prints pass progress in `current/total` format.",
-        "Final lint summary is printed after orchestration completes.",
-        "Warning findings are displayed without blocking save when no blocking findings remain.",
-        "Tests assert expected summary/progress output for no-findings and auto-refine-success scenarios."
+        "The Python child task is completed with a minimal `fizzbuzz` implementation and no automated test files.",
+        "All Python files are organized coherently and are runnable in a standard Python environment.",
+        "A repeatable quick verification command (for example a `python -c` import/run check) is documented in the child task prompt/output.",
+        "No third-party packages are required for the Python solution."
       ],
-      "prompt": "Update CLI generation output formatting in `internal/cli/agent_flows.go` (and related helpers/tests) to include quality summaries and pass progress. Keep output stable so tests can assert exact lines.",
-      "parentId": "plqg_04",
-      "childIds": [],
-      "deps": [
-        "plqg_02b"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T05:58:34.20073Z"
-    },
-    "plqg_04b": {
-      "id": "plqg_04b",
-      "title": "Require Explicit CLI Decision When Blocking Findings Persist",
-      "description": "Implement the explicit user choice branch when blocking findings remain after bounded auto-refine: revise, accept_anyway, or cancel. This prevents silent acceptance of execution-weak plans.",
-      "acceptanceCriteria": [
-        "Remaining blocking findings trigger a three-way decision prompt: `revise`, `accept_anyway`, `cancel`.",
-        "`revise` asks for a manual change request and then reruns refine plus lint before save.",
-        "`accept_anyway` persists the current plan and prints a clear warning that blocking findings were overridden.",
-        "`cancel` exits without writing plan changes.",
-        "Tests cover all three branches and verify resulting plan-file write behavior."
-      ],
-      "prompt": "Add explicit override decision handling in CLI plan generate flow, including manual revise integration and safe cancel behavior. Extend tests to verify prompts, branch outcomes, and persistence side effects.",
-      "parentId": "plqg_04",
-      "childIds": [],
-      "deps": [
-        "plqg_04a"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T06:02:20.168355Z"
-    },
-    "plqg_05": {
-      "id": "plqg_05",
-      "title": "TUI Plan Review Quality-Gate UX",
-      "description": "Extend the plan review modal flow to surface quality findings, indicate auto-refine activity, and require explicit override when blocking findings remain. Keep existing revision/question flows intact.",
-      "acceptanceCriteria": [
-        "Plan review modal displays quality summary data (blocking/warning and pass metadata).",
-        "Blocking findings change default action semantics so plain accept is not the default path.",
-        "Users can still revise, reject, or explicitly accept-anyway from the modal flow.",
-        "TUI model/render tests cover gating behavior and action outcomes."
-      ],
-      "prompt": "Implement TUI quality-gate UX updates across plan generation result handling, plan review form state, and modal rendering/actions. Maintain keyboard-driven workflow and existing revision limits.",
+      "prompt": "Complete the child task to implement minimal Python FizzBuzz quickly, without adding tests, and verify with a fast runtime/import command.",
       "parentId": null,
       "childIds": [
-        "plqg_05a",
-        "plqg_05b"
+        "child_python_fizzbuzz_impl",
+        "child_python_fizzbuzz_noop"
       ],
-      "deps": [
-        "plqg_02",
-        "plqg_03"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T06:16:51.248809Z"
-    },
-    "plqg_05a": {
-      "id": "plqg_05a",
-      "title": "Show Quality Summary and Pass Metadata in Plan Review Modal",
-      "description": "Augment plan review form state with quality-gate summary data and render it prominently so users understand plan readiness at review time. This includes both initial and post-auto-refine outcomes.",
-      "acceptanceCriteria": [
-        "Plan review state includes fields for blocking count, warning count, key findings, and auto-refine passes run.",
-        "Modal rendering shows a quality summary section above action choices.",
-        "When auto-refine ran, modal explicitly indicates pass count executed and final outcome.",
-        "When no blocking findings remain, existing Accept action remains enabled and selectable.",
-        "Rendering/model tests cover no-findings and blocking-findings states."
-      ],
-      "prompt": "Update `internal/tui/plan_review_modal.go`, relevant model state, and tests to render quality-gate summaries alongside plan overview content. Keep output concise and readable in narrow terminal widths.",
-      "parentId": "plqg_05",
-      "childIds": [],
-      "deps": [
-        "plqg_02b"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T06:09:22.373055Z"
-    },
-    "plqg_05b": {
-      "id": "plqg_05b",
-      "title": "Add Explicit TUI Override Action for Remaining Blocking Findings",
-      "description": "Enforce explicit user intent in TUI when blocking findings remain by separating standard accept from override acceptance. Prevent accidental acceptance as the default action in blocking states.",
-      "acceptanceCriteria": [
-        "If blocking findings remain, modal offers an explicit `Accept anyway` action distinct from normal `Accept`.",
-        "Default selected action in blocking state is non-accepting (e.g., Revise), and plain accept is disabled or guarded.",
-        "Choosing `Accept anyway` saves the plan and emits an explicit override warning in action output.",
-        "Choosing Revise returns to refine flow and re-evaluates quality on the updated plan.",
-        "Model tests verify keyboard navigation and outcomes for accept-anyway, revise, and reject branches."
-      ],
-      "prompt": "Implement explicit override behavior in TUI plan review action handling (`internal/tui/model.go`, `internal/tui/plan_review_modal.go`, and tests). Ensure save behavior is unchanged when blocking findings are absent.",
-      "parentId": "plqg_05",
-      "childIds": [],
-      "deps": [
-        "plqg_05a",
-        "plqg_03b"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T06:16:51.248809Z"
-    },
-    "plqg_06": {
-      "id": "plqg_06",
-      "title": "End-to-End Verification and Documentation",
-      "description": "Close the quality-gate improvement with deterministic cross-package tests and documentation updates so behavior is reproducible and user-facing controls are discoverable. This deliverable validates parity between CLI and TUI.",
-      "acceptanceCriteria": [
-        "Automated tests cover lint determinism, bounded refine loop behavior, config plumbing, and CLI/TUI decision paths.",
-        "`go test ./...` passes with the new quality-gate functionality enabled.",
-        "Documentation reflects new config key, CLI/TUI behavior, and explicit override semantics.",
-        "Project logs/spec status are updated to record implementation outcomes."
-      ],
-      "prompt": "Complete verification and docs for Plan Quality Gate. Prioritize deterministic tests over manual checks, then update specs/docs/log artifacts to match actual implemented behavior.",
-      "parentId": null,
-      "childIds": [
-        "plqg_06a",
-        "plqg_06b"
-      ],
-      "deps": [
-        "plqg_04",
-        "plqg_05"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T06:25:06.931921Z"
-    },
-    "plqg_06a": {
-      "id": "plqg_06a",
-      "title": "Add Deterministic Integration Tests Across Lint, Loop, CLI, and TUI",
-      "description": "Add and expand tests that validate deterministic findings, bounded auto-refine behavior, and user-decision paths across CLI and TUI. This task is test-heavy and should catch regressions in shared orchestration.",
-      "acceptanceCriteria": [
-        "`internal/planquality` tests cover every lint rule code and deterministic output ordering.",
-        "Quality-gate orchestration tests verify max-pass bounds and disabled (`0`) behavior.",
-        "CLI tests cover no-blocking, auto-refine-clears-blocking, and blocking-remains decision branches.",
-        "TUI tests cover quality summary rendering and explicit override action handling.",
-        "Test suite execution includes `go test ./...` with all new tests passing."
-      ],
-      "prompt": "Implement comprehensive tests in `internal/planquality`, `internal/cli`, and `internal/tui` for deterministic lint and bounded auto-refine UX flows. Use stable fixtures/mocks and assert concrete branch outcomes.",
-      "parentId": "plqg_06",
-      "childIds": [],
-      "deps": [
-        "plqg_04b",
-        "plqg_05b"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T06:21:30.053916Z"
-    },
-    "plqg_06b": {
-      "id": "plqg_06b",
-      "title": "Update Specs and User Docs for Plan Quality Gate",
-      "description": "Update improvement specs and user docs to describe deterministic linting, bounded auto-refine passes, and explicit override behavior in CLI/TUI. Keep documentation aligned with tested behavior and default values.",
-      "acceptanceCriteria": [
-        "`specs/improvements/PLAN_QUALITY_GATE.md` status and done criteria are updated to reflect implemented behavior.",
-        "User-facing docs include `planning.maxPlanAutoRefinePasses` default (`1`), bounds (`0-3`), and semantics (`0` disables auto-refine).",
-        "CLI and TUI docs describe quality summaries and explicit override requirements when blocking findings persist.",
-        "`AGENT_LOG.md` includes an implementation summary with test command/results.",
-        "Documentation changes do not contradict current command names or settings UI behavior."
-      ],
-      "prompt": "Update docs/spec files (`specs/improvements/PLAN_QUALITY_GATE.md`, `docs/CONFIGURATION.md`, `docs/COMMANDS.md`, `docs/TUI.md`, and `AGENT_LOG.md` as applicable) to match final implementation and test results.",
-      "parentId": "plqg_06",
-      "childIds": [],
-      "deps": [
-        "plqg_06a"
-      ],
-      "status": "done",
-      "createdAt": "2026-02-06T05:04:32.235719Z",
-      "updatedAt": "2026-02-06T06:25:06.931921Z"
+      "deps": [],
+      "status": "todo",
+      "createdAt": "2026-02-11T05:00:24.505814Z",
+      "updatedAt": "2026-02-14T16:02:02.485376Z"
     }
   }
 }

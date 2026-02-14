@@ -14,14 +14,17 @@ import (
 
 // ExecutionController centralizes execution and decision checkpoint flows for CLI/TUI.
 type ExecutionController struct {
-	PlanPath          string
-	Graph             *plan.WorkGraph
-	Runtime           agent.Runtime
-	StreamStdout      io.Writer
-	StreamStderr      io.Writer
-	StopAfterEachTask bool
-	OnTaskStart       func(taskID string)
-	OnTaskFinish      func(taskID string, record RunRecord, execErr error)
+	PlanPath            string
+	Graph               *plan.WorkGraph
+	Runtime             agent.Runtime
+	StreamStdout        io.Writer
+	StreamStderr        io.Writer
+	StopAfterEachTask   bool
+	ParentReviewEnabled bool
+	OnStateChange       func(ExecutionStageState)
+	OnParentReview      func(RunRecord)
+	OnTaskStart         func(taskID string)
+	OnTaskFinish        func(taskID string, record RunRecord, execErr error)
 }
 
 // DecisionRequest captures a user decision for a run checkpoint.
@@ -42,14 +45,17 @@ type DecisionResult struct {
 
 func (c ExecutionController) Execute(ctx context.Context) (ExecuteResult, error) {
 	return RunExecute(ctx, ExecuteConfig{
-		PlanPath:          c.PlanPath,
-		Graph:             c.Graph,
-		Runtime:           c.Runtime,
-		StopAfterEachTask: c.StopAfterEachTask,
-		StreamStdout:      c.StreamStdout,
-		StreamStderr:      c.StreamStderr,
-		OnTaskStart:       c.OnTaskStart,
-		OnTaskFinish:      c.OnTaskFinish,
+		PlanPath:            c.PlanPath,
+		Graph:               c.Graph,
+		Runtime:             c.Runtime,
+		StopAfterEachTask:   c.StopAfterEachTask,
+		ParentReviewEnabled: c.ParentReviewEnabled,
+		StreamStdout:        c.StreamStdout,
+		StreamStderr:        c.StreamStderr,
+		OnStateChange:       c.OnStateChange,
+		OnParentReview:      c.OnParentReview,
+		OnTaskStart:         c.OnTaskStart,
+		OnTaskFinish:        c.OnTaskFinish,
 	})
 }
 
@@ -104,6 +110,43 @@ func (c ExecutionController) ResolveDecision(ctx context.Context, req DecisionRe
 	switch req.Action {
 	case DecisionStateApprovedContinue:
 		result.Continue = true
+		if c.ParentReviewEnabled && record.Status == RunStatusSuccess {
+			reviewRun, pauseRun, gateErr := runParentReviewGateForCompletedTask(ctx, ExecuteConfig{
+				PlanPath:            c.PlanPath,
+				Graph:               c.Graph,
+				Runtime:             c.Runtime,
+				ParentReviewEnabled: c.ParentReviewEnabled,
+				StreamStdout:        c.StreamStdout,
+				StreamStderr:        c.StreamStderr,
+				OnStateChange:       c.OnStateChange,
+				OnParentReview:      c.OnParentReview,
+			}, req.TaskID)
+			if gateErr != nil {
+				return result, gateErr
+			}
+			if pauseRun != nil {
+				pauseTaskID := strings.TrimSpace(pauseRun.TaskID)
+				if pauseTaskID == "" {
+					pauseTaskID = req.TaskID
+				}
+				pauseCopy := *pauseRun
+				result.Next = &ExecuteResult{
+					Reason: ExecuteReasonParentReviewRequired,
+					TaskID: pauseTaskID,
+					Run:    &pauseCopy,
+				}
+				result.Continue = false
+				return result, nil
+			}
+			if reviewRun != nil {
+				reviewCopy := *reviewRun
+				result.Next = &ExecuteResult{
+					Reason: ExecuteReasonCompleted,
+					TaskID: req.TaskID,
+					Run:    &reviewCopy,
+				}
+			}
+		}
 		return result, nil
 	case DecisionStateApprovedQuit:
 		return result, nil

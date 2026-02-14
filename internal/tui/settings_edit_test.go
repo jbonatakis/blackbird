@@ -93,6 +93,109 @@ func TestSettingsBoolToggleAndClearAutosave(t *testing.T) {
 	}
 }
 
+func TestSettingsParentReviewTogglePersistenceAcrossLayers(t *testing.T) {
+	projectRoot := t.TempDir()
+	home := t.TempDir()
+	restoreHome := config.SetUserHomeDirForTest(func() (string, error) {
+		return home, nil
+	})
+	defer restoreHome()
+
+	const key = "execution.parentReviewEnabled"
+
+	model := Model{
+		viewMode:    ViewModeSettings,
+		projectRoot: projectRoot,
+		config:      config.DefaultResolvedConfig(),
+	}
+	model.settings = NewSettingsState(projectRoot, model.config)
+
+	idx := optionIndex(model.settings.Options, key)
+	if idx < 0 {
+		t.Fatalf("missing parent-review bool option")
+	}
+	model.settings.Selected = idx
+	model.settings.Column = SettingsColumnGlobal
+
+	updated, _ := HandleSettingsKey(model, tea.KeyMsg{Type: tea.KeySpace})
+	globalCfg, present, err := config.LoadGlobalConfig()
+	if err != nil {
+		t.Fatalf("load global config: %v", err)
+	}
+	if !present || globalCfg.Execution == nil || globalCfg.Execution.ParentReviewEnabled == nil || !*globalCfg.Execution.ParentReviewEnabled {
+		t.Fatalf("expected global parent-review value true after toggle")
+	}
+	applied := updated.settings.Resolution.Applied[key]
+	if applied.Source != config.ConfigSourceGlobal || applied.Value.Bool == nil || !*applied.Value.Bool {
+		t.Fatalf("expected applied value true from global source, got %+v", applied)
+	}
+	if !updated.config.Execution.ParentReviewEnabled {
+		t.Fatalf("expected model config parent-review value true after global toggle")
+	}
+
+	reopened := NewSettingsState(projectRoot, updated.config)
+	applied = reopened.Resolution.Applied[key]
+	if applied.Source != config.ConfigSourceGlobal || applied.Value.Bool == nil || !*applied.Value.Bool {
+		t.Fatalf("expected reopened settings to apply global parent-review true, got %+v", applied)
+	}
+
+	updated.settings = reopened
+	updated.settings.Selected = idx
+	updated.settings.Column = SettingsColumnLocal
+	updated, _ = HandleSettingsKey(updated, tea.KeyMsg{Type: tea.KeySpace})
+
+	localCfg, present, err := config.LoadProjectConfig(projectRoot)
+	if err != nil {
+		t.Fatalf("load project config: %v", err)
+	}
+	if !present || localCfg.Execution == nil || localCfg.Execution.ParentReviewEnabled == nil || *localCfg.Execution.ParentReviewEnabled {
+		t.Fatalf("expected local parent-review value false after local toggle")
+	}
+	applied = updated.settings.Resolution.Applied[key]
+	if applied.Source != config.ConfigSourceLocal || applied.Value.Bool == nil || *applied.Value.Bool {
+		t.Fatalf("expected applied value false from local source, got %+v", applied)
+	}
+	if updated.config.Execution.ParentReviewEnabled {
+		t.Fatalf("expected model config parent-review value false after local toggle")
+	}
+
+	reopened = NewSettingsState(projectRoot, updated.config)
+	applied = reopened.Resolution.Applied[key]
+	if applied.Source != config.ConfigSourceLocal || applied.Value.Bool == nil || *applied.Value.Bool {
+		t.Fatalf("expected reopened settings to apply local parent-review false, got %+v", applied)
+	}
+
+	updated.settings = reopened
+	updated.settings.Selected = idx
+	updated.settings.Column = SettingsColumnLocal
+	updated, _ = HandleSettingsKey(updated, tea.KeyMsg{Type: tea.KeyDelete})
+	applied = updated.settings.Resolution.Applied[key]
+	if applied.Source != config.ConfigSourceGlobal || applied.Value.Bool == nil || !*applied.Value.Bool {
+		t.Fatalf("expected applied value to fall back to global true after local clear, got %+v", applied)
+	}
+
+	updated.settings.Column = SettingsColumnGlobal
+	updated, _ = HandleSettingsKey(updated, tea.KeyMsg{Type: tea.KeyDelete})
+	applied = updated.settings.Resolution.Applied[key]
+	if applied.Source != config.ConfigSourceDefault || applied.Value.Bool == nil || *applied.Value.Bool {
+		t.Fatalf("expected applied value to fall back to default false after global clear, got %+v", applied)
+	}
+
+	_, present, err = config.LoadGlobalConfig()
+	if err != nil {
+		t.Fatalf("load global config after clear: %v", err)
+	}
+	if present {
+		t.Fatalf("expected global config file removed after clearing last value")
+	}
+
+	reopened = NewSettingsState(projectRoot, updated.config)
+	applied = reopened.Resolution.Applied[key]
+	if applied.Source != config.ConfigSourceDefault || applied.Value.Bool == nil || *applied.Value.Bool {
+		t.Fatalf("expected reopened settings to apply default parent-review false, got %+v", applied)
+	}
+}
+
 func TestSettingsIntEditValidationAndAutosave(t *testing.T) {
 	projectRoot := t.TempDir()
 	home := t.TempDir()

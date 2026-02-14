@@ -159,6 +159,9 @@ func ResolvedOptionValues(cfg ResolvedConfig) map[string]RawOptionValue {
 		keyExecutionStopAfterEachTask: {
 			Bool: copyBool(cfg.Execution.StopAfterEachTask),
 		},
+		keyExecutionParentReviewEnabled: {
+			Bool: copyBool(cfg.Execution.ParentReviewEnabled),
+		},
 	}
 }
 

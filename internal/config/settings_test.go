@@ -13,6 +13,7 @@ func TestRawOptionValues(t *testing.T) {
 	run := 12
 	refinePasses := 2
 	stop := false
+	parentReview := true
 	version := SchemaVersion
 	cfg := RawConfig{
 		SchemaVersion: &version,
@@ -23,13 +24,14 @@ func TestRawOptionValues(t *testing.T) {
 			MaxPlanAutoRefinePasses: &refinePasses,
 		},
 		Execution: &RawExecution{
-			StopAfterEachTask: &stop,
+			StopAfterEachTask:   &stop,
+			ParentReviewEnabled: &parentReview,
 		},
 	}
 
 	values := RawOptionValues(cfg)
-	if len(values) != 3 {
-		t.Fatalf("values len = %d, want 3", len(values))
+	if len(values) != 4 {
+		t.Fatalf("values len = %d, want 4", len(values))
 	}
 
 	runValue, ok := values[keyTuiRunDataRefreshIntervalSeconds]
@@ -46,6 +48,14 @@ func TestRawOptionValues(t *testing.T) {
 	}
 	if stopValue.Int != nil {
 		t.Fatalf("stop value int = %v, want nil", stopValue.Int)
+	}
+
+	parentReviewValue, ok := values[keyExecutionParentReviewEnabled]
+	if !ok || parentReviewValue.Bool == nil || *parentReviewValue.Bool != true {
+		t.Fatalf("parent review value = %#v, want true", parentReviewValue)
+	}
+	if parentReviewValue.Int != nil {
+		t.Fatalf("parent review value int = %v, want nil", parentReviewValue.Int)
 	}
 
 	planningValue, ok := values[keyPlanningMaxPlanAutoRefinePasses]
@@ -73,7 +83,7 @@ func TestLoadLayerOptionValues(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
 		t.Fatalf("mkdir global: %v", err)
 	}
-	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":20},"planning":{"maxPlanAutoRefinePasses":3}}`), 0o644); err != nil {
+	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":20},"planning":{"maxPlanAutoRefinePasses":3},"execution":{"parentReviewEnabled":true}}`), 0o644); err != nil {
 		t.Fatalf("write global config: %v", err)
 	}
 
@@ -116,6 +126,10 @@ func TestLoadLayerOptionValues(t *testing.T) {
 	if _, ok := global.Values[keyExecutionStopAfterEachTask]; ok {
 		t.Fatalf("expected global stop after each task to be unset")
 	}
+	parentReviewValue, ok := global.Values[keyExecutionParentReviewEnabled]
+	if !ok || parentReviewValue.Bool == nil || *parentReviewValue.Bool != true {
+		t.Fatalf("global parent review value = %#v, want true", parentReviewValue)
+	}
 }
 
 func TestSaveConfigValuesWritesFile(t *testing.T) {
@@ -125,10 +139,12 @@ func TestSaveConfigValuesWritesFile(t *testing.T) {
 	run := 8
 	maxRefinePasses := 2
 	stop := false
+	parentReview := true
 	values := map[string]RawOptionValue{
 		keyTuiRunDataRefreshIntervalSeconds: {Int: &run},
 		keyPlanningMaxPlanAutoRefinePasses:  {Int: &maxRefinePasses},
 		keyExecutionStopAfterEachTask:       {Bool: &stop},
+		keyExecutionParentReviewEnabled:     {Bool: &parentReview},
 	}
 
 	if err := SaveConfigValues(path, values); err != nil {
@@ -165,6 +181,9 @@ func TestSaveConfigValuesWritesFile(t *testing.T) {
 	if cfg.Execution == nil || cfg.Execution.StopAfterEachTask == nil || *cfg.Execution.StopAfterEachTask != false {
 		t.Fatalf("stop after each task = %#v, want false", cfg.Execution)
 	}
+	if cfg.Execution.ParentReviewEnabled == nil || *cfg.Execution.ParentReviewEnabled != true {
+		t.Fatalf("parent review enabled = %#v, want true", cfg.Execution)
+	}
 }
 
 func TestSaveConfigValuesUpdatesExistingFile(t *testing.T) {
@@ -180,10 +199,12 @@ func TestSaveConfigValuesUpdatesExistingFile(t *testing.T) {
 	run := 9
 	maxRefinePasses := 1
 	stop := false
+	parentReview := false
 	values := map[string]RawOptionValue{
 		keyTuiRunDataRefreshIntervalSeconds: {Int: &run},
 		keyPlanningMaxPlanAutoRefinePasses:  {Int: &maxRefinePasses},
 		keyExecutionStopAfterEachTask:       {Bool: &stop},
+		keyExecutionParentReviewEnabled:     {Bool: &parentReview},
 	}
 
 	if err := SaveConfigValues(path, values); err != nil {
@@ -217,6 +238,9 @@ func TestSaveConfigValuesUpdatesExistingFile(t *testing.T) {
 	if cfg.Execution == nil || cfg.Execution.StopAfterEachTask == nil || *cfg.Execution.StopAfterEachTask != false {
 		t.Fatalf("stop after each task = %#v, want false", cfg.Execution)
 	}
+	if cfg.Execution.ParentReviewEnabled == nil || *cfg.Execution.ParentReviewEnabled != false {
+		t.Fatalf("parent review enabled = %#v, want false", cfg.Execution)
+	}
 }
 
 func TestSaveConfigValuesRoundTripPreservesExistingKeys(t *testing.T) {
@@ -227,11 +251,13 @@ func TestSaveConfigValuesRoundTripPreservesExistingKeys(t *testing.T) {
 	plan := 6
 	refinePasses := 3
 	stop := true
+	parentReview := false
 	values := map[string]RawOptionValue{
 		keyTuiRunDataRefreshIntervalSeconds:  {Int: &run},
 		keyTuiPlanDataRefreshIntervalSeconds: {Int: &plan},
 		keyPlanningMaxPlanAutoRefinePasses:   {Int: &refinePasses},
 		keyExecutionStopAfterEachTask:        {Bool: &stop},
+		keyExecutionParentReviewEnabled:      {Bool: &parentReview},
 	}
 
 	if err := SaveConfigValues(path, values); err != nil {
@@ -258,6 +284,9 @@ func TestSaveConfigValuesRoundTripPreservesExistingKeys(t *testing.T) {
 	}
 	if got := roundTripValues[keyExecutionStopAfterEachTask]; got.Bool == nil || *got.Bool != stop {
 		t.Fatalf("round-trip stop value = %#v, want %v", got, stop)
+	}
+	if got := roundTripValues[keyExecutionParentReviewEnabled]; got.Bool == nil || *got.Bool != parentReview {
+		t.Fatalf("round-trip parent review value = %#v, want %v", got, parentReview)
 	}
 }
 

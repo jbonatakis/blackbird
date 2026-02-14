@@ -8,7 +8,7 @@ import (
 	"sort"
 )
 
-// ListRuns returns all run records for a task, sorted by StartedAt.
+// ListRuns returns all run records for a task, sorted by StartedAt and ID.
 func ListRuns(baseDir, taskID string) ([]RunRecord, error) {
 	if baseDir == "" {
 		return nil, fmt.Errorf("baseDir required")
@@ -46,9 +46,7 @@ func ListRuns(baseDir, taskID string) ([]RunRecord, error) {
 		records = append(records, record)
 	}
 
-	sort.SliceStable(records, func(i, j int) bool {
-		return records[i].StartedAt.Before(records[j].StartedAt)
-	})
+	sortRunRecords(records)
 
 	return records, nil
 }
@@ -90,4 +88,82 @@ func GetLatestRun(baseDir, taskID string) (*RunRecord, error) {
 	}
 	latest := records[len(records)-1]
 	return &latest, nil
+}
+
+// ListReviewRuns returns review run records for a task, sorted by StartedAt and ID.
+func ListReviewRuns(baseDir, taskID string) ([]RunRecord, error) {
+	records, err := ListRuns(baseDir, taskID)
+	if err != nil {
+		return nil, err
+	}
+	return filterRuns(records, isReviewRun), nil
+}
+
+// GetLatestReviewRun returns the most recent review run for a task, or nil if none exist.
+func GetLatestReviewRun(baseDir, taskID string) (*RunRecord, error) {
+	records, err := ListRuns(baseDir, taskID)
+	if err != nil {
+		return nil, err
+	}
+	return latestRunMatching(records, isReviewRun), nil
+}
+
+// GetLatestReviewRunBySignature returns the latest review run for a task with a matching
+// parent-review completion signature, or nil if none exist.
+func GetLatestReviewRunBySignature(baseDir, taskID, signature string) (*RunRecord, error) {
+	records, err := ListRuns(baseDir, taskID)
+	if err != nil {
+		return nil, err
+	}
+	return latestRunMatching(records, func(record RunRecord) bool {
+		return isReviewRun(record) && record.ParentReviewCompletionSignature == signature
+	}), nil
+}
+
+func latestRunMatching(records []RunRecord, include func(RunRecord) bool) *RunRecord {
+	var latest *RunRecord
+	for _, record := range records {
+		if !include(record) {
+			continue
+		}
+		if latest == nil || runRecordLess(*latest, record) {
+			candidate := record
+			latest = &candidate
+		}
+	}
+	return latest
+}
+
+func filterRuns(records []RunRecord, include func(RunRecord) bool) []RunRecord {
+	filtered := make([]RunRecord, 0, len(records))
+	for _, record := range records {
+		if include(record) {
+			filtered = append(filtered, record)
+		}
+	}
+	sortRunRecords(filtered)
+	return filtered
+}
+
+func isReviewRun(record RunRecord) bool {
+	return record.Type == RunTypeReview
+}
+
+func sortRunRecords(records []RunRecord) {
+	sort.Slice(records, func(i, j int) bool {
+		return runRecordLess(records[i], records[j])
+	})
+}
+
+func runRecordLess(left, right RunRecord) bool {
+	if !left.StartedAt.Equal(right.StartedAt) {
+		return left.StartedAt.Before(right.StartedAt)
+	}
+	if left.ID != right.ID {
+		return left.ID < right.ID
+	}
+	if left.TaskID != right.TaskID {
+		return left.TaskID < right.TaskID
+	}
+	return left.Type < right.Type
 }

@@ -312,7 +312,7 @@ func startReviewDecision(m Model, action execution.DecisionState, feedback strin
 	m.actionMode = ActionModeNone
 	m.reviewCheckpointForm = nil
 	m.actionInProgress = true
-	m.actionName = reviewDecisionActionName(action)
+	m.actionName = reviewDecisionActionName(action, m.config.Execution.ParentReviewEnabled)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	m.actionCancel = cancel
@@ -320,21 +320,65 @@ func startReviewDecision(m Model, action execution.DecisionState, feedback strin
 	if action == execution.DecisionStateChangesRequested {
 		streamCh, stdout, stderr := m.startLiveOutput()
 		return m, tea.Batch(
-			ResolveDecisionCmdWithContextAndStream(ctx, taskID, runID, action, feedback, m.config.Execution.StopAfterEachTask, stdout, stderr, streamCh),
+			ResolveDecisionCmdWithContextAndStream(
+				ctx,
+				taskID,
+				runID,
+				action,
+				feedback,
+				m.config.Execution.StopAfterEachTask,
+				m.config.Execution.ParentReviewEnabled,
+				stdout,
+				stderr,
+				streamCh,
+				nil,
+			),
 			listenLiveOutputCmd(streamCh),
 			spinnerTickCmd(),
 		)
 	}
 
+	if action == execution.DecisionStateApprovedContinue && m.config.Execution.ParentReviewEnabled {
+		stageCh := m.startLiveExecutionStage()
+		return m, tea.Batch(
+			ResolveDecisionCmdWithContextAndStream(
+				ctx,
+				taskID,
+				runID,
+				action,
+				feedback,
+				m.config.Execution.StopAfterEachTask,
+				m.config.Execution.ParentReviewEnabled,
+				nil,
+				nil,
+				nil,
+				stageCh,
+			),
+			listenExecutionStageCmd(stageCh),
+			spinnerTickCmd(),
+		)
+	}
+
 	return m, tea.Batch(
-		ResolveDecisionCmdWithContext(ctx, taskID, runID, action, feedback, m.config.Execution.StopAfterEachTask),
+		ResolveDecisionCmdWithContext(
+			ctx,
+			taskID,
+			runID,
+			action,
+			feedback,
+			m.config.Execution.StopAfterEachTask,
+			m.config.Execution.ParentReviewEnabled,
+		),
 		spinnerTickCmd(),
 	)
 }
 
-func reviewDecisionActionName(action execution.DecisionState) string {
+func reviewDecisionActionName(action execution.DecisionState, parentReviewEnabled bool) string {
 	switch action {
 	case execution.DecisionStateApprovedContinue:
+		if parentReviewEnabled {
+			return "Reviewing..."
+		}
 		return "Recording decision..."
 	case execution.DecisionStateApprovedQuit:
 		return "Recording decision..."

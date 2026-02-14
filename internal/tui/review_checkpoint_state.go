@@ -6,14 +6,6 @@ import (
 	"github.com/jbonatakis/blackbird/internal/execution"
 )
 
-func pendingDecisionRun(m Model) *execution.RunRecord {
-	if m.reviewCheckpointForm != nil {
-		run := m.reviewCheckpointForm.run
-		return &run
-	}
-	return pendingDecisionRunFromData(m.runData)
-}
-
 func pendingDecisionRunFromData(data map[string]execution.RunRecord) *execution.RunRecord {
 	var selected *execution.RunRecord
 	for _, record := range data {
@@ -53,6 +45,7 @@ func openReviewCheckpointModal(m Model, run execution.RunRecord) Model {
 	form := NewReviewCheckpointForm(run, m.plan)
 	form.SetSize(m.windowWidth, m.windowHeight)
 	m.reviewCheckpointForm = &form
+	m.parentReviewForm = nil
 	m.actionMode = ActionModeReviewCheckpoint
 	return m
 }

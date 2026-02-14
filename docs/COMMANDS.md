@@ -37,7 +37,7 @@ Auto-refine pass count is controlled by `planning.maxPlanAutoRefinePasses` (defa
 
 - `blackbird execute` — Run ready tasks in dependency order.
 - `blackbird runs <taskID>` — List runs for a task (`--verbose` shows logs).
-- `blackbird resume <taskID>` — Answer questions and continue a waiting task.
+- `blackbird resume <taskID>` — Resume a task from either pending parent-review feedback or `waiting_user` questions.
 - `blackbird retry <taskID>` — Reset failed tasks with failed runs back to `todo`.
 
 Execute and resume share the execution runner in `internal/execution`. The CLI and TUI call the same runner API; the TUI runs execute/resume in-process (no subprocess) and cancels the shared context on quit so any in-flight run stops promptly.
@@ -53,7 +53,21 @@ Actions:
 
 If stdin is not a TTY, the review prompt falls back to line mode where you can type the option number or label.
 
+**Parent Review Quality Gate**
+After a child task succeeds, `blackbird execute` may run a parent review for newly-eligible ancestor parents. If the parent review fails with resume targets, execute pauses before running other ready tasks and prints a deterministic summary:
+
+- `running parent review for <parentTaskId>`
+- `parent review failed for <parentTaskId>`
+- `resume tasks: <sorted child task ids>`
+- `feedback: <normalized feedback excerpt>`
+- `next step: blackbird resume <childTaskId>` (one line per resume target)
+
+There is no auto-resume in this flow. Continue by running `blackbird resume <taskID>` for the target child task(s).
+
 Limitations and errors:
-- `blackbird resume` only handles `waiting_user` runs that contain agent questions; it does not resolve review checkpoints. Run `blackbird execute` again (or use the TUI) to handle pending review decisions.
+- `blackbird resume` does not resolve execution review checkpoints. Run `blackbird execute` again (or use the TUI) to handle pending review decisions.
+- If pending parent-review feedback exists for the task, `blackbird resume` uses that feedback path and skips waiting-question prompts.
+- If no pending parent-review feedback exists, `blackbird resume` requires a `waiting_user` run with agent questions.
+- Resume answers cannot be combined with feedback-based resume for the same task.
 - `Request changes` depends on provider resume support and a saved session reference; if the provider does not support resume or the run lacks a session ref, the decision will error and execution will stop.
 - Review summaries are best-effort; if git status/diff commands fail or time out, the prompt shows an empty summary.

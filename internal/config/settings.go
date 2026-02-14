@@ -13,6 +13,7 @@ const (
 	keyTuiPlanDataRefreshIntervalSeconds = "tui.planDataRefreshIntervalSeconds"
 	keyPlanningMaxPlanAutoRefinePasses   = "planning.maxPlanAutoRefinePasses"
 	keyExecutionStopAfterEachTask        = "execution.stopAfterEachTask"
+	keyExecutionParentReviewEnabled      = "execution.parentReviewEnabled"
 )
 
 type RawOptionValue struct {
@@ -78,6 +79,11 @@ func RawOptionValues(cfg RawConfig) map[string]RawOptionValue {
 		if cfg.Execution.StopAfterEachTask != nil {
 			values[keyExecutionStopAfterEachTask] = RawOptionValue{
 				Bool: copyBool(*cfg.Execution.StopAfterEachTask),
+			}
+		}
+		if cfg.Execution.ParentReviewEnabled != nil {
+			values[keyExecutionParentReviewEnabled] = RawOptionValue{
+				Bool: copyBool(*cfg.Execution.ParentReviewEnabled),
 			}
 		}
 	}
@@ -164,6 +170,13 @@ func buildRawConfig(values map[string]RawOptionValue) (RawConfig, bool, error) {
 			}
 			v := *value.Bool
 			exec.StopAfterEachTask = &v
+			hasExec = true
+		case keyExecutionParentReviewEnabled:
+			if value.Bool == nil {
+				return RawConfig{}, false, fmt.Errorf("config key %q expects bool value", key)
+			}
+			v := *value.Bool
+			exec.ParentReviewEnabled = &v
 			hasExec = true
 		default:
 			return RawConfig{}, false, fmt.Errorf("unknown config key %q", key)

@@ -7,6 +7,7 @@ const (
 	DefaultPlanDataRefreshIntervalSeconds = 5
 	DefaultMaxPlanAutoRefinePasses        = 1
 	DefaultStopAfterEachTask              = false
+	DefaultParentReviewEnabled            = false
 
 	MinRefreshIntervalSeconds = 1
 	MaxRefreshIntervalSeconds = 300
@@ -27,7 +28,8 @@ type RawTUI struct {
 }
 
 type RawExecution struct {
-	StopAfterEachTask *bool `json:"stopAfterEachTask,omitempty"`
+	StopAfterEachTask   *bool `json:"stopAfterEachTask,omitempty"`
+	ParentReviewEnabled *bool `json:"parentReviewEnabled,omitempty"`
 }
 
 type RawPlanning struct {
@@ -47,7 +49,8 @@ type ResolvedTUI struct {
 }
 
 type ResolvedExecution struct {
-	StopAfterEachTask bool `json:"stopAfterEachTask"`
+	StopAfterEachTask   bool `json:"stopAfterEachTask"`
+	ParentReviewEnabled bool `json:"parentReviewEnabled"`
 }
 
 type ResolvedPlanning struct {
@@ -65,7 +68,8 @@ func DefaultResolvedConfig() ResolvedConfig {
 			MaxPlanAutoRefinePasses: DefaultMaxPlanAutoRefinePasses,
 		},
 		Execution: ResolvedExecution{
-			StopAfterEachTask: DefaultStopAfterEachTask,
+			StopAfterEachTask:   DefaultStopAfterEachTask,
+			ParentReviewEnabled: DefaultParentReviewEnabled,
 		},
 	}
 }

@@ -24,13 +24,20 @@ func RenderBottomBar(model Model) string {
 	left := strings.Join(actions, " ")
 	if model.actionInProgress {
 		frame := spinnerFrames[model.spinnerIndex%len(spinnerFrames)]
-		left = fmt.Sprintf("%s | %s %s", left, frame, model.actionName)
+		left = fmt.Sprintf("%s | %s %s", left, frame, bottomBarActionText(model))
 	}
 	right := selectBottomBarRight(model, agent, readyCount, blockedCount, left, contentWidth)
 	bar := layoutBar(left, right, contentWidth)
 
 	style := lipgloss.NewStyle().Reverse(true).Padding(0, padding)
 	return style.Render(bar)
+}
+
+func bottomBarActionText(model Model) string {
+	if model.executionState.Stage == execution.ExecutionStageReviewing {
+		return "Reviewing..."
+	}
+	return model.actionName
 }
 
 func selectBottomBarRight(model Model, agent string, readyCount int, blockedCount int, left string, width int) string {
@@ -129,6 +136,9 @@ func actionHints(model Model, readyCount int) []string {
 		} else if model.reviewCheckpointForm != nil && model.reviewCheckpointForm.mode == ReviewCheckpointRequestChanges {
 			return []string{"[ctrl+s]submit", "[esc]back", "[ctrl+c]quit"}
 		}
+	}
+	if model.actionMode == ActionModeParentReview {
+		return []string{"[↑/↓]navigate", "[1-4]select", "[enter]confirm", "[esc]back", "[ctrl+c]quit"}
 	}
 	if model.actionMode == ActionModeSelectAgent {
 		return []string{"[↑/↓]move", "[enter]select", "[esc]cancel", "[ctrl+c]quit"}

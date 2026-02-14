@@ -47,6 +47,9 @@ func TestLoadConfigMergesGlobalAndProject(t *testing.T) {
 	if resolved.Execution.StopAfterEachTask != true {
 		t.Fatalf("stopAfterEachTask = %v, want true", resolved.Execution.StopAfterEachTask)
 	}
+	if resolved.Execution.ParentReviewEnabled != false {
+		t.Fatalf("parentReviewEnabled = %v, want false", resolved.Execution.ParentReviewEnabled)
+	}
 }
 
 func TestLoadConfigProjectOverridesGlobal(t *testing.T) {
@@ -61,7 +64,7 @@ func TestLoadConfigProjectOverridesGlobal(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
 		t.Fatalf("mkdir global: %v", err)
 	}
-	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":30,"planDataRefreshIntervalSeconds":25},"planning":{"maxPlanAutoRefinePasses":1},"execution":{"stopAfterEachTask":true}}`), 0o644); err != nil {
+	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":30,"planDataRefreshIntervalSeconds":25},"planning":{"maxPlanAutoRefinePasses":1},"execution":{"stopAfterEachTask":true,"parentReviewEnabled":true}}`), 0o644); err != nil {
 		t.Fatalf("write global config: %v", err)
 	}
 
@@ -69,7 +72,7 @@ func TestLoadConfigProjectOverridesGlobal(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(projectPath), 0o755); err != nil {
 		t.Fatalf("mkdir project: %v", err)
 	}
-	if err := os.WriteFile(projectPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":12,"planDataRefreshIntervalSeconds":9},"planning":{"maxPlanAutoRefinePasses":3},"execution":{"stopAfterEachTask":false}}`), 0o644); err != nil {
+	if err := os.WriteFile(projectPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":12,"planDataRefreshIntervalSeconds":9},"planning":{"maxPlanAutoRefinePasses":3},"execution":{"stopAfterEachTask":false,"parentReviewEnabled":false}}`), 0o644); err != nil {
 		t.Fatalf("write project config: %v", err)
 	}
 
@@ -88,6 +91,9 @@ func TestLoadConfigProjectOverridesGlobal(t *testing.T) {
 	}
 	if resolved.Execution.StopAfterEachTask != false {
 		t.Fatalf("stopAfterEachTask = %v, want false", resolved.Execution.StopAfterEachTask)
+	}
+	if resolved.Execution.ParentReviewEnabled != false {
+		t.Fatalf("parentReviewEnabled = %v, want false", resolved.Execution.ParentReviewEnabled)
 	}
 }
 
@@ -145,6 +151,75 @@ func TestLoadConfigDefaultsWhenMissing(t *testing.T) {
 	}
 	if resolved.Execution.StopAfterEachTask != DefaultStopAfterEachTask {
 		t.Fatalf("stopAfterEachTask = %v, want %v", resolved.Execution.StopAfterEachTask, DefaultStopAfterEachTask)
+	}
+	if resolved.Execution.ParentReviewEnabled != DefaultParentReviewEnabled {
+		t.Fatalf("parentReviewEnabled = %v, want %v", resolved.Execution.ParentReviewEnabled, DefaultParentReviewEnabled)
+	}
+}
+
+func TestLoadConfigParentReviewEnabledGlobalOnly(t *testing.T) {
+	homeDir := t.TempDir()
+	projectDir := t.TempDir()
+	restore := overrideUserHomeDir(func() (string, error) {
+		return homeDir, nil
+	})
+	t.Cleanup(restore)
+
+	globalPath := filepath.Join(homeDir, ".blackbird", "config.json")
+	if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
+		t.Fatalf("mkdir global: %v", err)
+	}
+	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"execution":{"parentReviewEnabled":true}}`), 0o644); err != nil {
+		t.Fatalf("write global config: %v", err)
+	}
+
+	projectPath := filepath.Join(projectDir, ".blackbird", "config.json")
+	if err := os.MkdirAll(filepath.Dir(projectPath), 0o755); err != nil {
+		t.Fatalf("mkdir project: %v", err)
+	}
+	if err := os.WriteFile(projectPath, []byte(`{"schemaVersion":1,"execution":{"stopAfterEachTask":true}}`), 0o644); err != nil {
+		t.Fatalf("write project config: %v", err)
+	}
+
+	resolved, err := LoadConfig(projectDir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if resolved.Execution.ParentReviewEnabled != true {
+		t.Fatalf("parentReviewEnabled = %v, want true", resolved.Execution.ParentReviewEnabled)
+	}
+}
+
+func TestLoadConfigParentReviewEnabledMissingInBothLayersDefaultsFalse(t *testing.T) {
+	homeDir := t.TempDir()
+	projectDir := t.TempDir()
+	restore := overrideUserHomeDir(func() (string, error) {
+		return homeDir, nil
+	})
+	t.Cleanup(restore)
+
+	globalPath := filepath.Join(homeDir, ".blackbird", "config.json")
+	if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
+		t.Fatalf("mkdir global: %v", err)
+	}
+	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"execution":{"stopAfterEachTask":true}}`), 0o644); err != nil {
+		t.Fatalf("write global config: %v", err)
+	}
+
+	projectPath := filepath.Join(projectDir, ".blackbird", "config.json")
+	if err := os.MkdirAll(filepath.Dir(projectPath), 0o755); err != nil {
+		t.Fatalf("mkdir project: %v", err)
+	}
+	if err := os.WriteFile(projectPath, []byte(`{"schemaVersion":1,"execution":{"stopAfterEachTask":false}}`), 0o644); err != nil {
+		t.Fatalf("write project config: %v", err)
+	}
+
+	resolved, err := LoadConfig(projectDir)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if resolved.Execution.ParentReviewEnabled != false {
+		t.Fatalf("parentReviewEnabled = %v, want false", resolved.Execution.ParentReviewEnabled)
 	}
 }
 

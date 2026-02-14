@@ -123,6 +123,82 @@ func TestResolveDecisionApproveContinue(t *testing.T) {
 	}
 }
 
+func TestResolveDecisionApproveContinueRunsDeferredParentReview(t *testing.T) {
+	tempDir := t.TempDir()
+	planPath := filepath.Join(tempDir, "blackbird.plan.json")
+
+	parentID := "parent-1"
+	childID := "child-1"
+
+	parent := makeItem(parentID, plan.StatusTodo)
+	parent.ChildIDs = []string{childID}
+	parent.AcceptanceCriteria = []string{"Parent criteria."}
+
+	child := makeItem(childID, plan.StatusTodo)
+	childParent := parentID
+	child.ParentID = &childParent
+
+	g := plan.WorkGraph{
+		SchemaVersion: plan.SchemaVersion,
+		Items: map[string]plan.WorkItem{
+			parentID: parent,
+			childID:  child,
+		},
+	}
+	if err := plan.SaveAtomic(planPath, g); err != nil {
+		t.Fatalf("save plan: %v", err)
+	}
+
+	runtime := agent.Runtime{
+		Provider: "codex",
+		Command:  `printf '{"passed":true}'`,
+		UseShell: true,
+		Timeout:  2 * time.Second,
+	}
+	first, err := RunExecute(context.Background(), ExecuteConfig{
+		PlanPath:            planPath,
+		Runtime:             runtime,
+		StopAfterEachTask:   true,
+		ParentReviewEnabled: true,
+	})
+	if err != nil {
+		t.Fatalf("RunExecute: %v", err)
+	}
+	if first.Reason != ExecuteReasonDecisionRequired {
+		t.Fatalf("expected decision required, got %s", first.Reason)
+	}
+
+	controller := ExecutionController{
+		PlanPath:            planPath,
+		Runtime:             runtime,
+		StopAfterEachTask:   true,
+		ParentReviewEnabled: true,
+	}
+	decision, err := controller.ResolveDecision(context.Background(), DecisionRequest{
+		TaskID: first.TaskID,
+		RunID:  first.Run.ID,
+		Action: DecisionStateApprovedContinue,
+	})
+	if err != nil {
+		t.Fatalf("ResolveDecision: %v", err)
+	}
+	if !decision.Continue {
+		t.Fatalf("expected continue true for passing deferred parent review")
+	}
+	if decision.Next == nil {
+		t.Fatalf("expected deferred parent review execute result")
+	}
+	if decision.Next.Reason != ExecuteReasonCompleted {
+		t.Fatalf("decision.Next.Reason = %q, want %q", decision.Next.Reason, ExecuteReasonCompleted)
+	}
+	if decision.Next.Run == nil || decision.Next.Run.Type != RunTypeReview {
+		t.Fatalf("expected decision.Next.Run to be a parent review run, got %#v", decision.Next.Run)
+	}
+	if decision.Next.Run.TaskID != parentID {
+		t.Fatalf("decision.Next.Run.TaskID = %q, want %q", decision.Next.Run.TaskID, parentID)
+	}
+}
+
 func TestResolveDecisionApproveQuit(t *testing.T) {
 	tempDir := t.TempDir()
 	planPath := filepath.Join(tempDir, "blackbird.plan.json")

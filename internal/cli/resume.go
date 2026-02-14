@@ -35,49 +35,59 @@ func runResume(taskID string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	runs, err := execution.ListRuns(filepath.Dir(path), taskID)
+	baseDir := filepath.Dir(path)
+	resolvedFeedback, err := execution.ResolveResumeFeedbackSource(baseDir, taskID, "", nil)
 	if err != nil {
 		return err
 	}
-	var waiting *execution.RunRecord
-	for i := len(runs) - 1; i >= 0; i-- {
-		if runs[i].Status == execution.RunStatusWaitingUser {
-			waiting = &runs[i]
-			break
-		}
-	}
-	if waiting == nil {
-		fmt.Fprintf(os.Stdout, "no waiting runs for %s\n", taskID)
-		return nil
-	}
+	hasPendingParentFeedback := resolvedFeedback.Source == execution.ResumeFeedbackSourcePendingParentReview
 
-	questions, err := execution.ParseQuestions(waiting.Stdout)
-	if err != nil {
-		return err
-	}
-	if len(questions) == 0 {
-		fmt.Fprintf(os.Stdout, "no questions found in waiting run for %s\n", taskID)
-		return nil
-	}
-
-	answers, err := promptAnswers(questions)
-	if err != nil {
-		return err
-	}
-
-	ctxPack, err := execution.ResumeWithAnswer(*waiting, answers)
-	if err != nil {
-		return err
-	}
-
-	record, err := execution.RunResume(ctx, execution.ResumeConfig{
+	resumeCfg := execution.ResumeConfig{
 		PlanPath: path,
-		Graph:    &g,
 		TaskID:   taskID,
-		Answers:  answers,
-		Context:  &ctxPack,
 		Runtime:  runtime,
-	})
+	}
+
+	if !hasPendingParentFeedback {
+		runs, err := execution.ListRuns(baseDir, taskID)
+		if err != nil {
+			return err
+		}
+		var waiting *execution.RunRecord
+		for i := len(runs) - 1; i >= 0; i-- {
+			if runs[i].Status == execution.RunStatusWaitingUser {
+				waiting = &runs[i]
+				break
+			}
+		}
+		if waiting == nil {
+			fmt.Fprintf(os.Stdout, "no waiting runs for %s\n", taskID)
+			return nil
+		}
+
+		questions, err := execution.ParseQuestions(waiting.Stdout)
+		if err != nil {
+			return err
+		}
+		if len(questions) == 0 {
+			fmt.Fprintf(os.Stdout, "no questions found in waiting run for %s\n", taskID)
+			return nil
+		}
+
+		answers, err := promptAnswers(questions)
+		if err != nil {
+			return err
+		}
+
+		ctxPack, err := execution.ResumeWithAnswer(*waiting, answers)
+		if err != nil {
+			return err
+		}
+		resumeCfg.Answers = answers
+		resumeCfg.Context = &ctxPack
+	}
+
+	record, err := execution.RunResume(ctx, resumeCfg)
 	if err != nil {
 		return err
 	}

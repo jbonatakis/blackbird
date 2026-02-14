@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jbonatakis/blackbird/internal/execution"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
@@ -182,6 +183,97 @@ func TestRenderTreeView_CompactLineTruncation(t *testing.T) {
 	}
 	if !strings.Contains(result, "...") {
 		t.Errorf("expected truncated fields to include ellipsis, got %q", result)
+	}
+}
+
+func TestRenderTreeLine_ReviewingMarkerShownAndNonReviewedRowsUnchanged(t *testing.T) {
+	item := plan.WorkItem{
+		ID:    "parent-1",
+		Title: "Parent Task",
+	}
+
+	normal := stripANSI(renderTreeLine(Model{}, item, "READY", false, true))
+	if strings.Contains(normal, reviewingRowMarker) {
+		t.Fatalf("expected normal line to omit reviewing marker, got %q", normal)
+	}
+
+	reviewingModel := Model{
+		executionState: execution.ExecutionStageState{
+			Stage:          execution.ExecutionStageReviewing,
+			ReviewedTaskID: "parent-1",
+		},
+	}
+	reviewingLine := stripANSI(renderTreeLine(reviewingModel, item, "READY", false, true))
+	if !strings.Contains(reviewingLine, reviewingRowMarker) {
+		t.Fatalf("expected reviewing marker in reviewed row, got %q", reviewingLine)
+	}
+
+	nonReviewedModel := Model{
+		executionState: execution.ExecutionStageState{
+			Stage:          execution.ExecutionStageReviewing,
+			ReviewedTaskID: "parent-2",
+		},
+	}
+	nonReviewedLine := stripANSI(renderTreeLine(nonReviewedModel, item, "READY", false, true))
+	if nonReviewedLine != normal {
+		t.Fatalf("expected non-reviewed row rendering unchanged during review, got %q, want %q", nonReviewedLine, normal)
+	}
+}
+
+func TestRenderTreeLine_ReviewingMarkerClearsOutsideReviewingState(t *testing.T) {
+	item := plan.WorkItem{
+		ID:    "parent-1",
+		Title: "Parent Task",
+	}
+
+	reviewingModel := Model{
+		executionState: execution.ExecutionStageState{
+			Stage:          execution.ExecutionStageReviewing,
+			ReviewedTaskID: "parent-1",
+		},
+	}
+	reviewingLine := stripANSI(renderTreeLine(reviewingModel, item, "READY", false, true))
+	if !strings.Contains(reviewingLine, reviewingRowMarker) {
+		t.Fatalf("expected reviewing marker while reviewing, got %q", reviewingLine)
+	}
+
+	postReviewModel := Model{
+		executionState: execution.ExecutionStageState{
+			Stage:          execution.ExecutionStagePostReview,
+			ReviewedTaskID: "parent-1",
+		},
+	}
+	postReviewLine := stripANSI(renderTreeLine(postReviewModel, item, "READY", false, true))
+	if strings.Contains(postReviewLine, reviewingRowMarker) {
+		t.Fatalf("expected reviewing marker to clear after reviewing stage, got %q", postReviewLine)
+	}
+}
+
+func TestRenderTreeView_ReviewingMarkerPersistsWithoutColor(t *testing.T) {
+	now := time.Now()
+	model := Model{
+		plan: plan.WorkGraph{
+			SchemaVersion: 1,
+			Items: map[string]plan.WorkItem{
+				"parent-1": {
+					ID:        "parent-1",
+					Title:     "Parent Task",
+					Status:    plan.StatusTodo,
+					CreatedAt: now,
+					UpdatedAt: now,
+				},
+			},
+		},
+		filterMode: FilterModeAll,
+		executionState: execution.ExecutionStageState{
+			Stage:          execution.ExecutionStageReviewing,
+			ReviewedTaskID: "parent-1",
+		},
+	}
+
+	result := stripANSI(RenderTreeView(model))
+	if !strings.Contains(result, reviewingRowMarker) {
+		t.Fatalf("expected reviewing marker without color, got %q", result)
 	}
 }
 

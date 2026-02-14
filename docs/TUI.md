@@ -25,7 +25,7 @@ Running `blackbird` with no arguments launches the TUI. CLI commands like `black
 | `e` | Execute ready tasks |
 | `c` | Change agent (Home view) |
 | `s` | Settings (Home view); set status for selected item (Main view) |
-| `u` | Resume waiting task (when available) |
+| `u` | Resume selected task (waiting questions or pending parent feedback) |
 | `ctrl+c` | Quit |
 
 **Settings View**
@@ -69,7 +69,24 @@ Actions:
 
 In the action chooser, use `up` / `down` or `1-4` to select and `enter` to confirm. When requesting changes, use `ctrl+s` or `ctrl+enter` to submit, `esc` to return to the action list, and `@` to open the file picker.
 
+**Parent Review Failure Modal**
+When execute stops with `parent_review_required`, the TUI opens a parent-review modal (separate from review checkpoints) that shows:
+- Parent task and review run ID
+- Failed outcome
+- Sorted resume-target child task IDs
+- Normalized review feedback text
+
+Actions:
+- `up` / `down` or `j` / `k`: change selected resume target.
+- `1` or `enter`: resume selected target with pending parent-review feedback.
+- `2`: resume all targets listed in the modal.
+- `3` or `esc`: dismiss the modal without starting resumes.
+
+While this modal is active, normal main-view shortcuts (including `e` execute) are paused until you resume targets or dismiss.
+
 Limitations and errors:
-- Review checkpoints are separate from `waiting_user` question prompts; `u` (resume) only applies to runs waiting on agent questions.
+- Review checkpoints are separate from parent-review failure handling and from `waiting_user` question prompts.
+- `u` on a task with pending parent-review feedback starts direct feedback resume (no question modal).
+- `u` on a task without pending parent feedback follows the existing waiting-user question flow.
 - `Request changes` requires provider resume support and a saved session reference; if resume is unsupported or missing, the decision will fail and the modal will report the error.
 - Review summaries are best-effort; if git status/diff commands fail or time out, the modal shows an empty summary.

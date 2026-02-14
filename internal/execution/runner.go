@@ -15,11 +15,12 @@ import (
 type ExecuteStopReason string
 
 const (
-	ExecuteReasonCompleted        ExecuteStopReason = "completed"
-	ExecuteReasonWaitingUser      ExecuteStopReason = "waiting_user"
-	ExecuteReasonDecisionRequired ExecuteStopReason = "decision_required"
-	ExecuteReasonCanceled         ExecuteStopReason = "canceled"
-	ExecuteReasonError            ExecuteStopReason = "error"
+	ExecuteReasonCompleted            ExecuteStopReason = "completed"
+	ExecuteReasonWaitingUser          ExecuteStopReason = "waiting_user"
+	ExecuteReasonDecisionRequired     ExecuteStopReason = "decision_required"
+	ExecuteReasonParentReviewRequired ExecuteStopReason = "parent_review_required"
+	ExecuteReasonCanceled             ExecuteStopReason = "canceled"
+	ExecuteReasonError                ExecuteStopReason = "error"
 )
 
 type ExecuteResult struct {
@@ -30,14 +31,17 @@ type ExecuteResult struct {
 }
 
 type ExecuteConfig struct {
-	PlanPath          string
-	Graph             *plan.WorkGraph
-	Runtime           agent.Runtime
-	StopAfterEachTask bool
-	StreamStdout      io.Writer
-	StreamStderr      io.Writer
-	OnTaskStart       func(taskID string)
-	OnTaskFinish      func(taskID string, record RunRecord, execErr error)
+	PlanPath            string
+	Graph               *plan.WorkGraph
+	Runtime             agent.Runtime
+	StopAfterEachTask   bool
+	ParentReviewEnabled bool
+	StreamStdout        io.Writer
+	StreamStderr        io.Writer
+	OnStateChange       func(ExecutionStageState)
+	OnParentReview      func(RunRecord)
+	OnTaskStart         func(taskID string)
+	OnTaskFinish        func(taskID string, record RunRecord, execErr error)
 }
 
 type ResumeConfig struct {
@@ -80,6 +84,7 @@ func RunExecute(ctx context.Context, cfg ExecuteConfig) (ExecuteResult, error) {
 
 	baseDir := filepath.Dir(cfg.PlanPath)
 	preloaded := cfg.Graph != nil
+	var latestParentReviewRun *RunRecord
 
 	for {
 		if ctx.Err() != nil {
@@ -93,6 +98,13 @@ func RunExecute(ctx context.Context, cfg ExecuteConfig) (ExecuteResult, error) {
 
 		ready := ReadyTasks(g)
 		if len(ready) == 0 {
+			if latestParentReviewRun != nil {
+				run := *latestParentReviewRun
+				return ExecuteResult{
+					Reason: ExecuteReasonCompleted,
+					Run:    &run,
+				}, nil
+			}
 			return ExecuteResult{Reason: ExecuteReasonCompleted}, nil
 		}
 		if ctx.Err() != nil {
@@ -100,6 +112,10 @@ func RunExecute(ctx context.Context, cfg ExecuteConfig) (ExecuteResult, error) {
 		}
 
 		taskID := ready[0]
+		emitExecutionStageState(cfg.OnStateChange, ExecutionStageState{
+			Stage:  ExecutionStageExecuting,
+			TaskID: taskID,
+		})
 		if cfg.OnTaskStart != nil {
 			cfg.OnTaskStart(taskID)
 		}
@@ -146,8 +162,34 @@ func RunExecute(ctx context.Context, cfg ExecuteConfig) (ExecuteResult, error) {
 			cfg.OnTaskFinish(taskID, record, execErr)
 		}
 
+		var currentParentReviewRun *RunRecord
+		var pauseReviewRun *RunRecord
+		if cfg.ParentReviewEnabled && record.Status == RunStatusSuccess && ctx.Err() == nil && !decisionGate {
+			currentParentReviewRun, pauseReviewRun, err = runParentReviewGateForCompletedTask(ctx, cfg, taskID)
+			if err != nil {
+				return ExecuteResult{
+					Reason: ExecuteReasonError,
+					TaskID: taskID,
+					Run:    currentParentReviewRun,
+					Err:    err,
+				}, err
+			}
+		}
+		latestParentReviewRun = currentParentReviewRun
+
 		if record.Status == RunStatusWaitingUser {
 			return ExecuteResult{Reason: ExecuteReasonWaitingUser, TaskID: taskID, Run: &record}, nil
+		}
+		if pauseReviewRun != nil {
+			pauseTaskID := strings.TrimSpace(pauseReviewRun.TaskID)
+			if pauseTaskID == "" {
+				pauseTaskID = taskID
+			}
+			return ExecuteResult{
+				Reason: ExecuteReasonParentReviewRequired,
+				TaskID: pauseTaskID,
+				Run:    pauseReviewRun,
+			}, nil
 		}
 		if decisionGate {
 			return ExecuteResult{Reason: ExecuteReasonDecisionRequired, TaskID: taskID, Run: &record}, nil
@@ -183,10 +225,12 @@ func RunResume(ctx context.Context, cfg ResumeConfig) (RunRecord, error) {
 		return RunRecord{}, fmt.Errorf("unknown id %q", cfg.TaskID)
 	}
 
-	if strings.TrimSpace(cfg.Feedback) != "" {
-		if len(cfg.Answers) != 0 {
-			return RunRecord{}, fmt.Errorf("resume feedback cannot be combined with answers")
-		}
+	resolvedFeedback, err := ResolveResumeFeedbackSource(baseDir, cfg.TaskID, cfg.Feedback, cfg.Answers)
+	if err != nil {
+		return RunRecord{}, err
+	}
+
+	if resolvedFeedback.UsesFeedback() {
 		latest, err := GetLatestRun(baseDir, cfg.TaskID)
 		if err != nil {
 			return RunRecord{}, err
@@ -210,6 +254,19 @@ func RunResume(ctx context.Context, cfg ResumeConfig) (RunRecord, error) {
 			return RunRecord{}, fmt.Errorf("resume with feedback requires provider session ref for run %q", latest.ID)
 		}
 
+		previous := *latest
+		if resolvedFeedback.Source == ResumeFeedbackSourcePendingParentReview {
+			mergedContext, err := MergeParentReviewFeedbackContext(previous.Context, ParentReviewFeedbackContext{
+				ParentTaskID: resolvedFeedback.ParentTaskID,
+				ReviewRunID:  resolvedFeedback.ReviewRunID,
+				Feedback:     resolvedFeedback.Feedback,
+			})
+			if err != nil {
+				return RunRecord{}, err
+			}
+			previous.Context = mergedContext
+		}
+
 		if cfg.OnTaskStart != nil {
 			cfg.OnTaskStart(cfg.TaskID)
 		}
@@ -217,7 +274,7 @@ func RunResume(ctx context.Context, cfg ResumeConfig) (RunRecord, error) {
 			return RunRecord{}, err
 		}
 
-		record, execErr := ResumeWithFeedback(ctx, cfg.Runtime, *latest, cfg.Feedback, StreamConfig{
+		record, execErr := ResumeWithFeedback(ctx, cfg.Runtime, previous, resolvedFeedback.Feedback, StreamConfig{
 			Stdout: cfg.StreamStdout,
 			Stderr: cfg.StreamStderr,
 		})
@@ -227,6 +284,11 @@ func RunResume(ctx context.Context, cfg ResumeConfig) (RunRecord, error) {
 		maybeAttachReviewSummary(baseDir, &record)
 		if err := SaveRun(baseDir, record); err != nil {
 			return RunRecord{}, err
+		}
+		if resolvedFeedback.Source == ResumeFeedbackSourcePendingParentReview {
+			if err := ClearPendingParentReviewFeedback(baseDir, cfg.TaskID); err != nil {
+				return record, err
+			}
 		}
 
 		switch record.Status {
@@ -339,6 +401,97 @@ func latestWaitingRun(baseDir, taskID string) (*RunRecord, error) {
 		}
 	}
 	return nil, WaitingRunNotFoundError{TaskID: taskID}
+}
+
+func runParentReviewGateForCompletedTask(
+	ctx context.Context,
+	cfg ExecuteConfig,
+	changedChildID string,
+) (*RunRecord, *RunRecord, error) {
+	if !cfg.ParentReviewEnabled {
+		return nil, nil, nil
+	}
+	if strings.TrimSpace(changedChildID) == "" {
+		return nil, nil, nil
+	}
+
+	g, err := loadValidatedPlan(cfg.PlanPath, nil, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var latestReviewRun *RunRecord
+	var pauseRun *RunRecord
+	result, err := RunParentReviewGate(ParentReviewGateInput{
+		PlanPath:       cfg.PlanPath,
+		Graph:          g,
+		ChangedChildID: changedChildID,
+	}, func(candidate ParentReviewGateCandidate) (ParentReviewGateExecutorResult, error) {
+		emitExecutionStageState(cfg.OnStateChange, ExecutionStageState{
+			Stage:          ExecutionStageReviewing,
+			TaskID:         changedChildID,
+			ReviewedTaskID: candidate.ParentTaskID,
+		})
+		reviewRecord, reviewErr := RunParentReview(ctx, ParentReviewRunConfig{
+			PlanPath:            cfg.PlanPath,
+			Graph:               g,
+			ParentTaskID:        candidate.ParentTaskID,
+			CompletionSignature: candidate.CompletionSignature,
+			Runtime:             cfg.Runtime,
+			StreamStdout:        cfg.StreamStdout,
+			StreamStderr:        cfg.StreamStderr,
+		})
+		if strings.TrimSpace(reviewRecord.ID) != "" {
+			recordCopy := reviewRecord
+			latestReviewRun = &recordCopy
+			if reviewErr == nil {
+				emitParentReviewRun(cfg.OnParentReview, recordCopy)
+			}
+		}
+		emitExecutionStageState(cfg.OnStateChange, ExecutionStageState{
+			Stage:  ExecutionStagePostReview,
+			TaskID: changedChildID,
+		})
+		if reviewErr != nil {
+			return ParentReviewGateExecutorResult{}, reviewErr
+		}
+		if requiresParentReviewPause(reviewRecord) {
+			if pauseRun == nil {
+				recordCopy := reviewRecord
+				pauseRun = &recordCopy
+			}
+			return ParentReviewGateExecutorResult{State: ParentReviewGateStatePauseRequired}, nil
+		}
+		return ParentReviewGateExecutorResult{State: ParentReviewGateStatePass}, nil
+	})
+	if err != nil {
+		return latestReviewRun, nil, err
+	}
+
+	if result.State == ParentReviewGateStatePauseRequired {
+		if pauseRun == nil {
+			return latestReviewRun, nil, fmt.Errorf("parent review gate pause requested without pause run context")
+		}
+		return latestReviewRun, pauseRun, nil
+	}
+	return latestReviewRun, nil, nil
+}
+
+func requiresParentReviewPause(record RunRecord) bool {
+	if record.ParentReviewPassed == nil || *record.ParentReviewPassed {
+		return false
+	}
+	return len(ParentReviewFailedTaskIDs(record)) > 0
+}
+
+func emitParentReviewRun(emit func(RunRecord), run RunRecord) {
+	if emit == nil {
+		return
+	}
+	if strings.TrimSpace(run.ID) == "" {
+		return
+	}
+	emit(run)
 }
 
 func loadValidatedPlan(planPath string, preloaded *plan.WorkGraph, usePreloaded *bool) (plan.WorkGraph, error) {

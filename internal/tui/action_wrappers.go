@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -52,13 +53,29 @@ func ExecuteCmd() tea.Cmd {
 }
 
 func ExecuteCmdWithContext(ctx context.Context) tea.Cmd {
-	return ExecuteCmdWithContextAndStream(ctx, nil, nil, nil, false)
+	return ExecuteCmdWithContextAndStream(ctx, nil, nil, nil, nil, nil, nil, false, false)
 }
 
-func ExecuteCmdWithContextAndStream(ctx context.Context, stdout io.Writer, stderr io.Writer, liveOutput chan liveOutputMsg, stopAfterEachTask bool) tea.Cmd {
+func ExecuteCmdWithContextAndStream(
+	ctx context.Context,
+	stdout io.Writer,
+	stderr io.Writer,
+	liveOutput chan liveOutputMsg,
+	liveStage chan execution.ExecutionStageState,
+	liveParentReview chan execution.RunRecord,
+	liveParentReviewAck chan struct{},
+	stopAfterEachTask bool,
+	parentReviewEnabled bool,
+) tea.Cmd {
 	return func() tea.Msg {
 		if liveOutput != nil {
 			defer close(liveOutput)
+		}
+		if liveStage != nil {
+			defer close(liveStage)
+		}
+		if liveParentReview != nil {
+			defer close(liveParentReview)
 		}
 		runtime, err := agent.NewRuntimeFromEnv()
 		if err != nil {
@@ -66,11 +83,34 @@ func ExecuteCmdWithContextAndStream(ctx context.Context, stdout io.Writer, stder
 		}
 
 		result, runErr := execution.RunExecute(ctx, execution.ExecuteConfig{
-			PlanPath:          plan.PlanPath(),
-			Runtime:           runtime,
-			StopAfterEachTask: stopAfterEachTask,
-			StreamStdout:      stdout,
-			StreamStderr:      stderr,
+			PlanPath:            plan.PlanPath(),
+			Runtime:             runtime,
+			StopAfterEachTask:   stopAfterEachTask,
+			ParentReviewEnabled: parentReviewEnabled,
+			StreamStdout:        stdout,
+			StreamStderr:        stderr,
+			OnStateChange: func(state execution.ExecutionStageState) {
+				if liveStage == nil {
+					return
+				}
+				liveStage <- state
+			},
+			OnParentReview: func(run execution.RunRecord) {
+				if liveParentReview == nil {
+					return
+				}
+				liveParentReview <- run
+				// Passing reviews require explicit user acknowledgement before
+				// execution can continue to the next task.
+				if liveParentReviewAck != nil && parentReviewModalPassed(run) {
+					select {
+					case <-ctx.Done():
+						return
+					case <-liveParentReviewAck:
+						return
+					}
+				}
+			},
 		})
 		msg := ExecuteActionComplete{
 			Action: "execute",
@@ -105,6 +145,11 @@ func ResumeCmdWithContextAndStream(ctx context.Context, taskID string, answers [
 			return ExecuteActionComplete{Action: "resume", Success: false, Err: err}
 		}
 
+		baseDir := filepath.Dir(plan.PlanPath())
+		if _, err := execution.ResolveResumeFeedbackSource(baseDir, taskID, "", answers); err != nil {
+			return ExecuteActionComplete{Action: "resume", Success: false, Err: err}
+		}
+
 		record, runErr := execution.RunResume(ctx, execution.ResumeConfig{
 			PlanPath:     plan.PlanPath(),
 			TaskID:       taskID,
@@ -127,14 +172,246 @@ func ResumeCmdWithContextAndStream(ctx context.Context, taskID string, answers [
 	}
 }
 
-func ResolveDecisionCmdWithContext(ctx context.Context, taskID string, runID string, action execution.DecisionState, feedback string, stopAfterEachTask bool) tea.Cmd {
-	return ResolveDecisionCmdWithContextAndStream(ctx, taskID, runID, action, feedback, stopAfterEachTask, nil, nil, nil)
+type ResumePendingParentFeedbackTarget struct {
+	TaskID   string
+	Feedback string
 }
 
-func ResolveDecisionCmdWithContextAndStream(ctx context.Context, taskID string, runID string, action execution.DecisionState, feedback string, stopAfterEachTask bool, stdout io.Writer, stderr io.Writer, liveOutput chan liveOutputMsg) tea.Cmd {
+func ResumePendingParentFeedbackCmd(taskID string) tea.Cmd {
+	ctx := context.Background()
+	return ResumePendingParentFeedbackCmdWithContext(ctx, taskID)
+}
+
+func ResumePendingParentFeedbackCmdWithContext(ctx context.Context, taskID string) tea.Cmd {
+	return ResumePendingParentFeedbackCmdWithContextAndStream(ctx, taskID, nil, nil, nil)
+}
+
+func ResumePendingParentFeedbackCmdWithContextAndStream(ctx context.Context, taskID string, stdout io.Writer, stderr io.Writer, liveOutput chan liveOutputMsg) tea.Cmd {
+	return ResumePendingParentFeedbackTargetCmdWithContextAndStream(
+		ctx,
+		ResumePendingParentFeedbackTarget{TaskID: taskID},
+		stdout,
+		stderr,
+		liveOutput,
+	)
+}
+
+func ResumePendingParentFeedbackTargetCmd(target ResumePendingParentFeedbackTarget) tea.Cmd {
+	ctx := context.Background()
+	return ResumePendingParentFeedbackTargetCmdWithContext(ctx, target)
+}
+
+func ResumePendingParentFeedbackTargetCmdWithContext(ctx context.Context, target ResumePendingParentFeedbackTarget) tea.Cmd {
+	return ResumePendingParentFeedbackTargetCmdWithContextAndStream(ctx, target, nil, nil, nil)
+}
+
+func ResumePendingParentFeedbackTargetCmdWithContextAndStream(
+	ctx context.Context,
+	target ResumePendingParentFeedbackTarget,
+	stdout io.Writer,
+	stderr io.Writer,
+	liveOutput chan liveOutputMsg,
+) tea.Cmd {
 	return func() tea.Msg {
 		if liveOutput != nil {
 			defer close(liveOutput)
+		}
+		runtime, err := agent.NewRuntimeFromEnv()
+		if err != nil {
+			return ExecuteActionComplete{Action: "resume", Success: false, Err: err}
+		}
+
+		record, runErr := runPendingParentFeedbackResumeTaskWithFeedback(
+			ctx,
+			runtime,
+			target.TaskID,
+			target.Feedback,
+			stdout,
+			stderr,
+		)
+		msg := ExecuteActionComplete{
+			Action: "resume",
+			Record: &record,
+			Err:    runErr,
+		}
+		if runErr != nil {
+			return msg
+		}
+		msg.Success = true
+		msg.Output = summarizeResumeRecord(record, strings.TrimSpace(target.TaskID))
+		return msg
+	}
+}
+
+func ResumePendingParentFeedbackTargetsCmd(taskIDs []string) tea.Cmd {
+	ctx := context.Background()
+	return ResumePendingParentFeedbackTargetsCmdWithContext(ctx, taskIDs)
+}
+
+func ResumePendingParentFeedbackTargetsCmdWithContext(ctx context.Context, taskIDs []string) tea.Cmd {
+	return ResumePendingParentFeedbackTargetsCmdWithContextAndStream(ctx, taskIDs, nil, nil, nil)
+}
+
+func ResumePendingParentFeedbackTargetsCmdWithContextAndStream(ctx context.Context, taskIDs []string, stdout io.Writer, stderr io.Writer, liveOutput chan liveOutputMsg) tea.Cmd {
+	targets := make([]ResumePendingParentFeedbackTarget, 0, len(taskIDs))
+	for _, taskID := range taskIDs {
+		targets = append(targets, ResumePendingParentFeedbackTarget{TaskID: taskID})
+	}
+	return ResumePendingParentFeedbackTargetsWithFeedbackCmdWithContextAndStream(ctx, targets, stdout, stderr, liveOutput)
+}
+
+func ResumePendingParentFeedbackTargetsWithFeedbackCmd(targets []ResumePendingParentFeedbackTarget) tea.Cmd {
+	ctx := context.Background()
+	return ResumePendingParentFeedbackTargetsWithFeedbackCmdWithContext(ctx, targets)
+}
+
+func ResumePendingParentFeedbackTargetsWithFeedbackCmdWithContext(
+	ctx context.Context,
+	targets []ResumePendingParentFeedbackTarget,
+) tea.Cmd {
+	return ResumePendingParentFeedbackTargetsWithFeedbackCmdWithContextAndStream(ctx, targets, nil, nil, nil)
+}
+
+func ResumePendingParentFeedbackTargetsWithFeedbackCmdWithContextAndStream(
+	ctx context.Context,
+	targets []ResumePendingParentFeedbackTarget,
+	stdout io.Writer,
+	stderr io.Writer,
+	liveOutput chan liveOutputMsg,
+) tea.Cmd {
+	return func() tea.Msg {
+		if liveOutput != nil {
+			defer close(liveOutput)
+		}
+		normalizedTargets := normalizeResumeTargetsWithFeedback(targets)
+		if len(normalizedTargets) == 0 {
+			return ExecuteActionComplete{
+				Action: "resume",
+				Err:    fmt.Errorf("resume requires at least 1 task id"),
+			}
+		}
+
+		runtime, err := agent.NewRuntimeFromEnv()
+		if err != nil {
+			return ExecuteActionComplete{Action: "resume", Success: false, Err: err}
+		}
+
+		lines := make([]string, 0, len(normalizedTargets))
+		for _, target := range normalizedTargets {
+			record, runErr := runPendingParentFeedbackResumeTaskWithFeedback(
+				ctx,
+				runtime,
+				target.TaskID,
+				target.Feedback,
+				stdout,
+				stderr,
+			)
+			if runErr != nil {
+				lines = append(lines, summarizeResumeError(target.TaskID, runErr))
+				continue
+			}
+			lines = append(lines, summarizeResumeRecord(record, target.TaskID))
+		}
+
+		return ExecuteActionComplete{
+			Action:  "resume",
+			Success: true,
+			Output:  strings.Join(lines, "\n"),
+		}
+	}
+}
+
+func runPendingParentFeedbackResumeTask(ctx context.Context, runtime agent.Runtime, taskID string, stdout io.Writer, stderr io.Writer) (execution.RunRecord, error) {
+	return runPendingParentFeedbackResumeTaskWithFeedback(ctx, runtime, taskID, "", stdout, stderr)
+}
+
+func runPendingParentFeedbackResumeTaskWithFeedback(
+	ctx context.Context,
+	runtime agent.Runtime,
+	taskID string,
+	feedback string,
+	stdout io.Writer,
+	stderr io.Writer,
+) (execution.RunRecord, error) {
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return execution.RunRecord{}, fmt.Errorf("task id required")
+	}
+
+	planPath := plan.PlanPath()
+	baseDir := filepath.Dir(planPath)
+	resolvedFeedback, err := execution.ResolveResumeFeedbackSource(baseDir, taskID, "", nil)
+	if err != nil {
+		return execution.RunRecord{}, err
+	}
+	if resolvedFeedback.Source != execution.ResumeFeedbackSourcePendingParentReview {
+		return execution.RunRecord{}, fmt.Errorf("no pending parent-review feedback for %s", taskID)
+	}
+	feedback = strings.TrimSpace(feedback)
+	if feedback != "" && feedback != strings.TrimSpace(resolvedFeedback.Feedback) {
+		if _, err := execution.UpsertPendingParentReviewFeedback(
+			baseDir,
+			taskID,
+			resolvedFeedback.ParentTaskID,
+			resolvedFeedback.ReviewRunID,
+			feedback,
+		); err != nil {
+			return execution.RunRecord{}, err
+		}
+	}
+
+	return execution.RunResume(ctx, execution.ResumeConfig{
+		PlanPath:     planPath,
+		TaskID:       taskID,
+		Runtime:      runtime,
+		StreamStdout: stdout,
+		StreamStderr: stderr,
+	})
+}
+
+func ResolveDecisionCmdWithContext(
+	ctx context.Context,
+	taskID string,
+	runID string,
+	action execution.DecisionState,
+	feedback string,
+	stopAfterEachTask bool,
+	parentReviewEnabled bool,
+) tea.Cmd {
+	return ResolveDecisionCmdWithContextAndStream(
+		ctx,
+		taskID,
+		runID,
+		action,
+		feedback,
+		stopAfterEachTask,
+		parentReviewEnabled,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
+}
+
+func ResolveDecisionCmdWithContextAndStream(
+	ctx context.Context,
+	taskID string,
+	runID string,
+	action execution.DecisionState,
+	feedback string,
+	stopAfterEachTask bool,
+	parentReviewEnabled bool,
+	stdout io.Writer,
+	stderr io.Writer,
+	liveOutput chan liveOutputMsg,
+	liveStage chan execution.ExecutionStageState,
+) tea.Cmd {
+	return func() tea.Msg {
+		if liveOutput != nil {
+			defer close(liveOutput)
+		}
+		if liveStage != nil {
+			defer close(liveStage)
 		}
 		runtime, err := agent.NewRuntimeFromEnv()
 		if err != nil {
@@ -142,11 +419,18 @@ func ResolveDecisionCmdWithContextAndStream(ctx context.Context, taskID string, 
 		}
 
 		controller := execution.ExecutionController{
-			PlanPath:          plan.PlanPath(),
-			Runtime:           runtime,
-			StopAfterEachTask: stopAfterEachTask,
-			StreamStdout:      stdout,
-			StreamStderr:      stderr,
+			PlanPath:            plan.PlanPath(),
+			Runtime:             runtime,
+			StopAfterEachTask:   stopAfterEachTask,
+			ParentReviewEnabled: parentReviewEnabled,
+			StreamStdout:        stdout,
+			StreamStderr:        stderr,
+			OnStateChange: func(state execution.ExecutionStageState) {
+				if liveStage == nil {
+					return
+				}
+				liveStage <- state
+			},
 		}
 
 		result, err := controller.ResolveDecision(ctx, execution.DecisionRequest{
@@ -219,6 +503,14 @@ func summarizeExecuteResult(result execution.ExecuteResult) string {
 			return result.TaskID + " requires review before continuing"
 		}
 		return "decision required before continuing"
+	case execution.ExecuteReasonParentReviewRequired:
+		if result.Run != nil && result.Run.TaskID != "" {
+			return result.Run.TaskID + " failed parent review"
+		}
+		if result.TaskID != "" {
+			return result.TaskID + " failed parent review"
+		}
+		return "parent review required before continuing"
 	case execution.ExecuteReasonCanceled:
 		return "execution interrupted"
 	case execution.ExecuteReasonError:
@@ -245,6 +537,55 @@ func summarizeResumeRecord(record execution.RunRecord, taskID string) string {
 	default:
 		return "resume finished"
 	}
+}
+
+func summarizeResumeError(taskID string, err error) string {
+	taskID = strings.TrimSpace(taskID)
+	if taskID == "" {
+		return "resume failed: " + err.Error()
+	}
+	return "failed " + taskID + ": " + err.Error()
+}
+
+func normalizeResumeTaskIDs(taskIDs []string) []string {
+	seen := make(map[string]struct{}, len(taskIDs))
+	normalized := make([]string, 0, len(taskIDs))
+	for _, taskID := range taskIDs {
+		taskID = strings.TrimSpace(taskID)
+		if taskID == "" {
+			continue
+		}
+		if _, ok := seen[taskID]; ok {
+			continue
+		}
+		seen[taskID] = struct{}{}
+		normalized = append(normalized, taskID)
+	}
+	return normalized
+}
+
+func normalizeResumeTargetsWithFeedback(targets []ResumePendingParentFeedbackTarget) []ResumePendingParentFeedbackTarget {
+	seen := make(map[string]int, len(targets))
+	normalized := make([]ResumePendingParentFeedbackTarget, 0, len(targets))
+	for _, target := range targets {
+		taskID := strings.TrimSpace(target.TaskID)
+		if taskID == "" {
+			continue
+		}
+		feedback := strings.TrimSpace(target.Feedback)
+		if idx, ok := seen[taskID]; ok {
+			if normalized[idx].Feedback == "" && feedback != "" {
+				normalized[idx].Feedback = feedback
+			}
+			continue
+		}
+		seen[taskID] = len(normalized)
+		normalized = append(normalized, ResumePendingParentFeedbackTarget{
+			TaskID:   taskID,
+			Feedback: feedback,
+		})
+	}
+	return normalized
 }
 
 // GeneratePlanInMemory invokes the agent runtime directly without spawning a subprocess

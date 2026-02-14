@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jbonatakis/blackbird/internal/agent"
+	"github.com/jbonatakis/blackbird/internal/execution"
 	"github.com/jbonatakis/blackbird/internal/plan"
 )
 
@@ -143,6 +144,126 @@ func TestBottomBarMainShowsSelectedAgentLabel(t *testing.T) {
 	out := RenderBottomBar(model)
 	if !strings.Contains(out, "agent:Codex") {
 		t.Fatalf("expected selected agent label in main bottom bar, got %q", out)
+	}
+}
+
+func TestBottomBarMainShowsResumeHintForPendingParentFeedback(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
+	now := time.Date(2026, 2, 9, 4, 0, 0, 0, time.UTC)
+	model := Model{
+		plan: plan.WorkGraph{
+			SchemaVersion: plan.SchemaVersion,
+			Items: map[string]plan.WorkItem{
+				"task-1": {
+					ID:        "task-1",
+					Title:     "Needs review fixes",
+					Status:    plan.StatusDone,
+					CreatedAt: now,
+					UpdatedAt: now,
+				},
+			},
+		},
+		selectedID: "task-1",
+		viewMode:   ViewModeMain,
+		planExists: true,
+		pendingParentFeedback: map[string]execution.PendingParentReviewFeedback{
+			"task-1": {
+				ParentTaskID: "parent-1",
+				ReviewRunID:  "review-1",
+				Feedback:     "address review comments",
+				CreatedAt:    now,
+				UpdatedAt:    now,
+			},
+		},
+		windowWidth:  160,
+		windowHeight: 10,
+	}
+
+	out := RenderBottomBar(model)
+	if !strings.Contains(out, "[u]resume") {
+		t.Fatalf("expected resume hint when pending parent feedback exists, got %q", out)
+	}
+}
+
+func TestBottomBarParentReviewHintsShowResumeTargetActions(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
+	model := Model{
+		viewMode:     ViewModeMain,
+		planExists:   true,
+		actionMode:   ActionModeParentReview,
+		windowWidth:  160,
+		windowHeight: 10,
+	}
+
+	out := RenderBottomBar(model)
+	for _, hint := range []string{"[↑/↓]navigate", "[1-4]select", "[enter]confirm", "[esc]back"} {
+		if !strings.Contains(out, hint) {
+			t.Fatalf("expected parent-review hint %q, got %q", hint, out)
+		}
+	}
+}
+
+func TestBottomBarShowsReviewingTextOnlyWhileReviewingStageActive(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
+	baseModel := Model{
+		viewMode:         ViewModeMain,
+		planExists:       true,
+		actionInProgress: true,
+		actionName:       "Executing...",
+		windowWidth:      160,
+		windowHeight:     10,
+	}
+
+	reviewingModel := baseModel
+	reviewingModel.executionState = execution.ExecutionStageState{
+		Stage:          execution.ExecutionStageReviewing,
+		ReviewedTaskID: "parent-1",
+	}
+	reviewingOut := RenderBottomBar(reviewingModel)
+	if !strings.Contains(reviewingOut, "Reviewing...") {
+		t.Fatalf("expected reviewing status text while reviewing stage is active, got %q", reviewingOut)
+	}
+	if strings.Contains(reviewingOut, "Executing...") {
+		t.Fatalf("expected execute text to be replaced by reviewing text, got %q", reviewingOut)
+	}
+
+	executingModel := baseModel
+	executingModel.executionState = execution.ExecutionStageState{
+		Stage: execution.ExecutionStageExecuting,
+	}
+	executingOut := RenderBottomBar(executingModel)
+	if !strings.Contains(executingOut, "Executing...") {
+		t.Fatalf("expected execute text outside reviewing stage, got %q", executingOut)
+	}
+	if strings.Contains(executingOut, "Reviewing...") {
+		t.Fatalf("expected reviewing text to be absent outside reviewing stage, got %q", executingOut)
+	}
+}
+
+func TestBottomBarReviewingTextClearsWhenActionStops(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
+	model := Model{
+		viewMode:     ViewModeMain,
+		planExists:   true,
+		actionName:   "Executing...",
+		windowWidth:  160,
+		windowHeight: 10,
+		executionState: execution.ExecutionStageState{
+			Stage:          execution.ExecutionStageReviewing,
+			ReviewedTaskID: "parent-1",
+		},
+	}
+
+	model.actionInProgress = true
+	activeOut := RenderBottomBar(model)
+	if !strings.Contains(activeOut, "Reviewing...") {
+		t.Fatalf("expected reviewing text while action is in progress, got %q", activeOut)
+	}
+
+	model.actionInProgress = false
+	inactiveOut := RenderBottomBar(model)
+	if strings.Contains(inactiveOut, "Reviewing...") {
+		t.Fatalf("expected reviewing text to clear once action is no longer in progress, got %q", inactiveOut)
 	}
 }
 

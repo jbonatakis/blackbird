@@ -48,9 +48,10 @@ func runExecute(args []string) error {
 	defer stop()
 
 	controller := execution.ExecutionController{
-		PlanPath:          path,
-		Runtime:           runtime,
-		StopAfterEachTask: cfg.Execution.StopAfterEachTask,
+		PlanPath:            path,
+		Runtime:             runtime,
+		StopAfterEachTask:   cfg.Execution.StopAfterEachTask,
+		ParentReviewEnabled: cfg.Execution.ParentReviewEnabled,
 		OnTaskStart: func(taskID string) {
 			fmt.Fprintf(os.Stdout, "starting %s\n", taskID)
 		},
@@ -99,6 +100,9 @@ func handleExecuteResult(ctx context.Context, controller execution.ExecutionCont
 			}
 			result = *next
 			continue
+		case execution.ExecuteReasonParentReviewRequired:
+			printParentReviewRequired(os.Stdout, result.TaskID, result.Run)
+			return nil
 		case execution.ExecuteReasonCanceled:
 			fmt.Fprintln(os.Stdout, "execution interrupted")
 			return nil
@@ -174,6 +178,16 @@ func handleDecisionRequired(ctx context.Context, controller execution.ExecutionC
 
 		switch decision.Action {
 		case execution.DecisionStateApprovedContinue:
+			if decision.Next != nil {
+				// Deferred parent-review failures (and any non-completed outcomes)
+				// must pause before execute continues.
+				if decision.Next.Reason != execution.ExecuteReasonCompleted || !decision.Continue {
+					return decision.Next, nil
+				}
+			}
+			if !decision.Continue {
+				return nil, nil
+			}
 			next, err := controller.Execute(ctx)
 			if err != nil {
 				return nil, err
