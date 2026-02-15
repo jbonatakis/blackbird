@@ -28,6 +28,16 @@ func TestPlanDataRefreshCmdUsesConfigInterval(t *testing.T) {
 	}
 }
 
+func TestConfigRefreshCmdUsesRunDataConfigInterval(t *testing.T) {
+	model := Model{config: config.DefaultResolvedConfig()}
+	model.config.TUI.RunDataRefreshIntervalSeconds = 1
+
+	msg := assertRefreshCmdDelay(t, model.ConfigRefreshCmd(), 900*time.Millisecond, 2*time.Second)
+	if _, ok := msg.(configRefreshMsg); !ok {
+		t.Fatalf("expected configRefreshMsg, got %T", msg)
+	}
+}
+
 func assertRefreshCmdDelay(t *testing.T, cmd tea.Cmd, minDelay, maxDelay time.Duration) tea.Msg {
 	t.Helper()
 

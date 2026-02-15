@@ -408,23 +408,14 @@ func acceptPlanAnyway(m Model) (Model, tea.Cmd) {
 
 // RenderPlanReviewModal renders the plan review modal
 func RenderPlanReviewModal(m Model, form PlanReviewForm) string {
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69"))
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
-	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	selectedStyle := lipgloss.NewStyle().
-		Padding(0, 2).
-		Background(lipgloss.Color("69")).
-		Foreground(lipgloss.Color("15")).
-		Bold(true)
-	unselectedStyle := lipgloss.NewStyle().
-		Padding(0, 2).
-		Background(lipgloss.Color("240")).
-		Foreground(lipgloss.Color("15"))
-	disabledStyle := lipgloss.NewStyle().
-		Padding(0, 2).
-		Background(lipgloss.Color("236")).
-		Foreground(lipgloss.Color("242"))
+	theme := themeOrDefault(m.theme)
+	titleStyle := modalTitleStyleForTheme(theme, ModalEmphasisAccent)
+	labelStyle := mutedTextStyleForTheme(theme)
+	textStyle := lipgloss.NewStyle().Foreground(theme.Colors.TextPrimary)
+	helpStyle := mutedTextStyleForTheme(theme)
+	selectedStyle := buttonVariantStyleForTheme(theme, ButtonVariantPrimary).Padding(0, 2)
+	unselectedStyle := buttonVariantStyleForTheme(theme, ButtonVariantSecondary).Padding(0, 2)
+	disabledStyle := buttonVariantStyleForTheme(theme, ButtonVariantDisabled).Padding(0, 2)
 
 	modalWidth := m.windowWidth - 4
 	if modalWidth < 50 {
@@ -554,7 +545,7 @@ func RenderPlanReviewModal(m Model, form PlanReviewForm) string {
 
 		// Validation
 		if strings.TrimSpace(form.revisionTextarea.Value()) == "" {
-			errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+			errorStyle := modalEmphasisStyleForTheme(theme, ModalEmphasisDanger)
 			lines = append(lines, errorStyle.Render("⚠ Revision request cannot be empty"))
 			lines = append(lines, "")
 		}
@@ -565,7 +556,7 @@ func RenderPlanReviewModal(m Model, form PlanReviewForm) string {
 
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("69")).
+		Inherit(modalBorderStyleForTheme(theme, ModalEmphasisAccent)).
 		Padding(1, 2).
 		Width(modalWidth).
 		Height(modalHeight)

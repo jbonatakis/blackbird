@@ -20,15 +20,14 @@ const (
 )
 
 func RenderTreeView(model Model) string {
+	mutedStyle := mutedTextStyleForTheme(model.theme)
 	if len(model.plan.Items) == 0 {
-		muted := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-		return muted.Render("No items.")
+		return mutedStyle.Render("No items.")
 	}
 
 	taskTree := plan.BuildTaskTree(model.plan)
 	if len(taskTree.Roots) == 0 {
-		muted := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-		return muted.Render("No root items.")
+		return mutedStyle.Render("No root items.")
 	}
 
 	root := tree.New()
@@ -41,8 +40,7 @@ func RenderTreeView(model Model) string {
 	}
 
 	if root.Children().Length() == 0 {
-		muted := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-		return muted.Render("No matching items.")
+		return mutedStyle.Render("No matching items.")
 	}
 
 	return root.String()
@@ -102,8 +100,8 @@ func renderTreeLine(model Model, it plan.WorkItem, readiness string, hasChildren
 		}
 	}
 
-	readinessStyle := readinessLabelStyle(readiness)
-	indicatorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
+	readinessStyle := readinessLabelStyleForTheme(model.theme, readiness)
+	indicatorStyle := treeIndicatorStyleForTheme(model.theme)
 
 	compactReadiness := readinessAbbrev(readiness)
 	showReviewMarker := isReviewingTaskRow(model, it.ID)
@@ -116,7 +114,7 @@ func renderTreeLine(model Model, it plan.WorkItem, readiness string, hasChildren
 	readinessLabel := readinessStyle.Render(compactReadiness)
 	parts := []string{indicatorStyle.Render(indicator)}
 	if showReviewMarker {
-		reviewStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
+		reviewStyle := reviewMarkerStyleForTheme(model.theme)
 		parts = append(parts, reviewStyle.Render(reviewMarkerToken))
 	}
 	parts = append(parts, readinessLabel, rawTitle)
@@ -192,21 +190,6 @@ func maxTitleWidth(windowWidth int, indicator string, readiness string, reviewMa
 		return 10
 	}
 	return available
-}
-
-func readinessLabelStyle(label string) lipgloss.Style {
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	switch label {
-	case "READY":
-		style = style.Foreground(lipgloss.Color("39"))
-	case "DONE":
-		style = style.Foreground(lipgloss.Color("42"))
-	case "IN_PROGRESS":
-		style = style.Foreground(lipgloss.Color("214"))
-	case "BLOCKED":
-		style = style.Foreground(lipgloss.Color("196"))
-	}
-	return style
 }
 
 func isExpanded(model Model, id string) bool {

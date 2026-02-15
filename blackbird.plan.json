@@ -1,119 +1,365 @@
 {
   "schemaVersion": 1,
   "items": {
-    "child_go_fizzbuzz_impl": {
-      "id": "child_go_fizzbuzz_impl",
-      "title": "Implement Minimal FizzBuzz in Go",
-      "description": "Create a minimal Go implementation of FizzBuzz for positive integers. Scope is limited to a single function with clear logic and quick compile-time validation; do not add automated tests.",
+    "deliverable_theme_config_settings": {
+      "id": "deliverable_theme_config_settings",
+      "title": "Add tui.theme Config and Categorical Settings Support",
+      "description": "Extend config and settings infrastructure to support categorical string options so tui.theme can be edited through Settings without free-text input. This includes schema plumbing, precedence/fallback behavior, invalid value handling, and settings-table UX updates.",
       "acceptanceCriteria": [
-        "A Go source file defines a `FizzBuzz(n int) string` function that returns `FizzBuzz` for multiples of 15, `Fizz` for multiples of 3, `Buzz` for multiples of 5, and the decimal string for all other positive integers.",
-        "The implementation uses only the Go standard library and straightforward control flow.",
-        "The code compiles successfully with a fast command such as `go build ./...` in the relevant Go module/workspace.",
-        "Task output includes brief manual sample checks showing expected results for representative inputs such as 1, 3, 5, and 15."
+        "Config model supports tui.theme in raw and resolved forms with default blackbird.",
+        "Settings option metadata supports categorical options with allowed values and string defaults.",
+        "Settings supports cycle-based categorical editing for local/global layers and clear/unset behavior.",
+        "Unknown theme values are treated as invalid-layer values and skipped during resolution fallback.",
+        "Invalid raw categorical display values use warning styling and truncation behavior defined in spec."
       ],
-      "prompt": "Implement Go FizzBuzz in a focused package (for example `go/fizzbuzz/`). Add `fizzbuzz.go` with `FizzBuzz(n int) string`. Do not add test files. Run a quick validation command such as `go build ./...` and include brief manual sample checks for core values.",
-      "parentId": "parent_go_fizzbuzz",
-      "childIds": [],
-      "deps": [],
-      "status": "todo",
-      "createdAt": "2026-02-11T05:00:24.505814Z",
-      "updatedAt": "2026-02-14T16:02:02.377593Z"
-    },
-    "child_go_fizzbuzz_noop": {
-      "id": "child_go_fizzbuzz_noop",
-      "title": "Go FizzBuzz No-Op Child",
-      "description": "A deliberate no-op child task for the Go FizzBuzz parent. This task exists only to satisfy structure requirements and must not introduce code, configuration, or behavior changes.",
-      "acceptanceCriteria": [
-        "No files are created, modified, moved, or deleted when this task is executed.",
-        "No commands that change repository state are required for completion.",
-        "Task can be marked complete by recording that no action was needed.",
-        "Parent/child linkage remains valid with this task attached to the Go parent."
-      ],
-      "prompt": "Perform no implementation changes. Confirm this is an intentional no-op task and leave the repository unchanged.",
-      "parentId": "parent_go_fizzbuzz",
-      "childIds": [],
-      "deps": [],
-      "status": "todo",
-      "createdAt": "2026-02-11T22:03:29.45281Z",
-      "updatedAt": "2026-02-14T16:02:02.400751Z"
-    },
-    "child_python_fizzbuzz_impl": {
-      "id": "child_python_fizzbuzz_impl",
-      "title": "Implement Minimal FizzBuzz in Python",
-      "description": "Create a minimal Python implementation of FizzBuzz for positive integers. Scope includes only pure function logic and quick execution/import validation; do not add automated tests.",
-      "acceptanceCriteria": [
-        "A Python module defines `fizzbuzz(n: int) -\u003e str` returning `\"FizzBuzz\"` for multiples of 15, `\"Fizz\"` for multiples of 3, `\"Buzz\"` for multiples of 5, and `str(n)` otherwise for positive integers.",
-        "The solution uses simple control flow and no third-party dependencies.",
-        "A quick verification command (for example `python -c` import/run) executes successfully in the project environment.",
-        "Task output includes brief manual sample checks showing expected results for representative inputs such as 1, 3, 5, and 15."
-      ],
-      "prompt": "Implement Python FizzBuzz in a dedicated path (for example `python/fizzbuzz.py`) with `fizzbuzz(n: int) -\u003e str`. Do not add test files. Run a quick import/run validation command and include brief manual sample checks for core values.",
-      "parentId": "parent_python_fizzbuzz",
-      "childIds": [],
-      "deps": [],
-      "status": "todo",
-      "createdAt": "2026-02-11T05:00:24.505814Z",
-      "updatedAt": "2026-02-14T16:02:02.42267Z"
-    },
-    "child_python_fizzbuzz_noop": {
-      "id": "child_python_fizzbuzz_noop",
-      "title": "Python FizzBuzz No-Op Child",
-      "description": "A deliberate no-op child task for the Python FizzBuzz parent. This task exists only to satisfy structure requirements and must not introduce code, configuration, or behavior changes.",
-      "acceptanceCriteria": [
-        "No files are created, modified, moved, or deleted when this task is executed.",
-        "No commands that change repository state are required for completion.",
-        "Task can be marked complete by recording that no action was needed.",
-        "Parent/child linkage remains valid with this task attached to the Python parent."
-      ],
-      "prompt": "Perform no implementation changes. Confirm this is an intentional no-op task and leave the repository unchanged.",
-      "parentId": "parent_python_fizzbuzz",
-      "childIds": [],
-      "deps": [],
-      "status": "todo",
-      "createdAt": "2026-02-11T22:03:29.45281Z",
-      "updatedAt": "2026-02-14T16:02:02.443887Z"
-    },
-    "parent_go_fizzbuzz": {
-      "id": "parent_go_fizzbuzz",
-      "title": "Go FizzBuzz Minimal Deliverable",
-      "description": "Deliver a minimal Go-based FizzBuzz implementation with a fast compile/build verification step. This parent groups lightweight coding and smoke validation into one deliverable.",
-      "acceptanceCriteria": [
-        "The Go child task is completed with a minimal `FizzBuzz` implementation and no automated test files.",
-        "All files introduced by the Go child task are in a dedicated Go path and follow idiomatic Go style.",
-        "A repeatable quick verification command (for example `go build ./...`) is documented in the child task prompt/output.",
-        "No external runtime dependencies are added for the Go solution."
-      ],
-      "prompt": "Complete the child task to implement minimal Go FizzBuzz quickly, without adding tests, and verify with a fast build/smoke command.",
+      "prompt": "Implement end-to-end categorical option support in internal/config and internal/tui/settings* for tui.theme. Ensure precedence and fallback semantics are explicit and tested, and avoid introducing theme-specific one-off hacks in settings logic.",
       "parentId": null,
       "childIds": [
-        "child_go_fizzbuzz_impl",
-        "child_go_fizzbuzz_noop"
+        "task_config_theme_schema_and_resolution",
+        "task_settings_categorical_cells_and_warnings",
+        "task_settings_theme_cycle_debounce"
       ],
       "deps": [],
-      "status": "todo",
-      "createdAt": "2026-02-11T05:00:24.505814Z",
-      "updatedAt": "2026-02-14T16:02:02.463427Z"
+      "status": "done",
+      "createdAt": "2026-02-15T04:01:58.20051Z",
+      "updatedAt": "2026-02-15T04:39:28.281111Z"
     },
-    "parent_python_fizzbuzz": {
-      "id": "parent_python_fizzbuzz",
-      "title": "Python FizzBuzz Minimal Deliverable",
-      "description": "Deliver a minimal Python-based FizzBuzz implementation with quick runtime/import verification. This parent groups lightweight coding and smoke validation into one deliverable.",
+    "deliverable_theme_foundation": {
+      "id": "deliverable_theme_foundation",
+      "title": "Build Theme Foundation and Semantic Styling API",
+      "description": "Create the core TUI theming foundation so color choices are centralized and renderers can consume semantic tokens instead of hardcoded color literals. This deliverable covers theme data structures, built-in theme registry, deterministic resolution behavior, and shared semantic style helpers, without completing full renderer migration yet.",
       "acceptanceCriteria": [
-        "The Python child task is completed with a minimal `fizzbuzz` implementation and no automated test files.",
-        "All Python files are organized coherently and are runnable in a standard Python environment.",
-        "A repeatable quick verification command (for example a `python -c` import/run check) is documented in the child task prompt/output.",
-        "No third-party packages are required for the Python solution."
+        "Theme model and color token structures are implemented in dedicated theme files under internal/tui.",
+        "Built-in themes include blackbird (visual parity with current UI) and high-contrast (visibly distinct).",
+        "Built-in theme IDs are exposed in deterministic alphabetical order for lookup and settings usage.",
+        "A semantic style helper layer exists for readiness/run statuses and common pane/modal/button styling roles.",
+        "Theme foundation tests validate resolver behavior and token determinism for built-ins."
       ],
-      "prompt": "Complete the child task to implement minimal Python FizzBuzz quickly, without adding tests, and verify with a fast runtime/import command.",
+      "prompt": "Implement the theming foundation in internal/tui (theme structs, registry, resolver, and style helpers) with blackbird and high-contrast built-ins. Keep scope to foundation APIs and tests so downstream tasks can migrate views without adding new raw color literals.",
       "parentId": null,
       "childIds": [
-        "child_python_fizzbuzz_impl",
-        "child_python_fizzbuzz_noop"
+        "task_theme_registry_and_tokens",
+        "task_theme_semantic_style_helpers",
+        "task_theme_foundation_tests"
       ],
       "deps": [],
-      "status": "todo",
-      "createdAt": "2026-02-11T05:00:24.505814Z",
-      "updatedAt": "2026-02-14T16:02:02.485376Z"
+      "status": "done",
+      "createdAt": "2026-02-15T04:01:58.20051Z",
+      "updatedAt": "2026-02-15T05:04:39.378696Z"
+    },
+    "deliverable_theme_live_apply_reload": {
+      "id": "deliverable_theme_live_apply_reload",
+      "title": "Apply Theme Changes Live and Refresh External Config In-Session",
+      "description": "Integrate the active theme into Model lifecycle and add periodic config refresh so theme changes from settings or external file edits apply in the running TUI session without restart. Preserve user context in Settings during refresh.",
+      "acceptanceCriteria": [
+        "Model stores resolved active theme and updates it whenever resolved config theme changes.",
+        "Theme changes from Settings are applied in-session with immediate redraw across views and modals.",
+        "A periodic config refresh loop reloads config using run-data refresh cadence and applies theme deltas.",
+        "Settings selection row and selected column are preserved across external refresh updates.",
+        "In-progress text edit content for non-theme fields is not clobbered by external refresh."
+      ],
+      "prompt": "Implement model-level theme state and config-refresh polling in internal/tui with no new interval setting. Use existing tui.runDataRefreshIntervalSeconds cadence, preserve settings UX state, and ensure open views/modals redraw with updated theme.",
+      "parentId": null,
+      "childIds": [
+        "task_model_theme_runtime_integration",
+        "task_config_refresh_polling",
+        "task_live_apply_regression_tests"
+      ],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-02-15T04:01:58.20051Z",
+      "updatedAt": "2026-02-15T04:44:55.492538Z"
+    },
+    "deliverable_theme_migration_cleanup": {
+      "id": "deliverable_theme_migration_cleanup",
+      "title": "Migrate Renderers to Theme Tokens and Enforce No Raw Color Literals",
+      "description": "Migrate remaining TUI renderers, shared components, and modal renderers to semantic theme helpers so raw color literals are removed from non-theme files. Finish with guard coverage that prevents regressions.",
+      "acceptanceCriteria": [
+        "Core views (model panes, tree, home, execution, detail) consume semantic theme styles/tokens.",
+        "Shared renderers and all specified modal renderers consume semantic theme styles/tokens.",
+        "Behavioral semantics (status colors, warnings, destructive actions) remain intact under blackbird.",
+        "Raw lipgloss color literals are removed from non-theme renderer code paths.",
+        "Guard coverage exists to fail future raw-color literal regressions outside allowed theme files."
+      ],
+      "prompt": "Migrate renderers incrementally to the theme helper APIs and finish with cleanup plus enforcement. Keep blackbird visuals stable, avoid layout/interaction changes, and update tests to assert semantic behavior rather than raw color IDs.",
+      "parentId": null,
+      "childIds": [
+        "task_migrate_core_views_to_theme_helpers",
+        "task_migrate_shared_renderers_and_modals",
+        "task_theme_literal_cleanup_guard"
+      ],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-02-15T04:01:58.20051Z",
+      "updatedAt": "2026-02-15T05:09:23.262421Z"
+    },
+    "task_config_refresh_polling": {
+      "id": "task_config_refresh_polling",
+      "title": "Implement External Config Refresh Loop and State-Preserving Apply",
+      "description": "Add a lightweight periodic command/message to reload config and settings resolution while TUI is running. If theme or settings values changed externally, apply updates live while preserving current settings row/column focus and non-theme edit text in progress.",
+      "acceptanceCriteria": [
+        "A periodic config refresh command exists in the TUI update loop and uses run-data refresh interval cadence.",
+        "Refresh path reloads resolved config and settings resolution, then updates model config/theme when changed.",
+        "When Settings is open, selected row and selected column remain unchanged after refresh.",
+        "If a non-theme text edit is active, refresh does not overwrite EditValue before commit/cancel.",
+        "When no text edit is active, refreshed local/global/applied values are reflected immediately.",
+        "No new user-facing config interval option is introduced."
+      ],
+      "prompt": "Add a config refresh tick/message and load command in internal/tui (model/update path) to poll and apply external config changes live. Reuse tui.runDataRefreshIntervalSeconds for cadence, preserve in-progress settings interaction state, add/update tests for selection and edit-buffer preservation during refresh, and verify with go test ./internal/tui ./internal/config -count=1.",
+      "parentId": "deliverable_theme_live_apply_reload",
+      "childIds": [],
+      "deps": [
+        "task_model_theme_runtime_integration"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-15T04:01:58.20051Z",
+      "updatedAt": "2026-02-15T04:29:14.435615Z"
+    },
+    "task_config_theme_schema_and_resolution": {
+      "id": "task_config_theme_schema_and_resolution",
+      "title": "Extend Config Schema, Option Metadata, and Theme Resolution",
+      "description": "Add first-class string/categorical option support to config internals and register tui.theme as a known option. Implement precedence and invalid-layer skip for theme resolution (valid local -\u003e valid global -\u003e blackbird) and surface invalid-value warnings without failing config load.",
+      "acceptanceCriteria": [
+        "internal/config/types.go includes raw and resolved tui.theme fields, and DefaultResolvedConfig sets resolved theme to blackbird.",
+        "internal/config/registry.go registers tui.theme as a categorical option with built-in theme IDs as allowed values and blackbird as default.",
+        "internal/config/settings.go round-trips tui.theme for local/global layers through RawOptionValue, SaveConfigValues, and buildRawConfig.",
+        "Resolver tests verify valid local tui.theme overrides global/default and yields the expected resolved value.",
+        "Resolver tests verify invalid local plus valid global resolves to the global theme and emits an invalid-local categorical warning.",
+        "Resolver tests verify invalid local plus invalid global resolves to blackbird and emits invalid-value warnings for both layers.",
+        "go test ./internal/config -count=1 passes with the new categorical/theme cases."
+      ],
+      "prompt": "Update internal/config (types, registry, resolver, settings serialization, and tests) to support categorical string options and add tui.theme end-to-end. Preserve existing int/bool behaviors while adding new invalid categorical warning handling.",
+      "parentId": "deliverable_theme_config_settings",
+      "childIds": [],
+      "deps": [
+        "task_theme_registry_and_tokens"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-15T04:01:58.20051Z",
+      "updatedAt": "2026-02-15T04:16:29.794323Z"
+    },
+    "task_live_apply_regression_tests": {
+      "id": "task_live_apply_regression_tests",
+      "title": "Add Live-Apply and External-Refresh Regression Tests",
+      "description": "Add targeted tests validating no-restart theme updates across settings changes, external config file edits, and open modals. Include protections for settings-state preservation and non-theme edit buffer integrity during refresh.",
+      "acceptanceCriteria": [
+        "Tests verify changing tui.theme from Settings updates rendered output in the same session.",
+        "Tests verify theme updates are reflected while a modal is open (no modal reopen required).",
+        "Tests verify external config edits are applied on the next refresh cycle.",
+        "Tests verify Settings selection row and column are preserved during refresh.",
+        "Tests verify non-theme in-progress text edits are not overwritten by refresh.",
+        "go test for internal/tui and related config integration tests passes for new scenarios."
+      ],
+      "prompt": "Create regression tests in internal/tui for live theme apply and external refresh behavior, including open-modal redraw and settings edit-preservation cases. Use deterministic test-time controls for refresh/debounce timing where needed.",
+      "parentId": "deliverable_theme_live_apply_reload",
+      "childIds": [],
+      "deps": [
+        "task_config_refresh_polling",
+        "task_settings_theme_cycle_debounce"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-15T04:01:58.20051Z",
+      "updatedAt": "2026-02-15T04:44:55.492538Z"
+    },
+    "task_migrate_core_views_to_theme_helpers": {
+      "id": "task_migrate_core_views_to_theme_helpers",
+      "title": "Migrate Core Views and Pane Chrome to Theme Helpers",
+      "description": "Refactor core TUI view files to use semantic theme helper functions and tokens. Prioritize model pane chrome, tree readiness/review indicators, home status/action styles, and execution run-status styles while preserving existing layout and state behavior.",
+      "acceptanceCriteria": [
+        "internal/tui/model.go pane border/title styling is sourced from theme helpers or m.theme tokens instead of inline color construction.",
+        "internal/tui/tree_view.go, internal/tui/home_view.go, and internal/tui/execution_view.go use shared semantic helpers for readiness/review/run-status styles.",
+        "internal/tui/detail_view.go routes any color-styled status/chrome output through theme helpers instead of raw literals.",
+        "A literal scan command (for example, rg 'lipgloss.Color(' internal/tui/model.go internal/tui/tree_view.go internal/tui/home_view.go internal/tui/execution_view.go internal/tui/detail_view.go) returns no matches in migrated files.",
+        "Targeted tests are added or updated to assert readiness/review/run-status semantic styling behavior under blackbird.",
+        "go test ./internal/tui -count=1 passes after the migration."
+      ],
+      "prompt": "Update internal/tui/model.go, internal/tui/tree_view.go, internal/tui/home_view.go, internal/tui/execution_view.go, and internal/tui/detail_view.go (where applicable) to replace inline style/color construction with semantic theme helper calls that read from m.theme. Keep layout/state logic unchanged and preserve blackbird visuals. Add or adjust tests for readiness/review/run-status semantics, verify migrated files have no direct lipgloss.Color literals (for example with rg), and run go test ./internal/tui -count=1 to confirm completion.",
+      "parentId": "deliverable_theme_migration_cleanup",
+      "childIds": [],
+      "deps": [
+        "task_theme_semantic_style_helpers",
+        "task_model_theme_runtime_integration"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-15T04:01:58.20051Z",
+      "updatedAt": "2026-02-15T04:55:25.620206Z"
+    },
+    "task_migrate_shared_renderers_and_modals": {
+      "id": "task_migrate_shared_renderers_and_modals",
+      "title": "Migrate Shared UI Renderers and Modal Views to Theme Helpers",
+      "description": "Refactor shared renderer files and modal renderers to remove inline color literals and consume semantic styles. This includes action/file-picker rendering and all modal files listed in the theme spec, while preserving current interaction semantics and copy.",
+      "acceptanceCriteria": [
+        "actions.go and file_picker_render.go use semantic theme styles/tokens instead of raw color literals.",
+        "Modal renderers in plan_generate, plan_refine, plan_review, review_checkpoint, parent_review, agent_question, and agent_selection use semantic styles.",
+        "Warning/success/error/destructive visual semantics remain consistent with existing behavior.",
+        "No keyboard or modal state-machine behavior changes are introduced by styling migration.",
+        "Modal and renderer tests are updated and pass after migration."
+      ],
+      "prompt": "Migrate shared renderer and modal files to theme helpers with minimal behavior risk. Keep copy/layout unchanged, replace raw color literals with semantic tokens or helper methods sourced from the active theme, add/update renderer/modal tests for warning/success/error/destructive semantics, verify migrated files have no direct lipgloss.Color literals (for example with rg), and run go test ./internal/tui -count=1.",
+      "parentId": "deliverable_theme_migration_cleanup",
+      "childIds": [],
+      "deps": [
+        "task_theme_semantic_style_helpers",
+        "task_model_theme_runtime_integration"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-15T04:01:58.20051Z",
+      "updatedAt": "2026-02-15T05:02:29.835032Z"
+    },
+    "task_model_theme_runtime_integration": {
+      "id": "task_model_theme_runtime_integration",
+      "title": "Integrate Active Theme into Model Startup and Settings Save Path",
+      "description": "Add `theme Theme` on the TUI model and initialize it from resolved config on startup. Ensure settings saves (including tui.theme) recompute and apply the active theme immediately in-session so rendering paths can consume `m.theme` consistently.",
+      "acceptanceCriteria": [
+        "Model struct includes active theme state and startup constructors initialize it from resolved config.",
+        "Theme resolution during startup and save paths safely falls back to blackbird on unknown IDs.",
+        "After successful settings save, model config and active theme are both refreshed in the same update path.",
+        "Theme application does not require restarting the TUI process.",
+        "No unrelated execution/view-state behavior regressions are introduced."
+      ],
+      "prompt": "Modify internal/tui/model.go, internal/tui/start.go, and settings save paths to keep m.theme synchronized with resolved config. Ensure theme lookup uses the centralized resolver and triggers redraw in the existing update loop. Add or update tests for startup theme resolution and post-save live-apply behavior, then run go test ./internal/tui ./internal/config -count=1.",
+      "parentId": "deliverable_theme_live_apply_reload",
+      "childIds": [],
+      "deps": [
+        "task_theme_registry_and_tokens",
+        "task_config_theme_schema_and_resolution"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-15T04:01:58.20051Z",
+      "updatedAt": "2026-02-15T04:22:48.502005Z"
+    },
+    "task_settings_categorical_cells_and_warnings": {
+      "id": "task_settings_categorical_cells_and_warnings",
+      "title": "Implement Categorical Settings Interaction, Display, and Warning Cells",
+      "description": "Update settings state/key/view handling to support categorical values in local/global columns. Categorical options should cycle values via keyboard, never enter free-text edit mode in v1, and present invalid raw values with warning cell styling and truncation behavior.",
+      "acceptanceCriteria": [
+        "Settings table renders string categorical values in Local, Global, Default, and Applied columns.",
+        "space/enter on categorical local/global cells cycles through allowed values with wrap-around in alphabetical order.",
+        "delete/backspace clears categorical layer values and re-applies precedence fallback behavior.",
+        "Categorical options do not enter free-text edit mode.",
+        "Footer/help for selected categorical option displays allowed values.",
+        "Invalid raw categorical values render with red-background warning styling and readable contrasting foreground.",
+        "Invalid raw categorical cell display truncates to 20 characters plus ellipsis when exceeded."
+      ],
+      "prompt": "Modify internal/tui/settings_keys.go, internal/tui/settings_view.go, internal/tui/settings_state.go, and related helpers/tests to support categorical options generically (not only theme). Ensure invalid raw display and footer guidance meet spec details.",
+      "parentId": "deliverable_theme_config_settings",
+      "childIds": [],
+      "deps": [
+        "task_config_theme_schema_and_resolution"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-15T04:01:58.20051Z",
+      "updatedAt": "2026-02-15T04:33:49.08354Z"
+    },
+    "task_settings_theme_cycle_debounce": {
+      "id": "task_settings_theme_cycle_debounce",
+      "title": "Add 500ms Debounced Save/Apply for tui.theme Cycling",
+      "description": "Implement debounced persistence and live-apply behavior when cycling tui.theme in settings. Rapid key presses should update the pending selection but defer disk write and model apply until 500ms after the last cycle key event.",
+      "acceptanceCriteria": [
+        "Cycling tui.theme does not immediately call SaveConfigValues on each key press.",
+        "Theme save/apply executes once 500ms after the final cycle key event.",
+        "Additional cycle key presses before expiry reset the debounce timer.",
+        "Debounced apply updates the active theme in-session after persistence succeeds.",
+        "Non-theme settings continue using existing immediate save behavior unless explicitly changed.",
+        "Tests deterministically verify debounce timing and single-write behavior for rapid cycling."
+      ],
+      "prompt": "Add a settings-level debounce path for tui.theme only (500ms) using tea message/timer handling. Wire it to save and live apply once idle. Add regression tests in settings interaction test files for rapid cycle input and delayed persistence.",
+      "parentId": "deliverable_theme_config_settings",
+      "childIds": [],
+      "deps": [
+        "task_settings_categorical_cells_and_warnings",
+        "task_model_theme_runtime_integration"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-15T04:01:58.20051Z",
+      "updatedAt": "2026-02-15T04:39:28.281111Z"
+    },
+    "task_theme_foundation_tests": {
+      "id": "task_theme_foundation_tests",
+      "title": "Add Unit Tests for Theme Registry and Style Helpers",
+      "description": "Add focused tests that lock down theme foundation behavior so later migrations do not change resolver semantics or built-in ordering. Validate key token values and semantic helper mappings.",
+      "acceptanceCriteria": [
+        "Tests cover valid built-in ID resolution and unknown-ID fallback behavior.",
+        "Tests verify built-in IDs are returned in deterministic alphabetical order.",
+        "Tests assert deterministic blackbird/high-contrast token assignments for selected critical semantic roles.",
+        "Tests verify readiness/run-status semantic helpers map to expected themed style branches.",
+        "go test for internal/tui theme-related tests passes."
+      ],
+      "prompt": "Create or extend theme-focused tests under internal/tui to validate resolver, fallback, ordering, and semantic style mappings. Use stable assertions that do not depend on fragile full-screen ANSI snapshots.",
+      "parentId": "deliverable_theme_foundation",
+      "childIds": [],
+      "deps": [
+        "task_theme_registry_and_tokens",
+        "task_theme_semantic_style_helpers"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-15T04:01:58.20051Z",
+      "updatedAt": "2026-02-15T05:04:39.378696Z"
+    },
+    "task_theme_literal_cleanup_guard": {
+      "id": "task_theme_literal_cleanup_guard",
+      "title": "Remove Remaining Raw Color Literals and Add Regression Guard",
+      "description": "Scan non-theme TUI source files for direct lipgloss.Color literals, replace each remaining occurrence with semantic theme helpers, add an automated guard test/check that fails when new literals appear outside allowed theme files, and rewrite tests that assert literal color IDs to assert semantic behavior branches instead.",
+      "acceptanceCriteria": [
+        "Repository scan confirms no remaining lipgloss.Color literal usage in non-theme TUI source files.",
+        "A guard test/check is added to fail when new raw color literals are introduced outside allowed theme files.",
+        "Existing tests that asserted raw color IDs are rewritten to semantic branch/behavior assertions.",
+        "go test ./internal/tui ./internal/config -count=1 passes after cleanup.",
+        "Cleanup changes preserve blackbird baseline appearance and functional behavior."
+      ],
+      "prompt": "Run a repository scan for raw lipgloss.Color literals outside allowed theme files, replace each match with theme helper usage, add an enforcement test/check with an explicit allowlist, and update literal-coupled tests to semantic assertions. Validate by running the scan command and go test ./internal/tui ./internal/config -count=1.",
+      "parentId": "deliverable_theme_migration_cleanup",
+      "childIds": [],
+      "deps": [
+        "task_migrate_core_views_to_theme_helpers",
+        "task_migrate_shared_renderers_and_modals",
+        "task_live_apply_regression_tests"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-15T04:01:58.20051Z",
+      "updatedAt": "2026-02-15T05:09:23.262421Z"
+    },
+    "task_theme_registry_and_tokens": {
+      "id": "task_theme_registry_and_tokens",
+      "title": "Implement Theme Tokens, Built-in Registry, and Resolver",
+      "description": "Add the core theme domain types and registry used across the TUI. Define semantic color token sets, implement blackbird and high-contrast themes, and provide deterministic resolution and ID ordering APIs. This task should not yet migrate all render paths.",
+      "acceptanceCriteria": [
+        "internal/tui/theme.go defines Theme and ColorTokens types with semantic token fields consumed by renderer/style helpers.",
+        "internal/tui/theme_registry.go declares built-in themes with IDs blackbird and high-contrast in a shared registry.",
+        "BuiltInThemeIDs (or equivalent exported API) returns built-in theme IDs in deterministic alphabetical order.",
+        "ResolveTheme(themeID string) returns the matching built-in for known IDs and returns the blackbird theme for unknown IDs.",
+        "Unit tests assert critical token values for blackbird and high-contrast used by status/chrome semantics.",
+        "go test ./internal/tui -count=1 passes with the new registry/resolver APIs."
+      ],
+      "prompt": "Create internal/tui/theme.go and internal/tui/theme_registry.go (or equivalent) with Theme, ColorTokens, built-in themes, alphabetically ordered built-in IDs, and ResolveTheme. Keep the API simple and dependency-light, do not perform broad renderer migration in this task, add unit tests for ordering/fallback/token baselines, and verify with go test ./internal/tui -count=1.",
+      "parentId": "deliverable_theme_foundation",
+      "childIds": [],
+      "deps": [],
+      "status": "done",
+      "createdAt": "2026-02-15T04:01:58.20051Z",
+      "updatedAt": "2026-02-15T04:10:54.504792Z"
+    },
+    "task_theme_semantic_style_helpers": {
+      "id": "task_theme_semantic_style_helpers",
+      "title": "Add Semantic Theme Style Helpers",
+      "description": "Introduce centralized helper functions that map app semantics (readiness labels, run statuses, pane/modal emphasis) to lipgloss styles using the active theme tokens. Keep layout concerns in existing renderer files while moving color/style role decisions into helpers.",
+      "acceptanceCriteria": [
+        "internal/tui/theme_styles.go exposes semantic helper functions for readiness status, run status, pane chrome, modal emphasis, and button variants.",
+        "Helper implementations derive colors from Theme tokens and do not introduce hardcoded lipgloss.Color literals.",
+        "Status-to-style mappings are centralized in helpers and reused by callers instead of duplicated per view.",
+        "Helpers return composable lipgloss.Style values without encoding per-view layout dimensions.",
+        "Unit tests verify readiness and run-status mapping branches for at least blackbird and high-contrast themes.",
+        "go test ./internal/tui -count=1 passes with helper and mapping tests."
+      ],
+      "prompt": "Implement semantic style helper functions in internal/tui/theme_styles.go that consume Theme tokens and produce lipgloss.Style values for key rendering roles. Keep functional behavior unchanged while preparing for core view and modal migration. Add tests for readiness and run-status mapping behavior, and validate with go test ./internal/tui -count=1.",
+      "parentId": "deliverable_theme_foundation",
+      "childIds": [],
+      "deps": [
+        "task_theme_registry_and_tokens"
+      ],
+      "status": "done",
+      "createdAt": "2026-02-15T04:01:58.20051Z",
+      "updatedAt": "2026-02-15T04:50:32.177228Z"
     }
   }
 }

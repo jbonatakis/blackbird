@@ -293,19 +293,22 @@ func TestRenderParentReviewModalNoFailedShowsDisabledResumeActionsAndExplanation
 }
 
 func TestParentReviewModalBorderColorReflectsAggregateResult(t *testing.T) {
-	allPassed := NewParentReviewForm(testParentReviewAllPassedRun(), plan.NewEmptyWorkGraph())
-	if got, want := string(parentReviewModalBorderColor(allPassed)), "46"; got != want {
-		t.Fatalf("all-pass border color = %q, want %q", got, want)
-	}
+	for _, themeID := range []string{ThemeIDBlackbird, ThemeIDHighContrast} {
+		theme := ResolveTheme(themeID)
+		allPassed := NewParentReviewForm(testParentReviewAllPassedRun(), plan.NewEmptyWorkGraph())
+		if got, want := parentReviewModalBorderColor(theme, allPassed), theme.Colors.Success; got != want {
+			t.Fatalf("%s all-pass border color = %q, want %q", themeID, got, want)
+		}
 
-	mixed := NewParentReviewForm(testParentReviewRun(), plan.NewEmptyWorkGraph())
-	if got, want := string(parentReviewModalBorderColor(mixed)), "214"; got != want {
-		t.Fatalf("mixed border color = %q, want %q", got, want)
-	}
+		mixed := NewParentReviewForm(testParentReviewRun(), plan.NewEmptyWorkGraph())
+		if got, want := parentReviewModalBorderColor(theme, mixed), theme.Colors.Warning; got != want {
+			t.Fatalf("%s mixed border color = %q, want %q", themeID, got, want)
+		}
 
-	allFailed := NewParentReviewForm(testParentReviewAllFailedRun(), plan.NewEmptyWorkGraph())
-	if got, want := string(parentReviewModalBorderColor(allFailed)), "196"; got != want {
-		t.Fatalf("all-fail border color = %q, want %q", got, want)
+		allFailed := NewParentReviewForm(testParentReviewAllFailedRun(), plan.NewEmptyWorkGraph())
+		if got, want := parentReviewModalBorderColor(theme, allFailed), theme.Colors.Danger; got != want {
+			t.Fatalf("%s all-fail border color = %q, want %q", themeID, got, want)
+		}
 	}
 }
 

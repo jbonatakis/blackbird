@@ -12,16 +12,16 @@ import (
 
 func RenderDetailView(model Model) string {
 	if model.selectedID == "" {
-		return emptyDetailView("No item selected.")
+		return emptyDetailView(model.theme, "No item selected.")
 	}
 	it, ok := model.plan.Items[model.selectedID]
 	if !ok {
-		return emptyDetailView(fmt.Sprintf("Unknown item %q.", model.selectedID))
+		return emptyDetailView(model.theme, fmt.Sprintf("Unknown item %q.", model.selectedID))
 	}
 
-	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69"))
+	headerStyle := sectionHeaderStyleForTheme(model.theme)
 	labelStyle := lipgloss.NewStyle().Bold(true)
-	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	mutedStyle := mutedTextStyleForTheme(model.theme)
 
 	var b strings.Builder
 	writeSectionHeader(&b, headerStyle, "Item")
@@ -111,8 +111,8 @@ func RenderDetailView(model Model) string {
 	return applyViewport(model, content)
 }
 
-func emptyDetailView(message string) string {
-	style := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("240"))
+func emptyDetailView(theme Theme, message string) string {
+	style := mutedTextStyleForTheme(theme).Copy().Bold(true)
 	return style.Render(message)
 }
 

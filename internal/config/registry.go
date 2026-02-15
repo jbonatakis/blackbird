@@ -3,8 +3,9 @@ package config
 type OptionType string
 
 const (
-	OptionTypeBool OptionType = "bool"
-	OptionTypeInt  OptionType = "int"
+	OptionTypeBool        OptionType = "bool"
+	OptionTypeInt         OptionType = "int"
+	OptionTypeCategorical OptionType = "categorical"
 )
 
 type IntBounds struct {
@@ -13,13 +14,15 @@ type IntBounds struct {
 }
 
 type OptionMetadata struct {
-	KeyPath     string
-	DisplayName string
-	Type        OptionType
-	DefaultInt  int
-	DefaultBool bool
-	Bounds      *IntBounds
-	Description string
+	KeyPath       string
+	DisplayName   string
+	Type          OptionType
+	DefaultInt    int
+	DefaultBool   bool
+	DefaultString string
+	AllowedValues []string
+	Bounds        *IntBounds
+	Description   string
 }
 
 // OptionRegistry returns the known config options in display order.
@@ -42,6 +45,13 @@ func OptionRegistry() []OptionMetadata {
 			MinRefreshIntervalSeconds,
 			MaxRefreshIntervalSeconds,
 			"Plan data refresh interval in seconds",
+		),
+		newCategoricalOption(
+			"tui.theme",
+			"TUI Theme",
+			defaults.TUI.Theme,
+			BuiltInThemeIDs(),
+			"TUI color theme",
 		),
 		newIntOption(
 			"planning.maxPlanAutoRefinePasses",
@@ -68,10 +78,11 @@ func OptionRegistry() []OptionMetadata {
 
 func newIntOption(keyPath string, displayName string, defaultValue int, min int, max int, description string) OptionMetadata {
 	return OptionMetadata{
-		KeyPath:     keyPath,
-		DisplayName: displayName,
-		Type:        OptionTypeInt,
-		DefaultInt:  defaultValue,
+		KeyPath:       keyPath,
+		DisplayName:   displayName,
+		Type:          OptionTypeInt,
+		DefaultInt:    defaultValue,
+		AllowedValues: nil,
 		Bounds: &IntBounds{
 			Min: min,
 			Max: max,
@@ -82,11 +93,31 @@ func newIntOption(keyPath string, displayName string, defaultValue int, min int,
 
 func newBoolOption(keyPath string, displayName string, defaultValue bool, description string) OptionMetadata {
 	return OptionMetadata{
-		KeyPath:     keyPath,
-		DisplayName: displayName,
-		Type:        OptionTypeBool,
-		DefaultBool: defaultValue,
-		Bounds:      nil,
-		Description: description,
+		KeyPath:       keyPath,
+		DisplayName:   displayName,
+		Type:          OptionTypeBool,
+		DefaultBool:   defaultValue,
+		AllowedValues: nil,
+		Bounds:        nil,
+		Description:   description,
+	}
+}
+
+func newCategoricalOption(
+	keyPath string,
+	displayName string,
+	defaultValue string,
+	allowedValues []string,
+	description string,
+) OptionMetadata {
+	copied := append([]string(nil), allowedValues...)
+	return OptionMetadata{
+		KeyPath:       keyPath,
+		DisplayName:   displayName,
+		Type:          OptionTypeCategorical,
+		DefaultString: defaultValue,
+		AllowedValues: copied,
+		Bounds:        nil,
+		Description:   description,
 	}
 }

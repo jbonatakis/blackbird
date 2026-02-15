@@ -287,18 +287,14 @@ func HandlePlanRefineKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 // RenderPlanRefineModal renders the plan refine modal.
 func RenderPlanRefineModal(m Model, form PlanRefineForm) string {
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69"))
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	focusedLabelStyle := labelStyle.Copy().Foreground(lipgloss.Color("69")).Bold(true)
-	helperStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	buttonStyle := lipgloss.NewStyle().
-		Padding(0, 2).
-		Background(lipgloss.Color("240")).
-		Foreground(lipgloss.Color("15"))
-	focusedButtonStyle := buttonStyle.Copy().
-		Background(lipgloss.Color("69")).
-		Bold(true)
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	theme := themeOrDefault(m.theme)
+	titleStyle := modalTitleStyleForTheme(theme, ModalEmphasisAccent)
+	labelStyle := mutedTextStyleForTheme(theme)
+	focusedLabelStyle := modalEmphasisStyleForTheme(theme, ModalEmphasisAccent).Copy().Bold(true)
+	helperStyle := mutedTextStyleForTheme(theme)
+	buttonStyle := buttonVariantStyleForTheme(theme, ButtonVariantSecondary).Padding(0, 2)
+	focusedButtonStyle := buttonVariantStyleForTheme(theme, ButtonVariantPrimary).Padding(0, 2)
+	errorStyle := modalEmphasisStyleForTheme(theme, ModalEmphasisDanger)
 
 	title := titleStyle.Render("Refine Plan")
 	helpText := helperStyle.Render("Tab: next • Enter: new line (in text) • Shift+Tab: previous • [esc]cancel")
@@ -369,14 +365,14 @@ func RenderPlanRefineModal(m Model, form PlanRefineForm) string {
 		if available > 6 {
 			available = 6
 		}
-		picker = RenderFilePickerList(form.filePicker, pickerWidth, available)
+		picker = RenderFilePickerList(m.theme, form.filePicker, pickerWidth, available)
 	}
 
 	lines := renderLines(picker)
 
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("69")).
+		Inherit(modalBorderStyleForTheme(theme, ModalEmphasisAccent)).
 		Padding(1, 2).
 		Width(modalWidth).
 		Height(modalHeight)

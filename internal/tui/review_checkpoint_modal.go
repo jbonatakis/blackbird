@@ -392,20 +392,14 @@ func reviewDecisionActionName(action execution.DecisionState, parentReviewEnable
 }
 
 func RenderReviewCheckpointModal(m Model, form ReviewCheckpointForm) string {
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
-	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	selectedStyle := lipgloss.NewStyle().
-		Padding(0, 2).
-		Background(lipgloss.Color("69")).
-		Foreground(lipgloss.Color("15")).
-		Bold(true)
-	unselectedStyle := lipgloss.NewStyle().
-		Padding(0, 2).
-		Background(lipgloss.Color("240")).
-		Foreground(lipgloss.Color("15"))
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	theme := themeOrDefault(m.theme)
+	titleStyle := modalTitleStyleForTheme(theme, ModalEmphasisWarning)
+	labelStyle := mutedTextStyleForTheme(theme)
+	textStyle := lipgloss.NewStyle().Foreground(theme.Colors.TextPrimary)
+	mutedStyle := mutedTextStyleForTheme(theme)
+	selectedStyle := buttonVariantStyleForTheme(theme, ButtonVariantPrimary).Padding(0, 2)
+	unselectedStyle := buttonVariantStyleForTheme(theme, ButtonVariantSecondary).Padding(0, 2)
+	errorStyle := modalEmphasisStyleForTheme(theme, ModalEmphasisDanger)
 
 	modalWidth := m.windowWidth - 4
 	if modalWidth < 60 {
@@ -433,7 +427,7 @@ func RenderReviewCheckpointModal(m Model, form ReviewCheckpointForm) string {
 		taskLine = form.run.TaskID
 	}
 	lines = append(lines, labelStyle.Render("Task:")+" "+textStyle.Render(truncateField(taskLine, contentWidth)))
-	lines = append(lines, labelStyle.Render("Run status:")+" "+renderRunStatus(form.run.Status))
+	lines = append(lines, labelStyle.Render("Run status:")+" "+renderRunStatus(m.theme, form.run.Status))
 	lines = append(lines, "")
 
 	lines = append(lines, labelStyle.Render("Review summary:"))
@@ -481,7 +475,7 @@ func RenderReviewCheckpointModal(m Model, form ReviewCheckpointForm) string {
 			if available > 6 {
 				available = 6
 			}
-			picker = RenderFilePickerList(form.filePicker, pickerWidth, available)
+			picker = RenderFilePickerList(m.theme, form.filePicker, pickerWidth, available)
 		}
 		if picker != "" {
 			lines = append(lines, picker)
@@ -498,7 +492,7 @@ func RenderReviewCheckpointModal(m Model, form ReviewCheckpointForm) string {
 
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("214")).
+		Inherit(modalBorderStyleForTheme(theme, ModalEmphasisWarning)).
 		Padding(1, 2).
 		Width(modalWidth).
 		Height(modalHeight)

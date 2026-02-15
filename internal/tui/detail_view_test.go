@@ -75,6 +75,16 @@ func TestRenderDetailViewEmptySelection(t *testing.T) {
 	}
 }
 
+func TestEmptyDetailView_UsesBlackbirdMutedStyle(t *testing.T) {
+	theme := ResolveTheme(ThemeIDBlackbird)
+	message := "No item selected."
+	out := emptyDetailView(theme, message)
+	want := mutedTextStyleForTheme(theme).Copy().Bold(true).Render(message)
+	if out != want {
+		t.Fatalf("emptyDetailView() = %q, want %q", out, want)
+	}
+}
+
 func assertContains(t *testing.T, value string, substr string) {
 	t.Helper()
 	if !strings.Contains(value, substr) {

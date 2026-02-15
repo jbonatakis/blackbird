@@ -9,6 +9,10 @@ import (
 	"github.com/jbonatakis/blackbird/internal/config"
 )
 
+var saveConfigValuesForSettings = config.SaveConfigValues
+var loadConfigForSettings = config.LoadConfig
+var resolveSettingsForProject = config.ResolveSettings
+
 // HandleSettingsKey handles key presses in the Settings view.
 func HandleSettingsKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 	state := m.settings
@@ -126,6 +130,8 @@ func handleSettingsActivate(m Model, enter bool) (Model, tea.Cmd) {
 	switch option.Type {
 	case config.OptionTypeBool:
 		return toggleSettingsBool(m, option, column)
+	case config.OptionTypeCategorical:
+		return cycleSettingsCategorical(m, option, column)
 	case config.OptionTypeInt:
 		if !enter {
 			return m, nil
@@ -142,6 +148,76 @@ func handleSettingsActivate(m Model, enter bool) (Model, tea.Cmd) {
 	default:
 		return m, nil
 	}
+}
+
+func cycleSettingsCategorical(m Model, option config.OptionMetadata, column SettingsColumn) (Model, tea.Cmd) {
+	state := m.settings
+	if option.Type != config.OptionTypeCategorical {
+		return m, nil
+	}
+	allowed := sortedCategoricalAllowedValues(option)
+	if len(allowed) == 0 {
+		return m, nil
+	}
+
+	raw := rawValueForColumn(state, option, column)
+	current := ""
+	if raw.String != nil {
+		current = *raw.String
+	} else {
+		applied := appliedOptionFor(state, option)
+		if applied.Value.String != nil {
+			current = *applied.Value.String
+		}
+	}
+
+	next, ok := nextCategoricalValue(current, allowed)
+	if !ok {
+		return m, nil
+	}
+
+	value := config.RawOptionValue{String: &next}
+	state.SaveErr = nil
+	if option.KeyPath == settingsThemeOptionKey {
+		return queueDebouncedThemeSave(m, column, next)
+	}
+
+	m.settings = state
+	updated, err := saveSettingsValue(m, option, column, &value)
+	if err != nil {
+		state = updated.settings
+		state.SaveErr = err
+		updated.settings = state
+		return updated, nil
+	}
+	return updated, nil
+}
+
+func queueDebouncedThemeSave(m Model, column SettingsColumn, value string) (Model, tea.Cmd) {
+	state := m.settings
+	m.settingsThemeDebounceToken++
+	token := m.settingsThemeDebounceToken
+	state.PendingTheme = &PendingThemeSelection{
+		Column: column,
+		Value:  value,
+		Token:  token,
+	}
+	state.SaveErr = nil
+	m.settings = state
+	return m, settingsThemeDebounceCmd(settingsThemeDebounceDelay, token)
+}
+
+func nextCategoricalValue(current string, allowed []string) (string, bool) {
+	if len(allowed) == 0 {
+		return "", false
+	}
+	next := allowed[0]
+	for idx, candidate := range allowed {
+		if candidate == current {
+			return allowed[(idx+1)%len(allowed)], true
+		}
+	}
+	return next, true
 }
 
 func toggleSettingsBool(m Model, option config.OptionMetadata, column SettingsColumn) (Model, tea.Cmd) {
@@ -234,6 +310,9 @@ func clearSettingsValue(m Model) (Model, tea.Cmd) {
 	state.SaveErr = nil
 	state.Editing = false
 	state.EditValue = ""
+	if option.KeyPath == settingsThemeOptionKey {
+		state.PendingTheme = nil
+	}
 	m.settings = state
 	updated, err := saveSettingsValue(m, option, column, nil)
 	if err != nil {
@@ -268,25 +347,29 @@ func saveSettingsValue(m Model, option config.OptionMetadata, column SettingsCol
 		values[option.KeyPath] = *value
 	}
 
-	if err := config.SaveConfigValues(path, values); err != nil {
+	if err := saveConfigValuesForSettings(path, values); err != nil {
 		return m, err
 	}
 
-	resolved, err := config.LoadConfig(state.ProjectRoot)
+	resolved, err := loadConfigForSettings(state.ProjectRoot)
 	if err != nil {
 		return m, err
 	}
-	resolution, err := config.ResolveSettings(state.ProjectRoot)
+	resolution, err := resolveSettingsForProject(state.ProjectRoot)
 	if err != nil {
 		return m, err
 	}
 
 	state.Resolved = resolved
 	state.Resolution = resolution
+	if option.KeyPath == settingsThemeOptionKey {
+		state.PendingTheme = nil
+	}
 	state.Err = nil
 	state.SaveErr = nil
 	m.settings = state
 	m.config = resolved
+	m.theme = resolveActiveTheme(resolved)
 	return m, nil
 }
 
@@ -296,6 +379,15 @@ func copyRawOptionValues(values map[string]config.RawOptionValue) map[string]con
 		copied[key] = value
 	}
 	return copied
+}
+
+func settingsOptionByKey(options []config.OptionMetadata, key string) (config.OptionMetadata, bool) {
+	for _, option := range options {
+		if option.KeyPath == key {
+			return option, true
+		}
+	}
+	return config.OptionMetadata{}, false
 }
 
 func allDigits(runes []rune) bool {

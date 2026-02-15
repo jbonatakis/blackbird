@@ -257,14 +257,12 @@ func RenderAgentQuestionModal(m Model, form AgentQuestionForm) string {
 		return renderCompleteMessage(m)
 	}
 
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("214"))
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	questionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("15")).Bold(true)
-	optionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
-	selectedOptionStyle := optionStyle.Copy().
-		Background(lipgloss.Color("69")).
-		Foreground(lipgloss.Color("15")).
-		Bold(true)
+	theme := themeOrDefault(m.theme)
+	titleStyle := modalTitleStyleForTheme(theme, ModalEmphasisWarning)
+	labelStyle := mutedTextStyleForTheme(theme)
+	questionStyle := lipgloss.NewStyle().Foreground(theme.Colors.TextPrimary).Bold(true)
+	optionStyle := lipgloss.NewStyle().Foreground(theme.Colors.TextPrimary)
+	selectedOptionStyle := buttonVariantStyleForTheme(theme, ButtonVariantPrimary)
 	helpStyle := labelStyle.Copy()
 
 	currentQ := form.CurrentQuestion()
@@ -316,7 +314,7 @@ func RenderAgentQuestionModal(m Model, form AgentQuestionForm) string {
 
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("214")).
+		Inherit(modalBorderStyleForTheme(theme, ModalEmphasisWarning)).
 		Padding(1, 2).
 		Width(modalWidth)
 
@@ -336,9 +334,10 @@ func RenderAgentQuestionModal(m Model, form AgentQuestionForm) string {
 
 // renderCompleteMessage shows a message when all questions are answered
 func renderCompleteMessage(m Model) string {
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("46"))
-	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
-	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+	theme := themeOrDefault(m.theme)
+	titleStyle := modalTitleStyleForTheme(theme, ModalEmphasisSuccess)
+	textStyle := lipgloss.NewStyle().Foreground(theme.Colors.TextPrimary)
+	helpStyle := mutedTextStyleForTheme(theme)
 
 	title := titleStyle.Render("All questions answered")
 	message := textStyle.Render("Press Enter to continue generating the plan.")
@@ -359,7 +358,7 @@ func renderCompleteMessage(m Model) string {
 
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("46")).
+		Inherit(modalBorderStyleForTheme(theme, ModalEmphasisSuccess)).
 		Padding(1, 2).
 		Width(modalWidth)
 

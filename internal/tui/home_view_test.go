@@ -97,6 +97,27 @@ func TestRenderHomeViewWithPlan(t *testing.T) {
 	}
 }
 
+func TestFormatPlanStatusLines_UsesBlackbirdSemanticStatusStyles(t *testing.T) {
+	theme := ResolveTheme(ThemeIDBlackbird)
+	counts := planStatusCounts{
+		Ready:   1,
+		Blocked: 2,
+	}
+
+	lines := formatPlanStatusLines(theme, 3, counts)
+	rendered := strings.Join(lines, "\n")
+
+	if !strings.Contains(rendered, successTextStyleForTheme(theme).Render("✓")) {
+		t.Fatalf("expected semantic success style for plan-found indicator, got %q", rendered)
+	}
+	if !strings.Contains(rendered, homeStatusStyle(theme, "READY").Render("1 ready")) {
+		t.Fatalf("expected semantic readiness style for ready count, got %q", rendered)
+	}
+	if !strings.Contains(rendered, homeStatusStyle(theme, "BLOCKED").Render("2 blocked")) {
+		t.Fatalf("expected semantic readiness style for blocked count, got %q", rendered)
+	}
+}
+
 func TestRenderHomeViewPlanCompletionPercentage(t *testing.T) {
 	t.Setenv(agent.EnvProvider, "")
 	now := time.Date(2026, 1, 30, 10, 0, 0, 0, time.UTC)
@@ -127,6 +148,23 @@ func TestRenderHomeViewPlanCompletionPercentage(t *testing.T) {
 	}
 	if !strings.Contains(out, "60% complete (3/5 leaf tasks)") {
 		t.Fatalf("expected 60%% complete (3/5 leaf tasks), got %q", out)
+	}
+}
+
+func TestRenderHomeView_UsesBlackbirdSemanticActionStyles(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
+	theme := ResolveTheme(ThemeIDBlackbird)
+	model := Model{
+		plan:       plan.NewEmptyWorkGraph(),
+		planExists: false,
+		theme:      theme,
+	}
+
+	out := RenderHomeView(model)
+	wantAction := accentTextStyleForTheme(theme).Render("[g]") + " " + successTextStyleForTheme(theme).Render("Generate plan")
+
+	if !strings.Contains(out, wantAction) {
+		t.Fatalf("expected styled generate-plan action %q, got %q", wantAction, out)
 	}
 }
 

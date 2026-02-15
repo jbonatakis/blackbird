@@ -12,9 +12,9 @@ import (
 var timeNow = time.Now
 
 func RenderExecutionView(model Model) string {
-	headerStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69"))
+	headerStyle := sectionHeaderStyleForTheme(model.theme)
 	labelStyle := lipgloss.NewStyle().Bold(true)
-	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	mutedStyle := mutedTextStyleForTheme(model.theme)
 
 	active := findActiveRun(model.runData)
 	useLiveOutput := model.actionInProgress && (model.actionName == "Executing..." || model.actionName == "Resuming...")
@@ -23,14 +23,14 @@ func RenderExecutionView(model Model) string {
 	writeSectionHeader(&b, headerStyle, "Active Run")
 	if active == nil && useLiveOutput {
 		b.WriteString(labelStyle.Render("Status: "))
-		b.WriteString(renderRunStatus(execution.RunStatusRunning))
+		b.WriteString(renderRunStatus(model.theme, execution.RunStatusRunning))
 		b.WriteString("\n\n")
 	} else if active == nil {
 		b.WriteString(mutedStyle.Render("No active runs."))
 		b.WriteString("\n\n")
 	} else {
 		writeLabeledLine(&b, labelStyle, "Task", active.TaskID)
-		status := renderRunStatus(active.Status)
+		status := renderRunStatus(model.theme, active.Status)
 		b.WriteString(labelStyle.Render("Status: "))
 		b.WriteString(status)
 		b.WriteString("\n")
@@ -86,20 +86,8 @@ func findActiveRun(runData map[string]execution.RunRecord) *execution.RunRecord 
 	return selected
 }
 
-func renderRunStatus(status execution.RunStatus) string {
-	style := lipgloss.NewStyle()
-	switch status {
-	case execution.RunStatusSuccess:
-		style = style.Foreground(lipgloss.Color("42"))
-	case execution.RunStatusFailed:
-		style = style.Foreground(lipgloss.Color("196"))
-	case execution.RunStatusWaitingUser:
-		style = style.Foreground(lipgloss.Color("214"))
-	case execution.RunStatusRunning:
-		style = style.Foreground(lipgloss.Color("39"))
-	default:
-		style = style.Foreground(lipgloss.Color("240"))
-	}
+func renderRunStatus(theme Theme, status execution.RunStatus) string {
+	style := runStatusStyleForTheme(theme, status)
 	return style.Render(string(status))
 }
 

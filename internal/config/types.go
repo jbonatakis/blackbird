@@ -3,6 +3,10 @@ package config
 const (
 	SchemaVersion = 1
 
+	ThemeIDBlackbird    = "blackbird"
+	ThemeIDHighContrast = "high-contrast"
+	DefaultTUITheme     = ThemeIDBlackbird
+
 	DefaultRunDataRefreshIntervalSeconds  = 5
 	DefaultPlanDataRefreshIntervalSeconds = 5
 	DefaultMaxPlanAutoRefinePasses        = 1
@@ -23,8 +27,9 @@ type RawConfig struct {
 }
 
 type RawTUI struct {
-	RunDataRefreshIntervalSeconds  *int `json:"runDataRefreshIntervalSeconds,omitempty"`
-	PlanDataRefreshIntervalSeconds *int `json:"planDataRefreshIntervalSeconds,omitempty"`
+	RunDataRefreshIntervalSeconds  *int    `json:"runDataRefreshIntervalSeconds,omitempty"`
+	PlanDataRefreshIntervalSeconds *int    `json:"planDataRefreshIntervalSeconds,omitempty"`
+	Theme                          *string `json:"theme,omitempty"`
 }
 
 type RawExecution struct {
@@ -44,8 +49,9 @@ type ResolvedConfig struct {
 }
 
 type ResolvedTUI struct {
-	RunDataRefreshIntervalSeconds  int `json:"runDataRefreshIntervalSeconds"`
-	PlanDataRefreshIntervalSeconds int `json:"planDataRefreshIntervalSeconds"`
+	RunDataRefreshIntervalSeconds  int    `json:"runDataRefreshIntervalSeconds"`
+	PlanDataRefreshIntervalSeconds int    `json:"planDataRefreshIntervalSeconds"`
+	Theme                          string `json:"theme"`
 }
 
 type ResolvedExecution struct {
@@ -63,6 +69,7 @@ func DefaultResolvedConfig() ResolvedConfig {
 		TUI: ResolvedTUI{
 			RunDataRefreshIntervalSeconds:  DefaultRunDataRefreshIntervalSeconds,
 			PlanDataRefreshIntervalSeconds: DefaultPlanDataRefreshIntervalSeconds,
+			Theme:                          DefaultTUITheme,
 		},
 		Planning: ResolvedPlanning{
 			MaxPlanAutoRefinePasses: DefaultMaxPlanAutoRefinePasses,
@@ -71,5 +78,22 @@ func DefaultResolvedConfig() ResolvedConfig {
 			StopAfterEachTask:   DefaultStopAfterEachTask,
 			ParentReviewEnabled: DefaultParentReviewEnabled,
 		},
+	}
+}
+
+// BuiltInThemeIDs returns the known theme IDs in deterministic alphabetical order.
+func BuiltInThemeIDs() []string {
+	return []string{
+		ThemeIDBlackbird,
+		ThemeIDHighContrast,
+	}
+}
+
+func isBuiltInThemeID(themeID string) bool {
+	switch themeID {
+	case ThemeIDBlackbird, ThemeIDHighContrast:
+		return true
+	default:
+		return false
 	}
 }

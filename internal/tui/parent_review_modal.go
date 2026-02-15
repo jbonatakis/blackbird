@@ -250,30 +250,17 @@ func (f ParentReviewForm) feedbackForTask(taskID string) string {
 }
 
 func RenderParentReviewModal(m Model, form ParentReviewForm) string {
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("196"))
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
-	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	passStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("46")).Bold(true)
-	failStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196")).Bold(true)
-	selectedStyle := lipgloss.NewStyle().
-		Padding(0, 2).
-		Background(lipgloss.Color("69")).
-		Foreground(lipgloss.Color("15")).
-		Bold(true)
-	unselectedStyle := lipgloss.NewStyle().
-		Padding(0, 2).
-		Background(lipgloss.Color("240")).
-		Foreground(lipgloss.Color("15"))
-	disabledStyle := lipgloss.NewStyle().
-		Padding(0, 2).
-		Background(lipgloss.Color("236")).
-		Foreground(lipgloss.Color("242"))
-	errorStyle := lipgloss.NewStyle().
-		Padding(0, 1).
-		Foreground(lipgloss.Color("196")).
-		Background(lipgloss.Color("52")).
-		Bold(true)
+	theme := themeOrDefault(m.theme)
+	titleStyle := modalTitleStyleForTheme(theme, ModalEmphasisDanger)
+	labelStyle := mutedTextStyleForTheme(theme)
+	textStyle := lipgloss.NewStyle().Foreground(theme.Colors.TextPrimary)
+	mutedStyle := mutedTextStyleForTheme(theme)
+	passStyle := modalEmphasisStyleForTheme(theme, ModalEmphasisSuccess).Copy().Bold(true)
+	failStyle := modalEmphasisStyleForTheme(theme, ModalEmphasisDanger).Copy().Bold(true)
+	selectedStyle := buttonVariantStyleForTheme(theme, ButtonVariantPrimary).Padding(0, 2)
+	unselectedStyle := buttonVariantStyleForTheme(theme, ButtonVariantSecondary).Padding(0, 2)
+	disabledStyle := buttonVariantStyleForTheme(theme, ButtonVariantDisabled).Padding(0, 2)
+	errorStyle := buttonVariantStyleForTheme(theme, ButtonVariantDanger).Padding(0, 1)
 
 	modalWidth := m.windowWidth - 4
 	if modalWidth < 64 {
@@ -386,7 +373,7 @@ func RenderParentReviewModal(m Model, form ParentReviewForm) string {
 		lines = append(lines, mutedStyle.Render("[↑/↓]navigate  [1-4]select  [enter]confirm  [esc]back"))
 	}
 
-	borderColor := parentReviewModalBorderColor(form)
+	borderColor := parentReviewModalBorderColor(theme, form)
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor).
@@ -526,10 +513,11 @@ func parentReviewModalPassed(run execution.RunRecord) bool {
 	return len(execution.ParentReviewFailedTaskIDs(run)) == 0
 }
 
-func parentReviewModalBorderColor(form ParentReviewForm) lipgloss.Color {
-	passedColor := lipgloss.Color("46")
-	mixedColor := lipgloss.Color("214")
-	failedColor := lipgloss.Color("196")
+func parentReviewModalBorderColor(theme Theme, form ParentReviewForm) lipgloss.Color {
+	theme = themeOrDefault(theme)
+	passedColor := theme.Colors.Success
+	mixedColor := theme.Colors.Warning
+	failedColor := theme.Colors.Danger
 
 	total := 0
 	failed := 0

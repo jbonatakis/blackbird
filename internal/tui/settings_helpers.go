@@ -1,6 +1,12 @@
 package tui
 
-import "github.com/jbonatakis/blackbird/internal/config"
+import (
+	"sort"
+
+	"github.com/jbonatakis/blackbird/internal/config"
+)
+
+const settingsThemeOptionKey = "tui.theme"
 
 type SettingsColumn int
 
@@ -39,6 +45,11 @@ func settingsColumnEditable(state SettingsState, col SettingsColumn) bool {
 }
 
 func rawValueForColumn(state SettingsState, option config.OptionMetadata, col SettingsColumn) config.RawOptionValue {
+	if option.KeyPath == settingsThemeOptionKey && state.PendingTheme != nil && state.PendingTheme.Column == col {
+		value := state.PendingTheme.Value
+		return config.RawOptionValue{String: &value}
+	}
+
 	switch col {
 	case SettingsColumnLocal:
 		return state.Resolution.Project.Values[option.KeyPath]
@@ -47,4 +58,13 @@ func rawValueForColumn(state SettingsState, option config.OptionMetadata, col Se
 	default:
 		return config.RawOptionValue{}
 	}
+}
+
+func sortedCategoricalAllowedValues(option config.OptionMetadata) []string {
+	if option.Type != config.OptionTypeCategorical || len(option.AllowedValues) == 0 {
+		return nil
+	}
+	values := append([]string(nil), option.AllowedValues...)
+	sort.Strings(values)
+	return values
 }

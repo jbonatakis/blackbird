@@ -10,8 +10,8 @@ import (
 
 func RenderSettingsView(m Model) string {
 	state := m.settings
-	titleStyle := settingsTitleStyle()
-	mutedStyle := settingsMutedStyle()
+	titleStyle := settingsTitleStyleForTheme(m.theme)
+	mutedStyle := settingsMutedStyleForTheme(m.theme)
 
 	lines := []string{
 		titleStyle.Render("Settings"),
@@ -31,10 +31,10 @@ func RenderSettingsView(m Model) string {
 		fmt.Sprintf("Local: %s", localPath),
 		fmt.Sprintf("Global: %s", globalPath),
 		"",
-		renderSettingsTable(state),
+		renderSettingsTableForTheme(state, m.theme),
 	)
 
-	footer := renderSettingsFooter(state)
+	footer := renderSettingsFooterForTheme(state, m.theme)
 	if len(footer) > 0 {
 		lines = append(lines, "")
 		lines = append(lines, footer...)
@@ -48,6 +48,10 @@ func RenderSettingsView(m Model) string {
 }
 
 func renderSettingsTable(state SettingsState) string {
+	return renderSettingsTableForTheme(state, Theme{})
+}
+
+func renderSettingsTableForTheme(state SettingsState, theme Theme) string {
 	headerStyle := settingsHeaderStyle()
 	rows := [][]tableCell{{
 		{Text: "Option", Align: alignLeft, Style: headerStyle},
@@ -57,17 +61,19 @@ func renderSettingsTable(state SettingsState) string {
 		{Text: "Applied", Align: alignLeft, Style: headerStyle},
 	}}
 	for idx, option := range state.Options {
-		rows = append(rows, settingsRow(state, option, idx == selectedSettingsIndex(state)))
+		rows = append(rows, settingsRow(state, option, idx == selectedSettingsIndex(state), theme))
 	}
 	return renderTable(rows)
 }
 
-func settingsRow(state SettingsState, option config.OptionMetadata, selected bool) []tableCell {
+func settingsRow(state SettingsState, option config.OptionMetadata, selected bool, theme Theme) []tableCell {
 	selectedColumn := selectedSettingsColumn(state)
 	editing := state.Editing && selected && settingsColumnEditable(state, selectedColumn)
 
-	localValue := formatRawOptionValue(state.Resolution.Project.Values[option.KeyPath])
-	globalValue := formatRawOptionValue(state.Resolution.Global.Values[option.KeyPath])
+	localRaw := rawValueForColumn(state, option, SettingsColumnLocal)
+	globalRaw := rawValueForColumn(state, option, SettingsColumnGlobal)
+	localValue := formatRawOptionValue(localRaw)
+	globalValue := formatRawOptionValue(globalRaw)
 	defaultValue := formatRawOptionValue(settingsDefaultOptionValue(option))
 	applied := appliedOptionFor(state, option)
 	appliedValue := formatAppliedValue(applied)
@@ -77,16 +83,34 @@ func settingsRow(state SettingsState, option config.OptionMetadata, selected boo
 		optionCell.Style = settingsSelectedStyle()
 	}
 
-	localCell := valueCell(localValue)
+	localCell := valueCell(localValue, theme)
+	if invalidText, ok := invalidRawCategoricalCellValue(
+		state.Resolution.OptionWarnings,
+		config.ConfigSourceLocal,
+		option.KeyPath,
+		option,
+		localRaw,
+	); ok {
+		localCell = warningValueCell(invalidText, theme)
+	}
 	if editing && selectedColumn == SettingsColumnLocal {
 		localCell = editValueCell(state.EditValue)
 	}
-	globalCell := valueCell(globalValue)
+	globalCell := valueCell(globalValue, theme)
+	if invalidText, ok := invalidRawCategoricalCellValue(
+		state.Resolution.OptionWarnings,
+		config.ConfigSourceGlobal,
+		option.KeyPath,
+		option,
+		globalRaw,
+	); ok {
+		globalCell = warningValueCell(invalidText, theme)
+	}
 	if editing && selectedColumn == SettingsColumnGlobal {
 		globalCell = editValueCell(state.EditValue)
 	}
-	defaultCell := valueCell(defaultValue)
-	appliedCell := valueCell(appliedValue)
+	defaultCell := valueCell(defaultValue, theme)
+	appliedCell := valueCell(appliedValue, theme)
 
 	switch applied.Source {
 	case config.ConfigSourceLocal:
@@ -137,6 +161,8 @@ func formatRawOptionValue(value config.RawOptionValue) string {
 			return "true"
 		}
 		return "false"
+	case value.String != nil:
+		return *value.String
 	default:
 		return "-"
 	}
@@ -192,14 +218,22 @@ func alignText(value string, width int, align cellAlign) string {
 	}
 }
 
-func valueCell(value string) tableCell {
+func valueCell(value string, theme Theme) tableCell {
 	align := alignLeft
 	style := lipgloss.Style{}
 	if value == "-" {
 		align = alignCenter
-		style = settingsMutedStyle()
+		style = settingsMutedStyleForTheme(theme)
 	}
 	return tableCell{Text: value, Align: align, Style: style}
+}
+
+func warningValueCell(value string, theme Theme) tableCell {
+	return tableCell{
+		Text:  value,
+		Align: alignLeft,
+		Style: settingsWarningCellStyleForTheme(theme),
+	}
 }
 
 func editValueCell(value string) tableCell {
@@ -207,6 +241,10 @@ func editValueCell(value string) tableCell {
 }
 
 func renderSettingsFooter(state SettingsState) []string {
+	return renderSettingsFooterForTheme(state, Theme{})
+}
+
+func renderSettingsFooterForTheme(state SettingsState, theme Theme) []string {
 	lines := []string{}
 	option, ok := selectedOption(state)
 	if ok {
@@ -215,7 +253,7 @@ func renderSettingsFooter(state SettingsState) []string {
 		lines = append(lines, fmt.Sprintf("%s %s — %s", labelStyle.Render("Selected:"), option.DisplayName, desc))
 	}
 
-	warnStyle := settingsWarnStyle()
+	warnStyle := settingsWarnStyleForTheme(theme)
 	for _, warning := range settingsWarningLines(state) {
 		lines = append(lines, warnStyle.Render(warning))
 	}
@@ -272,6 +310,9 @@ func formatOptionDescription(option config.OptionMetadata) string {
 	if option.Type == config.OptionTypeInt && option.Bounds != nil {
 		details = append(details, fmt.Sprintf("bounds: %d-%d", option.Bounds.Min, option.Bounds.Max))
 	}
+	if allowed := sortedCategoricalAllowedValues(option); len(allowed) > 0 {
+		details = append(details, fmt.Sprintf("allowed: %s", strings.Join(allowed, ", ")))
+	}
 	if len(details) == 0 {
 		return desc
 	}
@@ -320,7 +361,11 @@ type tableCell struct {
 }
 
 func settingsTitleStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69"))
+	return settingsTitleStyleForTheme(Theme{})
+}
+
+func settingsTitleStyleForTheme(theme Theme) lipgloss.Style {
+	return sectionHeaderStyleForTheme(theme)
 }
 
 func settingsHeaderStyle() lipgloss.Style {
@@ -328,11 +373,31 @@ func settingsHeaderStyle() lipgloss.Style {
 }
 
 func settingsMutedStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	return settingsMutedStyleForTheme(Theme{})
+}
+
+func settingsMutedStyleForTheme(theme Theme) lipgloss.Style {
+	return mutedTextStyleForTheme(theme)
 }
 
 func settingsWarnStyle() lipgloss.Style {
-	return lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+	return settingsWarnStyleForTheme(Theme{})
+}
+
+func settingsWarnStyleForTheme(theme Theme) lipgloss.Style {
+	return dangerTextStyleForTheme(theme)
+}
+
+func settingsWarningCellStyle() lipgloss.Style {
+	return settingsWarningCellStyleForTheme(Theme{})
+}
+
+func settingsWarningCellStyleForTheme(theme Theme) lipgloss.Style {
+	theme = themeOrDefault(theme)
+	return lipgloss.NewStyle().
+		Foreground(theme.Colors.TextOnAccent).
+		Background(theme.Colors.Danger).
+		Bold(true)
 }
 
 func settingsHighlightStyle() lipgloss.Style {
@@ -360,4 +425,64 @@ func applySettingsCellStyle(cell tableCell, selected bool, editing bool) tableCe
 		cell.Style = cell.Style.Copy().Underline(true)
 	}
 	return cell
+}
+
+func invalidRawCategoricalCellValue(
+	warnings []config.OptionWarning,
+	source config.ConfigSource,
+	keyPath string,
+	option config.OptionMetadata,
+	raw config.RawOptionValue,
+) (string, bool) {
+	if option.Type != config.OptionTypeCategorical {
+		return "", false
+	}
+	if raw.String != nil && categoricalValueAllowedForOption(option, *raw.String) {
+		return "", false
+	}
+
+	warning, ok := invalidOptionWarningFor(warnings, source, keyPath)
+	if !ok {
+		return "", false
+	}
+	if raw.String != nil {
+		return truncateInvalidRawCategorical(*raw.String), true
+	}
+	if warning.RawString != nil {
+		return truncateInvalidRawCategorical(*warning.RawString), true
+	}
+	return "-", true
+}
+
+func invalidOptionWarningFor(
+	warnings []config.OptionWarning,
+	source config.ConfigSource,
+	keyPath string,
+) (config.OptionWarning, bool) {
+	for _, warning := range warnings {
+		if warning.Source == source &&
+			warning.KeyPath == keyPath &&
+			warning.Kind == config.OptionWarningInvalidValue {
+			return warning, true
+		}
+	}
+	return config.OptionWarning{}, false
+}
+
+func categoricalValueAllowedForOption(option config.OptionMetadata, value string) bool {
+	for _, candidate := range option.AllowedValues {
+		if candidate == value {
+			return true
+		}
+	}
+	return false
+}
+
+func truncateInvalidRawCategorical(value string) string {
+	const maxChars = 20
+	runes := []rune(value)
+	if len(runes) <= maxChars {
+		return value
+	}
+	return string(runes[:maxChars]) + "..."
 }

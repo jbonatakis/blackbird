@@ -526,17 +526,13 @@ func HandlePlanGenerateKey(m Model, msg tea.KeyMsg) (Model, tea.Cmd) {
 
 // RenderPlanGenerateModal renders the plan generation modal form
 func RenderPlanGenerateModal(m Model, form PlanGenerateForm) string {
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69"))
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	focusedLabelStyle := labelStyle.Copy().Foreground(lipgloss.Color("69")).Bold(true)
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	buttonStyle := lipgloss.NewStyle().
-		Padding(0, 2).
-		Background(lipgloss.Color("240")).
-		Foreground(lipgloss.Color("15"))
-	focusedButtonStyle := buttonStyle.Copy().
-		Background(lipgloss.Color("69")).
-		Bold(true)
+	theme := themeOrDefault(m.theme)
+	titleStyle := modalTitleStyleForTheme(theme, ModalEmphasisAccent)
+	labelStyle := mutedTextStyleForTheme(theme)
+	focusedLabelStyle := modalEmphasisStyleForTheme(theme, ModalEmphasisAccent).Copy().Bold(true)
+	errorStyle := modalEmphasisStyleForTheme(theme, ModalEmphasisDanger)
+	buttonStyle := buttonVariantStyleForTheme(theme, ButtonVariantSecondary).Padding(0, 2)
+	focusedButtonStyle := buttonVariantStyleForTheme(theme, ButtonVariantPrimary).Padding(0, 2)
 
 	title := titleStyle.Render("Generate Plan")
 	helpText := labelStyle.Render("Tab: next field • Enter: new line (in text areas) • Shift+Tab: previous • ESC: cancel")
@@ -638,14 +634,14 @@ func RenderPlanGenerateModal(m Model, form PlanGenerateForm) string {
 		if available > 6 {
 			available = 6
 		}
-		picker = RenderFilePickerList(form.filePicker, pickerWidth, available)
+		picker = RenderFilePickerList(m.theme, form.filePicker, pickerWidth, available)
 	}
 
 	lines := renderLines(picker)
 
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("69")).
+		Inherit(modalBorderStyleForTheme(theme, ModalEmphasisAccent)).
 		Padding(1, 2).
 		Width(modalWidth).
 		Height(modalHeight)
@@ -675,20 +671,12 @@ func HandleConfirmOverwriteKey(m Model, key string) (Model, tea.Cmd) {
 
 // RenderConfirmOverwriteModal renders the confirmation modal for overwriting existing plan
 func RenderConfirmOverwriteModal(m Model) string {
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("220"))
-	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
-	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
-	buttonStyle := lipgloss.NewStyle().
-		Padding(0, 2).
-		Margin(0, 1).
-		Background(lipgloss.Color("240")).
-		Foreground(lipgloss.Color("15"))
-	yesButtonStyle := buttonStyle.Copy().
-		Background(lipgloss.Color("46")).
-		Bold(true)
-	noButtonStyle := buttonStyle.Copy().
-		Background(lipgloss.Color("196")).
-		Bold(true)
+	theme := themeOrDefault(m.theme)
+	titleStyle := modalTitleStyleForTheme(theme, ModalEmphasisWarning)
+	textStyle := lipgloss.NewStyle().Foreground(theme.Colors.TextPrimary)
+	helpStyle := mutedTextStyleForTheme(theme)
+	yesButtonStyle := buttonVariantStyleForTheme(theme, ButtonVariantSuccess).Padding(0, 2).Margin(0, 1)
+	noButtonStyle := buttonVariantStyleForTheme(theme, ButtonVariantDanger).Padding(0, 2).Margin(0, 1)
 
 	itemCount := len(m.plan.Items)
 	title := titleStyle.Render("⚠ Plan Already Exists")
@@ -717,7 +705,7 @@ func RenderConfirmOverwriteModal(m Model) string {
 
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("220")).
+		Inherit(modalBorderStyleForTheme(theme, ModalEmphasisWarning)).
 		Padding(1, 2).
 		Width(modalWidth)
 

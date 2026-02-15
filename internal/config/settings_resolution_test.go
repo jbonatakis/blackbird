@@ -19,7 +19,7 @@ func TestResolveSettingsPrecedenceAndSource(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
 		t.Fatalf("mkdir global: %v", err)
 	}
-	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":12},"planning":{"maxPlanAutoRefinePasses":2},"execution":{"parentReviewEnabled":true}}`), 0o644); err != nil {
+	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":12,"theme":"high-contrast"},"planning":{"maxPlanAutoRefinePasses":2},"execution":{"parentReviewEnabled":true}}`), 0o644); err != nil {
 		t.Fatalf("write global config: %v", err)
 	}
 
@@ -27,7 +27,7 @@ func TestResolveSettingsPrecedenceAndSource(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(projectPath), 0o755); err != nil {
 		t.Fatalf("mkdir project: %v", err)
 	}
-	if err := os.WriteFile(projectPath, []byte(`{"schemaVersion":1,"tui":{"planDataRefreshIntervalSeconds":21},"planning":{"maxPlanAutoRefinePasses":3}}`), 0o644); err != nil {
+	if err := os.WriteFile(projectPath, []byte(`{"schemaVersion":1,"tui":{"planDataRefreshIntervalSeconds":21,"theme":"blackbird"},"planning":{"maxPlanAutoRefinePasses":3}}`), 0o644); err != nil {
 		t.Fatalf("write project config: %v", err)
 	}
 
@@ -38,6 +38,7 @@ func TestResolveSettingsPrecedenceAndSource(t *testing.T) {
 
 	assertAppliedInt(t, resolution, keyTuiRunDataRefreshIntervalSeconds, 12, ConfigSourceGlobal)
 	assertAppliedInt(t, resolution, keyTuiPlanDataRefreshIntervalSeconds, 21, ConfigSourceLocal)
+	assertAppliedString(t, resolution, keyTuiTheme, ThemeIDBlackbird, ConfigSourceLocal)
 	assertAppliedInt(t, resolution, keyPlanningMaxPlanAutoRefinePasses, 3, ConfigSourceLocal)
 	assertAppliedBool(t, resolution, keyExecutionStopAfterEachTask, DefaultStopAfterEachTask, ConfigSourceDefault)
 	assertAppliedBool(t, resolution, keyExecutionParentReviewEnabled, true, ConfigSourceGlobal)
@@ -146,6 +147,7 @@ func TestResolveSettingsOutOfRangeWarnings(t *testing.T) {
 
 	assertAppliedInt(t, resolution, keyTuiRunDataRefreshIntervalSeconds, MaxRefreshIntervalSeconds, ConfigSourceLocal)
 	assertAppliedInt(t, resolution, keyTuiPlanDataRefreshIntervalSeconds, MinRefreshIntervalSeconds, ConfigSourceGlobal)
+	assertAppliedString(t, resolution, keyTuiTheme, ThemeIDBlackbird, ConfigSourceDefault)
 	assertAppliedInt(t, resolution, keyPlanningMaxPlanAutoRefinePasses, MinPlanAutoRefinePasses, ConfigSourceLocal)
 	assertAppliedBool(t, resolution, keyExecutionParentReviewEnabled, DefaultParentReviewEnabled, ConfigSourceDefault)
 
@@ -227,9 +229,111 @@ func TestResolveSettingsLayerWarnings(t *testing.T) {
 
 	assertAppliedInt(t, resolution, keyTuiRunDataRefreshIntervalSeconds, DefaultRunDataRefreshIntervalSeconds, ConfigSourceDefault)
 	assertAppliedInt(t, resolution, keyTuiPlanDataRefreshIntervalSeconds, DefaultPlanDataRefreshIntervalSeconds, ConfigSourceDefault)
+	assertAppliedString(t, resolution, keyTuiTheme, ThemeIDBlackbird, ConfigSourceDefault)
 	assertAppliedInt(t, resolution, keyPlanningMaxPlanAutoRefinePasses, DefaultMaxPlanAutoRefinePasses, ConfigSourceDefault)
 	assertAppliedBool(t, resolution, keyExecutionStopAfterEachTask, DefaultStopAfterEachTask, ConfigSourceDefault)
 	assertAppliedBool(t, resolution, keyExecutionParentReviewEnabled, DefaultParentReviewEnabled, ConfigSourceDefault)
+}
+
+func TestResolveSettingsThemeInvalidLocalFallsBackToValidGlobalWithWarning(t *testing.T) {
+	homeDir := t.TempDir()
+	projectDir := t.TempDir()
+	restore := overrideUserHomeDir(func() (string, error) {
+		return homeDir, nil
+	})
+	t.Cleanup(restore)
+
+	globalPath := filepath.Join(homeDir, ".blackbird", "config.json")
+	if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
+		t.Fatalf("mkdir global: %v", err)
+	}
+	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"theme":"high-contrast"}}`), 0o644); err != nil {
+		t.Fatalf("write global config: %v", err)
+	}
+
+	projectPath := filepath.Join(projectDir, ".blackbird", "config.json")
+	if err := os.MkdirAll(filepath.Dir(projectPath), 0o755); err != nil {
+		t.Fatalf("mkdir project: %v", err)
+	}
+	if err := os.WriteFile(projectPath, []byte(`{"schemaVersion":1,"tui":{"theme":"bad-local-theme"}}`), 0o644); err != nil {
+		t.Fatalf("write project config: %v", err)
+	}
+
+	resolution, err := ResolveSettings(projectDir)
+	if err != nil {
+		t.Fatalf("resolve settings: %v", err)
+	}
+
+	assertAppliedString(t, resolution, keyTuiTheme, ThemeIDHighContrast, ConfigSourceGlobal)
+
+	localWarning, ok := findOptionWarning(resolution.OptionWarnings, ConfigSourceLocal, keyTuiTheme)
+	if !ok {
+		t.Fatalf("expected invalid-value warning for local theme")
+	}
+	if localWarning.Kind != OptionWarningInvalidValue {
+		t.Fatalf("local warning kind = %q, want %q", localWarning.Kind, OptionWarningInvalidValue)
+	}
+	if localWarning.RawString == nil || *localWarning.RawString != "bad-local-theme" {
+		t.Fatalf("local warning raw string = %#v, want %q", localWarning.RawString, "bad-local-theme")
+	}
+
+	if _, ok := findOptionWarning(resolution.OptionWarnings, ConfigSourceGlobal, keyTuiTheme); ok {
+		t.Fatalf("did not expect global warning for valid global theme")
+	}
+}
+
+func TestResolveSettingsThemeInvalidBothLayersFallsBackToBlackbirdWithWarnings(t *testing.T) {
+	homeDir := t.TempDir()
+	projectDir := t.TempDir()
+	restore := overrideUserHomeDir(func() (string, error) {
+		return homeDir, nil
+	})
+	t.Cleanup(restore)
+
+	globalPath := filepath.Join(homeDir, ".blackbird", "config.json")
+	if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
+		t.Fatalf("mkdir global: %v", err)
+	}
+	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"theme":"bad-global-theme"}}`), 0o644); err != nil {
+		t.Fatalf("write global config: %v", err)
+	}
+
+	projectPath := filepath.Join(projectDir, ".blackbird", "config.json")
+	if err := os.MkdirAll(filepath.Dir(projectPath), 0o755); err != nil {
+		t.Fatalf("mkdir project: %v", err)
+	}
+	if err := os.WriteFile(projectPath, []byte(`{"schemaVersion":1,"tui":{"theme":"bad-local-theme"}}`), 0o644); err != nil {
+		t.Fatalf("write project config: %v", err)
+	}
+
+	resolution, err := ResolveSettings(projectDir)
+	if err != nil {
+		t.Fatalf("resolve settings: %v", err)
+	}
+
+	assertAppliedString(t, resolution, keyTuiTheme, ThemeIDBlackbird, ConfigSourceDefault)
+
+	localWarning, ok := findOptionWarning(resolution.OptionWarnings, ConfigSourceLocal, keyTuiTheme)
+	if !ok {
+		t.Fatalf("expected invalid-value warning for local theme")
+	}
+	if localWarning.Kind != OptionWarningInvalidValue {
+		t.Fatalf("local warning kind = %q, want %q", localWarning.Kind, OptionWarningInvalidValue)
+	}
+	if localWarning.RawString == nil || *localWarning.RawString != "bad-local-theme" {
+		t.Fatalf("local warning raw string = %#v, want %q", localWarning.RawString, "bad-local-theme")
+	}
+
+	globalWarning, ok := findOptionWarning(resolution.OptionWarnings, ConfigSourceGlobal, keyTuiTheme)
+	if !ok {
+		t.Fatalf("expected invalid-value warning for global theme")
+	}
+	if globalWarning.Kind != OptionWarningInvalidValue {
+		t.Fatalf("global warning kind = %q, want %q", globalWarning.Kind, OptionWarningInvalidValue)
+	}
+	if globalWarning.RawString == nil || *globalWarning.RawString != "bad-global-theme" {
+		t.Fatalf("global warning raw string = %#v, want %q", globalWarning.RawString, "bad-global-theme")
+	}
 }
 
 func TestResolveSettingsGlobalUnavailable(t *testing.T) {
@@ -280,6 +384,20 @@ func assertAppliedBool(t *testing.T, resolution SettingsResolution, key string, 
 	}
 	if option.Value.Bool == nil || *option.Value.Bool != want {
 		t.Fatalf("applied bool for %s = %#v, want %v", key, option.Value.Bool, want)
+	}
+}
+
+func assertAppliedString(t *testing.T, resolution SettingsResolution, key string, want string, wantSource ConfigSource) {
+	t.Helper()
+	option, ok := resolution.Applied[key]
+	if !ok {
+		t.Fatalf("missing applied value for %s", key)
+	}
+	if option.Source != wantSource {
+		t.Fatalf("applied source for %s = %s, want %s", key, option.Source, wantSource)
+	}
+	if option.Value.String == nil || *option.Value.String != want {
+		t.Fatalf("applied string for %s = %#v, want %q", key, option.Value.String, want)
 	}
 }
 

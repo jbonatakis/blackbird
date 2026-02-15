@@ -20,7 +20,8 @@ const (
 type OptionWarningKind string
 
 const (
-	OptionWarningOutOfRange OptionWarningKind = "out_of_range"
+	OptionWarningOutOfRange   OptionWarningKind = "out_of_range"
+	OptionWarningInvalidValue OptionWarningKind = "invalid_value"
 )
 
 type LayerWarning struct {
@@ -33,6 +34,7 @@ type OptionWarning struct {
 	KeyPath    string
 	Kind       OptionWarningKind
 	ClampedInt *int
+	RawString  *string
 }
 
 type AppliedOption struct {
@@ -111,29 +113,29 @@ func ResolveSettings(projectRoot string) (SettingsResolution, error) {
 
 	resolved := ResolveConfig(projectRaw, globalRaw)
 	resolvedValues := ResolvedOptionValues(resolved)
+	options := OptionRegistry()
 
 	applied := map[string]AppliedOption{}
-	for _, option := range OptionRegistry() {
+	for _, option := range options {
 		key := option.KeyPath
 		value, ok := resolvedValues[key]
 		if !ok {
 			value = defaultOptionValue(option)
 		}
-		source := ConfigSourceDefault
-		if _, ok := projectLayer.Values[key]; ok {
-			source = ConfigSourceLocal
-		} else if _, ok := globalLayer.Values[key]; ok {
-			source = ConfigSourceGlobal
-		}
+		source := appliedSourceForOption(option, projectLayer.Values, globalLayer.Values)
 		applied[key] = AppliedOption{
 			Value:  value,
 			Source: source,
 		}
 	}
 
+	optionsByKey := map[string]OptionMetadata{}
+	for _, option := range options {
+		optionsByKey[option.KeyPath] = option
+	}
 	optionWarnings := append(
-		collectOutOfRangeWarnings(ConfigSourceLocal, projectLayer.Values),
-		collectOutOfRangeWarnings(ConfigSourceGlobal, globalLayer.Values)...,
+		collectOptionWarnings(ConfigSourceLocal, projectLayer.Values, optionsByKey),
+		collectOptionWarnings(ConfigSourceGlobal, globalLayer.Values, optionsByKey)...,
 	)
 
 	return SettingsResolution{
@@ -153,6 +155,9 @@ func ResolvedOptionValues(cfg ResolvedConfig) map[string]RawOptionValue {
 		keyTuiPlanDataRefreshIntervalSeconds: {
 			Int: copyInt(cfg.TUI.PlanDataRefreshIntervalSeconds),
 		},
+		keyTuiTheme: {
+			String: copyString(cfg.TUI.Theme),
+		},
 		keyPlanningMaxPlanAutoRefinePasses: {
 			Int: copyInt(cfg.Planning.MaxPlanAutoRefinePasses),
 		},
@@ -166,31 +171,94 @@ func ResolvedOptionValues(cfg ResolvedConfig) map[string]RawOptionValue {
 }
 
 func defaultOptionValue(option OptionMetadata) RawOptionValue {
-	if option.Type == OptionTypeInt {
+	switch option.Type {
+	case OptionTypeInt:
 		value := option.DefaultInt
 		return RawOptionValue{Int: &value}
+	case OptionTypeBool:
+		value := option.DefaultBool
+		return RawOptionValue{Bool: &value}
+	case OptionTypeCategorical:
+		value := option.DefaultString
+		return RawOptionValue{String: &value}
+	default:
+		return RawOptionValue{}
 	}
-	value := option.DefaultBool
-	return RawOptionValue{Bool: &value}
 }
 
-func collectOutOfRangeWarnings(source ConfigSource, values map[string]RawOptionValue) []OptionWarning {
+func collectOptionWarnings(
+	source ConfigSource,
+	values map[string]RawOptionValue,
+	optionsByKey map[string]OptionMetadata,
+) []OptionWarning {
 	warnings := []OptionWarning{}
 	for key, value := range values {
-		if value.Int == nil {
+		option, ok := optionsByKey[key]
+		if !ok {
 			continue
 		}
-		clamped := clampIntForKey(key, *value.Int)
-		if clamped != *value.Int {
+		if value.Int == nil {
+			// Non-int options still may emit warnings, e.g. invalid categorical values.
+		} else {
+			clamped := clampIntForKey(key, *value.Int)
+			if clamped != *value.Int {
+				warnings = append(warnings, OptionWarning{
+					Source:     source,
+					KeyPath:    key,
+					Kind:       OptionWarningOutOfRange,
+					ClampedInt: copyInt(clamped),
+				})
+			}
+		}
+		if option.Type == OptionTypeCategorical && value.String != nil && !categoricalValueAllowed(option, *value.String) {
 			warnings = append(warnings, OptionWarning{
-				Source:     source,
-				KeyPath:    key,
-				Kind:       OptionWarningOutOfRange,
-				ClampedInt: copyInt(clamped),
+				Source:    source,
+				KeyPath:   key,
+				Kind:      OptionWarningInvalidValue,
+				RawString: copyString(*value.String),
 			})
 		}
 	}
 	return warnings
+}
+
+func appliedSourceForOption(
+	option OptionMetadata,
+	projectValues map[string]RawOptionValue,
+	globalValues map[string]RawOptionValue,
+) ConfigSource {
+	if raw, ok := projectValues[option.KeyPath]; ok && rawOptionValueApplies(option, raw) {
+		return ConfigSourceLocal
+	}
+	if raw, ok := globalValues[option.KeyPath]; ok && rawOptionValueApplies(option, raw) {
+		return ConfigSourceGlobal
+	}
+	return ConfigSourceDefault
+}
+
+func rawOptionValueApplies(option OptionMetadata, value RawOptionValue) bool {
+	switch option.Type {
+	case OptionTypeInt:
+		return value.Int != nil
+	case OptionTypeBool:
+		return value.Bool != nil
+	case OptionTypeCategorical:
+		return value.String != nil && categoricalValueAllowed(option, *value.String)
+	default:
+		return false
+	}
+}
+
+func categoricalValueAllowed(option OptionMetadata, value string) bool {
+	if option.Type != OptionTypeCategorical {
+		return false
+	}
+	for _, candidate := range option.AllowedValues {
+		if candidate == value {
+			return true
+		}
+	}
+	return false
 }
 
 func clampIntForKey(key string, value int) int {

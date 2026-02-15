@@ -1,5 +1,82 @@
 # AGENT_LOG
 
+## 2026-02-15 — Removed remaining non-theme color literals and added guard enforcement
+
+- Removed remaining raw `lipgloss.Color("...")` usage from `internal/tui/settings_view.go` by switching settings title/muted/warning/warning-cell styling to theme-semantic helpers (`Accent`, `TextMuted`, `Danger`, `TextOnAccent`) and threading `Model.theme` through settings rendering.
+- Added regression guard `internal/tui/theme_literal_guard_test.go`:
+  - parses `internal/tui` Go source AST,
+  - fails when string-literal `lipgloss.Color(...)` calls are added outside explicit allowlisted theme files (`theme.go`, `theme_registry.go`, `theme_styles.go`).
+- Rewrote literal-coupled assertions in `internal/tui/theme_registry_test.go`:
+  - removed hard-coded color ID assertions,
+  - now asserts semantic branch mappings (readiness/run-status/pane chrome), token presence, and cross-theme palette differentiation.
+- Verification:
+  - `rg -n 'lipgloss\\.Color\\(' internal/tui` (no matches)
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui ./internal/config -count=1`
+
+## 2026-02-15 — Extended theme foundation unit tests for resolver/token/style invariants
+
+- Extended `internal/tui/theme_registry_test.go` to tighten foundational invariants:
+  - unknown theme fallback now explicitly covers multiple invalid IDs (`does-not-exist`, empty string, and mismatched case),
+  - added deterministic baseline assertions for additional critical semantic tokens in both built-ins (`TextPrimary`, `TextMuted`, `TextOnAccent`, `Accent`, `Surface`, `SurfaceMuted`) alongside existing status/chrome roles.
+- Extended `internal/tui/theme_styles_test.go` with fallback-path coverage:
+  - readiness and run-status semantic helper mappings now assert behavior when `Theme{}` is passed, ensuring helpers route through blackbird defaults and select expected style branches.
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -run 'Test(BuiltInThemeIDsDeterministicOrder|ResolveThemeKnownAndFallback|BlackbirdTokenBaselinesForStatusAndChrome|HighContrastTokenBaselinesForStatusAndChrome|ReadinessLabelColorMappingsForBuiltInThemes|ReadinessLabelColorMappingsFallbackToBlackbirdWhenThemeUnset|RunStatusColorMappingsForBuiltInThemes|RunStatusColorMappingsFallbackToBlackbirdWhenThemeUnset|ModalEmphasisColorMappingsForBuiltInThemes|ButtonVariantStyleMappingsForBuiltInThemes)$' -count=1`
+
+## 2026-02-15 — Migrated core TUI view styling to semantic theme helpers
+
+- Refactored theme-chrome/status styling in:
+  - `internal/tui/tree_view.go`
+  - `internal/tui/home_view.go`
+  - `internal/tui/execution_view.go`
+  - `internal/tui/detail_view.go`
+- Kept `internal/tui/model.go` pane rendering unchanged functionally; pane border/title continue to source from `paneBorderStyleForTheme` and `paneTitleStyleForTheme`.
+- Added shared semantic helpers in `internal/tui/theme_styles.go` for common accent/muted/success/danger text and error-banner styling, then reused those in migrated views.
+- Updated tests to assert semantic readiness/review/run-status behavior under `blackbird`:
+  - `internal/tui/tree_view_test.go` (`TestRenderTreeLine_UsesBlackbirdReadinessAndReviewStyles`)
+  - `internal/tui/home_view_test.go` (`TestFormatPlanStatusLines_UsesBlackbirdSemanticStatusStyles`, `TestRenderHomeView_UsesBlackbirdSemanticActionStyles`)
+  - `internal/tui/execution_view_test.go` (`TestRenderRunStatus_UsesBlackbirdSemanticStyle`)
+  - `internal/tui/detail_view_test.go` (`TestEmptyDetailView_UsesBlackbirdMutedStyle`)
+- Verification:
+  - `rg 'lipgloss.Color\\(' internal/tui/model.go internal/tui/tree_view.go internal/tui/home_view.go internal/tui/execution_view.go internal/tui/detail_view.go` (no matches)
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+
+## 2026-02-15 — Added live-apply/external-refresh TUI regression tests
+
+- Added `internal/tui/live_apply_refresh_regression_test.go` with targeted regression coverage for:
+  - debounced `tui.theme` changes from Settings updating rendered execution status output in-session (no restart),
+  - external config theme edits applying during `configRefreshMsg` while a review-checkpoint modal is open (modal stays open, redraw uses refreshed theme),
+  - full refresh-cycle preservation of Settings selected row/column and non-theme in-progress edit buffer while refreshed config/theme values are applied.
+- Tests use deterministic timing controls by:
+  - overriding `settingsThemeDebounceCmd` to emit immediate debounce messages,
+  - driving refresh through `configRefreshMsg` and executing the load command from `tea.BatchMsg` directly (no wall-clock waits).
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config -count=1`
+
+## 2026-02-15 — Implemented TUI theme tokens, built-in registry, and resolver foundation
+
+- Added `internal/tui/theme.go` with `Theme` and `ColorTokens` plus semantic style helpers for readiness labels, run status, pane chrome, tree indicator, and review marker rendering.
+- Added `internal/tui/theme_registry.go` with built-in themes `blackbird` and `high-contrast`, deterministic alphabetical `BuiltInThemeIDs()`, and `ResolveTheme` fallback to `blackbird` for unknown IDs.
+- Minimally wired existing status/chrome helper paths to use theme semantics without broad renderer migration:
+  - `internal/tui/home_view.go` (`homeStatusStyle`)
+  - `internal/tui/tree_view.go` (`readinessLabelStyle`, tree indicator/review marker styling)
+  - `internal/tui/execution_view.go` (`renderRunStatus`)
+  - `internal/tui/model.go` (`renderPane` border/title colors)
+- Added `internal/tui/theme_registry_test.go` coverage for ordering, resolver behavior, and baseline token mappings used by status/chrome semantics for both built-ins.
+- Verification: `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+
+## 2026-02-15 — Generated implementation WorkGraph for TUI theme system spec
+
+- Reviewed `OVERVIEW.md`, `AGENT_LOG.md`, and `specs/improvements/TUI_THEME_SYSTEM.md` to ensure plan alignment with product goals and existing architecture.
+- Audited current config/settings and TUI rendering integration points (`internal/config/*`, `internal/tui/*`) to target concrete files and dependencies.
+- Produced a balanced, dependency-aware WorkGraph plan for:
+  - theme foundation + semantic style helpers,
+  - categorical `tui.theme` config/settings support,
+  - live in-session theme apply and external config refresh,
+  - renderer/modal migration and color-literal enforcement.
+- No runtime code changes and no test runs (planning-only pass).
+
 ## 2026-02-15 — Reviewed TUI theme spec for requirement ambiguity
 
 - Reviewed `specs/improvements/TUI_THEME_SYSTEM.md` for implementation/test ambiguity before coding.
@@ -2707,3 +2784,196 @@ Verification:
 
 Verification:
 - `GOCACHE=/tmp/blackbird-go-cache go test ./...`
+
+## 2026-02-15 — Extended config schema + resolver for categorical `tui.theme`
+
+- Added first-class theme fields to config models:
+  - `RawTUI.Theme *string`
+  - `ResolvedTUI.Theme string`
+  - `DefaultResolvedConfig()` now defaults theme to `blackbird`.
+- Added config-side theme identifiers/helpers:
+  - `ThemeIDBlackbird`, `ThemeIDHighContrast`, `DefaultTUITheme`
+  - `BuiltInThemeIDs()` and internal validation helper for known IDs.
+- Extended option registry for categorical values:
+  - new `OptionTypeCategorical`
+  - `OptionMetadata` now supports `DefaultString` and `AllowedValues`
+  - registered `tui.theme` with allowed values from built-in IDs and default `blackbird`.
+- Extended raw settings serialization model:
+  - `RawOptionValue` now includes `String *string`
+  - `RawOptionValues()` now round-trips `tui.theme`
+  - `SaveConfigValues`/`buildRawConfig` now support string categorical values and reject type mismatches/multi-type payloads.
+- Implemented theme resolver precedence with invalid-layer skip:
+  - valid local -> valid global -> default (`blackbird`)
+  - invalid theme IDs are skipped non-fatally.
+- Extended settings resolution warnings:
+  - added `OptionWarningInvalidValue`
+  - emits per-layer invalid categorical warnings with raw invalid value for `tui.theme`.
+  - applied-source selection now only treats categorical source as local/global when the raw value is valid.
+- Added/updated tests in `internal/config`:
+  - resolver precedence/default/fallback cases for `tui.theme`
+  - settings resolution warning cases for invalid local/global categorical values
+  - registry coverage for categorical metadata + allowed IDs
+  - serialization round-trip coverage for string categorical values.
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config -count=1`
+
+## 2026-02-15 — Integrated active TUI theme into startup + live settings saves
+
+- Added `theme Theme` state to `internal/tui/model.go` and centralized active-theme resolution via `resolveActiveTheme(cfg)` using `ResolveTheme` fallback behavior.
+- Updated constructors/startup wiring:
+  - `NewModel` now initializes `m.theme` from default resolved config.
+  - `newStartupModel` now initializes `m.theme` from loaded resolved config.
+- Updated render paths to consume model theme state instead of hardcoded blackbird lookups:
+  - pane chrome border/title colors,
+  - home status summary readiness colors,
+  - tree readiness/indicator/review marker colors,
+  - execution/review-checkpoint run status colors.
+- Updated settings save path (`internal/tui/settings_keys.go`) so successful save refreshes all of:
+  - `m.settings` resolution,
+  - `m.config` resolved config,
+  - `m.theme` active theme,
+  in one update path (live apply without restart).
+- Added categorical settings handling for `tui.theme` in TUI settings interactions:
+  - cycle allowed values on activate (`space`/`enter`),
+  - proper default/raw string rendering support in settings state/view.
+- Added tests:
+  - startup resolves configured theme and unknown fallback to blackbird,
+  - settings theme cycle applies active theme immediately,
+  - unknown saved theme value resolves/applies blackbird fallback post-save.
+
+Verification:
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui ./internal/config -count=1`
+
+## 2026-02-15 — Added periodic external config refresh with state-preserving settings apply
+
+- Added config refresh polling in `internal/tui`:
+  - new `configRefreshMsg` and `ConfigRefreshCmd()` using `m.config.TUI.RunDataRefreshIntervalSeconds`,
+  - new `LoadConfigState()` command that reloads both resolved config (`config.LoadConfig`) and settings resolution (`config.ResolveSettings`).
+- Wired refresh lifecycle into `Model` update loop:
+  - `Init()` now starts config load + periodic config refresh command,
+  - `Update(configRefreshMsg)` now triggers load + reschedule,
+  - `Update(ConfigStateLoaded)` now live-applies refreshed config/theme/settings state.
+- Added state-preserving settings refresh behavior:
+  - introduced `applyRefreshedSettingsState(...)` to update resolution/resolved config while preserving interaction state,
+  - keeps settings row/column selection unchanged across refresh,
+  - preserves active text edit buffer (`EditValue`) during refresh so in-progress non-theme edits are not overwritten.
+- Added/updated tests in `internal/tui`:
+  - refresh interval coverage for config refresh tick message type,
+  - config load command coverage for resolved config + settings resolution,
+  - update-loop coverage for refresh batch scheduling,
+  - refresh apply coverage for selection/column preservation,
+  - refresh apply coverage for non-theme edit-buffer preservation while still applying refreshed local/global/applied values.
+
+Verification:
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui ./internal/config -count=1`
+
+## 2026-02-15 — Implemented generic categorical settings interactions and warning-cell rendering
+
+- Updated settings categorical behavior in `internal/tui` to be generic across categorical options (not theme-specific):
+  - added deterministic helper for alphabetical categorical values (`sortedCategoricalAllowedValues`),
+  - categorical activation now cycles values in alphabetical order with wrap-around,
+  - `enter`/`space` on categorical cells always cycle and never enter free-text edit mode.
+- Preserved layer-clear semantics for categorical values:
+  - `delete`/`backspace` clears local/global categorical raw values,
+  - applied value then correctly falls back by precedence (local -> global -> default).
+- Extended settings table rendering for invalid raw categorical values:
+  - local/global cells with `OptionWarningInvalidValue` now render as warning cells,
+  - warning style uses red background + high-contrast foreground,
+  - invalid raw display text truncates to 20 characters plus `...` when longer.
+- Updated selected-option footer details so categorical `allowed` values are shown in deterministic alphabetical order.
+- Added/updated tests in `internal/tui`:
+  - alphabetical helper + wrap-around behavior for categorical cycling,
+  - categorical `enter`/`space` cycling and non-edit behavior,
+  - categorical local/global clear fallback behavior,
+  - invalid raw categorical warning-cell rendering + truncation + footer allowed-values display.
+
+Verification:
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/config -count=1`
+
+## 2026-02-15 — Added 500ms debounced save/apply for `tui.theme` cycling in Settings
+
+- Implemented a settings-level debounce path for `tui.theme` categorical cycling:
+  - theme cycle key presses now update a pending selection immediately in settings state,
+  - persistence and live theme apply are deferred until 500ms of idle time.
+- Added Tea timer/message wiring for theme debounce:
+  - new `settingsThemeDebounceMsg` with monotonic token,
+  - new `settingsThemeDebounceCmd` (default `tea.Tick` at 500ms),
+  - stale timer messages are ignored via token matching (new cycle key presses reset effective debounce window).
+- Kept non-theme behavior unchanged:
+  - bool toggles, int edits, clears, and non-theme categorical flows continue immediate save/apply behavior.
+- Added pending theme overlay in settings rendering/interaction:
+  - local/global theme cell reflects pending value before disk write,
+  - applied theme/config remain unchanged until debounced save succeeds,
+  - pending warning-cell rendering is suppressed for valid pending categorical values.
+- Added deterministic regression tests in `internal/tui/settings_edit_test.go`:
+  - verifies 500ms debounce scheduling,
+  - verifies no write/apply before debounce flush,
+  - verifies rapid cycling emits two timers but persists exactly once after the final timer (stale timer ignored),
+  - updated existing categorical theme interaction test to flush debounced timer before asserting persisted/applied state.
+
+Verification:
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui ./internal/config -count=1`
+
+## 2026-02-15 — Added semantic theme style helpers and centralized status/style mappings
+
+- Added `internal/tui/theme_styles.go` as the semantic style-helper surface for TUI theme usage.
+  - Includes centralized readiness-label mapping helpers:
+    - `readinessLabelStyleForTheme`
+    - `readinessLabelColor`
+  - Includes centralized run-status mapping helpers:
+    - `runStatusStyleForTheme`
+    - `runStatusColor`
+  - Includes pane chrome helpers:
+    - `paneBorderStyleForTheme`
+    - `paneTitleStyleForTheme`
+    - `paneChromeColorsForTheme` (compatibility bridge used by existing tests)
+  - Includes modal/button semantic helpers:
+    - `modalEmphasisStyleForTheme`
+    - `modalTitleStyleForTheme`
+    - `modalBorderStyleForTheme`
+    - `buttonVariantStyleForTheme`
+    - modal/button semantic enums (`ModalEmphasis`, `ButtonVariant`).
+- Slimmed `internal/tui/theme.go` to theme/token model definitions only; moved style-role logic into `theme_styles.go`.
+- Updated pane rendering in `internal/tui/model.go` to consume pane chrome style helpers (`paneBorderStyleForTheme`, `paneTitleStyleForTheme`) while keeping layout logic local.
+- Reused semantic modal/button helpers in modal renderers to reduce duplicated per-view style role mapping:
+  - `internal/tui/plan_review_modal.go`
+  - `internal/tui/review_checkpoint_modal.go`
+  - `internal/tui/parent_review_modal.go`
+- Added `internal/tui/theme_styles_test.go` with branch-coverage tests for readiness-label and run-status mappings across both built-in themes (`blackbird`, `high-contrast`), including fallback/default branches.
+
+Verification:
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+
+## 2026-02-15 — Migrated shared renderers + modal views to semantic theme helpers
+
+- Replaced inline color literals in shared renderers:
+  - `internal/tui/actions.go`
+  - `internal/tui/file_picker_render.go`
+- Updated action output rendering to consume active theme semantics:
+  - `RenderActionOutput` now accepts a `Theme` and maps success/error borders via modal semantic emphasis.
+- Made file-picker rendering theme-aware:
+  - `RenderFilePickerList(theme, ...)` now consumes active theme tokens for item/selected/empty states.
+  - Updated all picker callsites in plan/review modals to pass `m.theme`.
+- Migrated listed modal renderers to semantic style helpers/tokens while preserving copy/layout/interaction behavior:
+  - `internal/tui/plan_generate_modal.go`
+  - `internal/tui/plan_refine_modal.go`
+  - `internal/tui/plan_review_modal.go`
+  - `internal/tui/review_checkpoint_modal.go`
+  - `internal/tui/parent_review_modal.go`
+  - `internal/tui/agent_question_modal.go`
+  - `internal/tui/agent_selection_modal.go`
+- Preserved warning/success/error/destructive semantics using theme roles:
+  - modal titles/borders via `modalTitleStyleForTheme` / `modalBorderStyleForTheme`
+  - action buttons via `buttonVariantStyleForTheme`
+  - parent-review aggregate border state via theme success/warning/danger tokens.
+- Updated tests for migrated renderer/modal semantics:
+  - `internal/tui/file_picker_render_test.go`
+  - `internal/tui/actions_test.go`
+  - `internal/tui/parent_review_modal_test.go`
+  - `internal/tui/theme_styles_test.go`
+
+Verification:
+- `rg -n "lipgloss\\.Color\\(" internal/tui/actions.go internal/tui/file_picker_render.go internal/tui/plan_generate_modal.go internal/tui/plan_refine_modal.go internal/tui/plan_review_modal.go internal/tui/review_checkpoint_modal.go internal/tui/parent_review_modal.go internal/tui/agent_question_modal.go internal/tui/agent_selection_modal.go` (no matches)
+- `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`

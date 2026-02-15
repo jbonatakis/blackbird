@@ -10,12 +10,12 @@ const filePickerEmptyMessage = "No matches. Keep typing to filter."
 
 // RenderFilePickerList renders a compact list of file matches sized for plan modals.
 // Returns an empty string when the picker is closed.
-func RenderFilePickerList(state FilePickerState, width, height int) string {
+func RenderFilePickerList(theme Theme, state FilePickerState, width, height int) string {
 	if !state.Open || width <= 0 || height <= 0 {
 		return ""
 	}
 
-	itemStyle, selectedStyle, emptyStyle := filePickerListStyles(width)
+	itemStyle, selectedStyle, emptyStyle := filePickerListStyles(theme, width)
 	lines := make([]string, 0, height)
 
 	if len(state.Matches) == 0 {
@@ -34,14 +34,14 @@ func RenderFilePickerList(state FilePickerState, width, height int) string {
 	return lipgloss.NewStyle().Width(width).Height(height).Render(content)
 }
 
-func filePickerListStyles(width int) (itemStyle, selectedStyle, emptyStyle lipgloss.Style) {
+func filePickerListStyles(theme Theme, width int) (itemStyle, selectedStyle, emptyStyle lipgloss.Style) {
+	theme = themeOrDefault(theme)
 	base := lipgloss.NewStyle().Width(width)
-	itemStyle = base.Copy().Foreground(lipgloss.Color("15"))
+	itemStyle = base.Copy().Foreground(theme.Colors.TextPrimary)
 	selectedStyle = base.Copy().
 		Bold(true).
-		Foreground(lipgloss.Color("15")).
-		Background(lipgloss.Color("69"))
-	emptyStyle = base.Copy().Foreground(lipgloss.Color("240"))
+		Inherit(buttonVariantStyleForTheme(theme, ButtonVariantPrimary))
+	emptyStyle = base.Copy().Inherit(mutedTextStyleForTheme(theme))
 	return
 }
 

@@ -11,14 +11,16 @@ import (
 const (
 	keyTuiRunDataRefreshIntervalSeconds  = "tui.runDataRefreshIntervalSeconds"
 	keyTuiPlanDataRefreshIntervalSeconds = "tui.planDataRefreshIntervalSeconds"
+	keyTuiTheme                          = "tui.theme"
 	keyPlanningMaxPlanAutoRefinePasses   = "planning.maxPlanAutoRefinePasses"
 	keyExecutionStopAfterEachTask        = "execution.stopAfterEachTask"
 	keyExecutionParentReviewEnabled      = "execution.parentReviewEnabled"
 )
 
 type RawOptionValue struct {
-	Int  *int
-	Bool *bool
+	Int    *int
+	Bool   *bool
+	String *string
 }
 
 type LayerOptionValues struct {
@@ -63,6 +65,11 @@ func RawOptionValues(cfg RawConfig) map[string]RawOptionValue {
 		if cfg.TUI.PlanDataRefreshIntervalSeconds != nil {
 			values[keyTuiPlanDataRefreshIntervalSeconds] = RawOptionValue{
 				Int: copyInt(*cfg.TUI.PlanDataRefreshIntervalSeconds),
+			}
+		}
+		if cfg.TUI.Theme != nil {
+			values[keyTuiTheme] = RawOptionValue{
+				String: copyString(*cfg.TUI.Theme),
 			}
 		}
 	}
@@ -135,10 +142,10 @@ func buildRawConfig(values map[string]RawOptionValue) (RawConfig, bool, error) {
 	var hasExec bool
 
 	for key, value := range values {
-		if value.Int != nil && value.Bool != nil {
-			return RawConfig{}, false, fmt.Errorf("config key %q has both int and bool values", key)
+		if rawOptionValueKindCount(value) > 1 {
+			return RawConfig{}, false, fmt.Errorf("config key %q has multiple value types", key)
 		}
-		if value.Int == nil && value.Bool == nil {
+		if rawOptionValueKindCount(value) == 0 {
 			continue
 		}
 
@@ -156,6 +163,13 @@ func buildRawConfig(values map[string]RawOptionValue) (RawConfig, bool, error) {
 			}
 			v := *value.Int
 			tui.PlanDataRefreshIntervalSeconds = &v
+			hasTUI = true
+		case keyTuiTheme:
+			if value.String == nil {
+				return RawConfig{}, false, fmt.Errorf("config key %q expects string value", key)
+			}
+			v := *value.String
+			tui.Theme = &v
 			hasTUI = true
 		case keyPlanningMaxPlanAutoRefinePasses:
 			if value.Int == nil {
@@ -208,4 +222,22 @@ func copyInt(v int) *int {
 
 func copyBool(v bool) *bool {
 	return &v
+}
+
+func copyString(v string) *string {
+	return &v
+}
+
+func rawOptionValueKindCount(value RawOptionValue) int {
+	count := 0
+	if value.Int != nil {
+		count++
+	}
+	if value.Bool != nil {
+		count++
+	}
+	if value.String != nil {
+		count++
+	}
+	return count
 }

@@ -117,10 +117,13 @@ type Model struct {
 	agentSelectionHighlight        int // index into agent.AgentRegistry when modal is open
 	projectRoot                    string
 	config                         config.ResolvedConfig
+	theme                          Theme
 	settings                       SettingsState
+	settingsThemeDebounceToken     uint64
 }
 
 func NewModel(g plan.WorkGraph) Model {
+	resolved := config.DefaultResolvedConfig()
 	m := Model{
 		plan:                  g,
 		actionMode:            ActionModeNone,
@@ -139,7 +142,8 @@ func NewModel(g plan.WorkGraph) Model {
 		executionState: execution.ExecutionStageState{
 			Stage: execution.ExecutionStageIdle,
 		},
-		config:   config.DefaultResolvedConfig(),
+		config:   resolved,
+		theme:    resolveActiveTheme(resolved),
 		settings: defaultSettingsState(),
 	}
 	for id := range g.Items {
@@ -147,6 +151,10 @@ func NewModel(g plan.WorkGraph) Model {
 		break
 	}
 	return m
+}
+
+func resolveActiveTheme(cfg config.ResolvedConfig) Theme {
+	return ResolveTheme(cfg.TUI.Theme)
 }
 
 func (m Model) hasPlan() bool {
@@ -158,7 +166,15 @@ func (m Model) canExecute() bool {
 }
 
 func (m Model) Init() tea.Cmd {
-	cmds := []tea.Cmd{m.LoadRunData(), m.RunDataRefreshCmd(), m.LoadPlanData(), m.PlanDataRefreshCmd(), m.LoadAgentSelection()}
+	cmds := []tea.Cmd{
+		m.LoadRunData(),
+		m.RunDataRefreshCmd(),
+		m.LoadPlanData(),
+		m.PlanDataRefreshCmd(),
+		m.LoadConfigState(),
+		m.ConfigRefreshCmd(),
+		m.LoadAgentSelection(),
+	}
 	if hasActiveRuns(m.runData) {
 		cmds = append(cmds, StartTimerCmd())
 	}
@@ -510,6 +526,40 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(m.LoadRunData(), m.RunDataRefreshCmd())
 	case planDataRefreshMsg:
 		return m, tea.Batch(m.LoadPlanData(), m.PlanDataRefreshCmd())
+	case configRefreshMsg:
+		return m, tea.Batch(m.LoadConfigState(), m.ConfigRefreshCmd())
+	case ConfigStateLoaded:
+		if typed.Err != nil {
+			state := m.settings
+			state.Err = typed.Err
+			m.settings = state
+			return m, nil
+		}
+		m.config = typed.Config
+		m.theme = resolveActiveTheme(typed.Config)
+		m.settings = applyRefreshedSettingsState(m.settings, typed.Config, typed.Resolution)
+		return m, nil
+	case settingsThemeDebounceMsg:
+		pending := m.settings.PendingTheme
+		if pending == nil || pending.Token != typed.Token {
+			return m, nil
+		}
+		option, ok := settingsOptionByKey(m.settings.Options, settingsThemeOptionKey)
+		if !ok {
+			state := m.settings
+			state.PendingTheme = nil
+			m.settings = state
+			return m, nil
+		}
+		value := pending.Value
+		updated, err := saveSettingsValue(m, option, pending.Column, &config.RawOptionValue{String: &value})
+		if err != nil {
+			state := updated.settings
+			state.SaveErr = err
+			updated.settings = state
+			return updated, nil
+		}
+		return updated, nil
 	case timerStartMsg:
 		if hasActiveRuns(m.runData) && !m.timerActive {
 			m.timerActive = true
@@ -1072,7 +1122,7 @@ func (m Model) View() string {
 
 	// Overlay action output if present
 	if m.actionOutput != nil && !m.actionInProgress {
-		outputView := RenderActionOutput(m.actionOutput, m.windowWidth)
+		outputView := RenderActionOutput(m.theme, m.actionOutput, m.windowWidth)
 		// Simple overlay at the top
 		content = outputView + "\n" + content
 	}
@@ -1467,8 +1517,8 @@ func (m Model) renderMainView(availableHeight int) string {
 		rightPaneTitle = "Details"
 	}
 
-	treeBox := renderPane(treeContent, leftWidth, availableHeight, "Plan", m.activePane == PaneTree)
-	detailBox := renderPane(detailContent, rightWidth, availableHeight, rightPaneTitle, m.activePane == PaneDetail)
+	treeBox := renderPane(m.theme, treeContent, leftWidth, availableHeight, "Plan", m.activePane == PaneTree)
+	detailBox := renderPane(m.theme, detailContent, rightWidth, availableHeight, rightPaneTitle, m.activePane == PaneDetail)
 	content := lipgloss.JoinHorizontal(lipgloss.Top, treeBox, detailBox)
 	return content
 }
@@ -1502,13 +1552,10 @@ func splitPaneWidths(total int) (int, int) {
 	return left, right
 }
 
-func renderPane(content string, width int, height int, title string, active bool) string {
-	borderColor := lipgloss.Color("240")
-	titleColor := lipgloss.Color("240")
-	if active {
-		borderColor = lipgloss.Color("69")
-		titleColor = lipgloss.Color("69")
-	}
+func renderPane(theme Theme, content string, width int, height int, title string, active bool) string {
+	borderStyle := paneBorderStyleForTheme(theme, active)
+	titleStyle := paneTitleStyleForTheme(theme, active)
+	borderColor := borderStyle.GetForeground()
 
 	style := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -1526,8 +1573,6 @@ func renderPane(content string, width int, height int, title string, active bool
 		lines := strings.Split(rendered, "\n")
 		if len(lines) > 1 {
 			targetWidth := lipgloss.Width(lines[1])
-			borderStyle := lipgloss.NewStyle().Foreground(borderColor)
-			titleStyle := lipgloss.NewStyle().Bold(true).Foreground(titleColor)
 			titleWidth := lipgloss.Width(title)
 			// Top line: "╭ " (2) + " "+title+" " (4+titleWidth) + "─"*n + "╮" (1)
 			nMiddle := targetWidth - 7 - titleWidth
