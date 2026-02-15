@@ -1,5 +1,11 @@
 # AGENT_LOG
 
+## 2026-02-15 — Clarified int-warning branch in settings resolution
+
+- Refactored `internal/config/settings_resolution.go` `collectOptionWarnings` to use a positive guard (`if value.Int != nil`) for int clamping warnings.
+- Removed the previous empty `if value.Int == nil {}` branch to make intent explicit and avoid implying missing behavior.
+- Functional behavior is unchanged: non-int options continue to bypass int clamping and can still emit type-specific warnings (for example invalid categorical values).
+
 ## 2026-02-15 — Removed remaining non-theme color literals and added guard enforcement
 
 - Removed remaining raw `lipgloss.Color("...")` usage from `internal/tui/settings_view.go` by switching settings title/muted/warning/warning-cell styling to theme-semantic helpers (`Accent`, `TextMuted`, `Danger`, `TextOnAccent`) and threading `Model.theme` through settings rendering.

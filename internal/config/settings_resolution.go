@@ -197,9 +197,7 @@ func collectOptionWarnings(
 		if !ok {
 			continue
 		}
-		if value.Int == nil {
-			// Non-int options still may emit warnings, e.g. invalid categorical values.
-		} else {
+		if value.Int != nil {
 			clamped := clampIntForKey(key, *value.Int)
 			if clamped != *value.Int {
 				warnings = append(warnings, OptionWarning{
