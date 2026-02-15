@@ -1,5 +1,93 @@
 # AGENT_LOG
 
+## 2026-02-15 — Reviewed TUI theme spec for requirement ambiguity
+
+- Reviewed `specs/improvements/TUI_THEME_SYSTEM.md` for implementation/test ambiguity before coding.
+- Identified multiple underspecified points to confirm before implementation (warning surface, debounce scope, external reload conflict handling, categorical-cell clear semantics, and deterministic ordering source).
+- No runtime code changes and no test runs (review-only pass).
+
+## 2026-02-15 — Refined theme-settings UX details in spec
+
+- Updated `specs/improvements/TUI_THEME_SYSTEM.md` with concrete UX decisions:
+  - invalid raw theme display truncation is now a hard cap of 20 chars + `...`,
+  - invalid-value warning is cell-level (red background) with explicit readable foreground contrast requirement,
+  - categorical theme selection remains cycle-only in v1 (no free-text edit mode),
+  - `tui.theme` cycling uses a 500ms debounce before save/apply to reduce visual churn.
+- Clarified fallback semantics remain valid local -> valid global -> `blackbird`, with invalid-layer skip.
+- Clarified external config refresh as required behavior and documented no strict latency SLA beyond poll cadence.
+- No runtime code changes and no test runs (spec-only update).
+
+## 2026-02-15 — Clarified theme fallback/order + external config refresh semantics
+
+- Updated `specs/improvements/TUI_THEME_SYSTEM.md` per user decisions:
+  - built-in default theme renamed to `blackbird` (must match current visuals exactly),
+  - second required built-in remains `high-contrast`,
+  - built-in theme ordering/cycling made explicitly alphabetical and deterministic,
+  - categorical settings UX fixed to cycle-only in v1 (no free-text edit mode).
+- Added explicit invalid-value behavior:
+  - show invalid raw value in warning style (display-truncated),
+  - fallback chain is valid local -> valid global -> `blackbird`.
+- Upgraded external-config handling from recommendation to requirement:
+  - poll using existing `tui.runDataRefreshIntervalSeconds`,
+  - apply theme updates live across all views/modals,
+  - preserve settings selection/column and avoid clobbering in-progress text edits.
+- No runtime code changes and no test runs (spec-only update).
+
+## 2026-02-15 — Added categorical settings model to theme spec (for n themes)
+
+- Updated `specs/improvements/TUI_THEME_SYSTEM.md` with an explicit categorical-option plan for settings.
+- Added data-model requirements to support non-int/bool options:
+  - option metadata categorical type + allowed values,
+  - `RawOptionValue` string payload support,
+  - `tui.theme` in raw/resolved config models.
+- Defined settings UX for categorical values (applies to `tui.theme`):
+  - `space`/`enter` cycles through allowed values with wrap-around and autosave,
+  - clear/unset behavior follows existing precedence fallback.
+- Added validation and safety behavior for unknown theme IDs plus related config/settings test requirements.
+- No runtime code changes and no test runs (spec-only update).
+
+## 2026-02-15 — Added live-apply (no restart) requirement to TUI theming spec
+
+- Updated `specs/improvements/TUI_THEME_SYSTEM.md` to explicitly require that theme changes take effect immediately in the running TUI session.
+- Added this requirement across:
+  - Goals,
+  - configuration behavior,
+  - testing requirements,
+  - done criteria.
+- Clarified model behavior expectation: when settings update `tui.theme`, `Model.theme` is updated and view redraw occurs in-session.
+- No runtime code changes and no test runs (spec-only update).
+
+## 2026-02-15 — Added improvement spec for centralized TUI theming
+
+- Added new spec: `specs/improvements/TUI_THEME_SYSTEM.md`.
+- Spec defines a phased refactor from inline color literals to semantic theme tokens + registry.
+- Scope is intentionally color-only for v1, with an explicit extension path for future style tokens (bold/italic/underline) while noting terminal font limitations.
+- Includes config plumbing plan (`tui.theme`), model integration, migration order, testing requirements, and done criteria.
+- No code behavior changes and no test runs (spec-only change).
+
+## 2026-02-15 — Tightened TUI theme spec to require real switching in v1
+
+- Updated `specs/improvements/TUI_THEME_SYSTEM.md` to require at least two built-in themes in v1 (not optional):
+  - `default`
+  - `high-contrast` (or equivalent distinct alternative)
+- Updated config/settings requirements so theme IDs are selectable in TUI settings.
+- Expanded testing and done criteria to explicitly require built-in theme switching coverage.
+- No runtime code changes and no test runs (spec-only update).
+
+## 2026-02-15 — TUI color/theming architecture audit (no code changes)
+
+- Audited TUI rendering/style code paths to answer whether custom theming can be added cleanly.
+- Current state summary:
+  - color/style definitions are primarily inline `lipgloss.NewStyle()` + `lipgloss.Color("...")` literals across many renderers and modals,
+  - no global theme/palette object currently exists in `Model` or config,
+  - no user-facing config keys exist for theme values (config options currently cover refresh/planning/execution toggles only).
+- Quick inventory from repo scan:
+  - 133 `lipgloss.Color("...")` occurrences across `internal/tui/*.go`,
+  - palette is largely shared by convention (`69`, `240`, `15`, `196`, `46`, `214`) but not centralized.
+- Noted testing coupling:
+  - at least one test asserts raw color IDs directly (`parent_review_modal_test` expects `46`/`214`/`196`), so theme refactors should adjust tests toward semantic expectations.
+- No functional changes or test runs were performed for this audit-only task.
+
 ## 2026-02-11 — Post-review action simplified: `Discard changes` replaced with `Quit`
 
 - Updated post-review parent-review modal actions to:
