@@ -11,6 +11,7 @@ import (
 
 func TestRawOptionValues(t *testing.T) {
 	run := 12
+	theme := ThemeIDHighContrast
 	refinePasses := 2
 	stop := false
 	parentReview := true
@@ -19,6 +20,7 @@ func TestRawOptionValues(t *testing.T) {
 		SchemaVersion: &version,
 		TUI: &RawTUI{
 			RunDataRefreshIntervalSeconds: &run,
+			Theme:                         &theme,
 		},
 		Planning: &RawPlanning{
 			MaxPlanAutoRefinePasses: &refinePasses,
@@ -30,8 +32,8 @@ func TestRawOptionValues(t *testing.T) {
 	}
 
 	values := RawOptionValues(cfg)
-	if len(values) != 4 {
-		t.Fatalf("values len = %d, want 4", len(values))
+	if len(values) != 5 {
+		t.Fatalf("values len = %d, want 5", len(values))
 	}
 
 	runValue, ok := values[keyTuiRunDataRefreshIntervalSeconds]
@@ -40,6 +42,17 @@ func TestRawOptionValues(t *testing.T) {
 	}
 	if runValue.Bool != nil {
 		t.Fatalf("run value bool = %v, want nil", runValue.Bool)
+	}
+	if runValue.String != nil {
+		t.Fatalf("run value string = %v, want nil", runValue.String)
+	}
+
+	themeValue, ok := values[keyTuiTheme]
+	if !ok || themeValue.String == nil || *themeValue.String != ThemeIDHighContrast {
+		t.Fatalf("theme value = %#v, want %q", themeValue, ThemeIDHighContrast)
+	}
+	if themeValue.Int != nil || themeValue.Bool != nil {
+		t.Fatalf("theme value has unexpected non-string types: %#v", themeValue)
 	}
 
 	stopValue, ok := values[keyExecutionStopAfterEachTask]
@@ -83,7 +96,7 @@ func TestLoadLayerOptionValues(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(globalPath), 0o755); err != nil {
 		t.Fatalf("mkdir global: %v", err)
 	}
-	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":20},"planning":{"maxPlanAutoRefinePasses":3},"execution":{"parentReviewEnabled":true}}`), 0o644); err != nil {
+	if err := os.WriteFile(globalPath, []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":20,"theme":"high-contrast"},"planning":{"maxPlanAutoRefinePasses":3},"execution":{"parentReviewEnabled":true}}`), 0o644); err != nil {
 		t.Fatalf("write global config: %v", err)
 	}
 
@@ -118,6 +131,10 @@ func TestLoadLayerOptionValues(t *testing.T) {
 	if !ok || runValue.Int == nil || *runValue.Int != 20 {
 		t.Fatalf("global run value = %#v, want 20", runValue)
 	}
+	themeValue, ok := global.Values[keyTuiTheme]
+	if !ok || themeValue.String == nil || *themeValue.String != ThemeIDHighContrast {
+		t.Fatalf("global theme value = %#v, want %q", themeValue, ThemeIDHighContrast)
+	}
 
 	planningValue, ok := global.Values[keyPlanningMaxPlanAutoRefinePasses]
 	if !ok || planningValue.Int == nil || *planningValue.Int != 3 {
@@ -137,11 +154,13 @@ func TestSaveConfigValuesWritesFile(t *testing.T) {
 	path := filepath.Join(tempDir, ".blackbird", "config.json")
 
 	run := 8
+	theme := ThemeIDHighContrast
 	maxRefinePasses := 2
 	stop := false
 	parentReview := true
 	values := map[string]RawOptionValue{
 		keyTuiRunDataRefreshIntervalSeconds: {Int: &run},
+		keyTuiTheme:                         {String: &theme},
 		keyPlanningMaxPlanAutoRefinePasses:  {Int: &maxRefinePasses},
 		keyExecutionStopAfterEachTask:       {Bool: &stop},
 		keyExecutionParentReviewEnabled:     {Bool: &parentReview},
@@ -172,6 +191,9 @@ func TestSaveConfigValuesWritesFile(t *testing.T) {
 	if cfg.TUI == nil || cfg.TUI.RunDataRefreshIntervalSeconds == nil || *cfg.TUI.RunDataRefreshIntervalSeconds != 8 {
 		t.Fatalf("run interval = %#v, want 8", cfg.TUI)
 	}
+	if cfg.TUI.Theme == nil || *cfg.TUI.Theme != ThemeIDHighContrast {
+		t.Fatalf("theme = %#v, want %q", cfg.TUI.Theme, ThemeIDHighContrast)
+	}
 	if cfg.TUI.PlanDataRefreshIntervalSeconds != nil {
 		t.Fatalf("plan interval = %v, want nil", cfg.TUI.PlanDataRefreshIntervalSeconds)
 	}
@@ -197,11 +219,13 @@ func TestSaveConfigValuesUpdatesExistingFile(t *testing.T) {
 	}
 
 	run := 9
+	theme := ThemeIDBlackbird
 	maxRefinePasses := 1
 	stop := false
 	parentReview := false
 	values := map[string]RawOptionValue{
 		keyTuiRunDataRefreshIntervalSeconds: {Int: &run},
+		keyTuiTheme:                         {String: &theme},
 		keyPlanningMaxPlanAutoRefinePasses:  {Int: &maxRefinePasses},
 		keyExecutionStopAfterEachTask:       {Bool: &stop},
 		keyExecutionParentReviewEnabled:     {Bool: &parentReview},
@@ -229,6 +253,9 @@ func TestSaveConfigValuesUpdatesExistingFile(t *testing.T) {
 	if cfg.TUI == nil || cfg.TUI.RunDataRefreshIntervalSeconds == nil || *cfg.TUI.RunDataRefreshIntervalSeconds != 9 {
 		t.Fatalf("run interval = %#v, want 9", cfg.TUI)
 	}
+	if cfg.TUI.Theme == nil || *cfg.TUI.Theme != ThemeIDBlackbird {
+		t.Fatalf("theme = %#v, want %q", cfg.TUI.Theme, ThemeIDBlackbird)
+	}
 	if cfg.TUI.PlanDataRefreshIntervalSeconds != nil {
 		t.Fatalf("plan interval = %v, want nil", cfg.TUI.PlanDataRefreshIntervalSeconds)
 	}
@@ -249,12 +276,14 @@ func TestSaveConfigValuesRoundTripPreservesExistingKeys(t *testing.T) {
 
 	run := 11
 	plan := 6
+	theme := ThemeIDHighContrast
 	refinePasses := 3
 	stop := true
 	parentReview := false
 	values := map[string]RawOptionValue{
 		keyTuiRunDataRefreshIntervalSeconds:  {Int: &run},
 		keyTuiPlanDataRefreshIntervalSeconds: {Int: &plan},
+		keyTuiTheme:                          {String: &theme},
 		keyPlanningMaxPlanAutoRefinePasses:   {Int: &refinePasses},
 		keyExecutionStopAfterEachTask:        {Bool: &stop},
 		keyExecutionParentReviewEnabled:      {Bool: &parentReview},
@@ -278,6 +307,9 @@ func TestSaveConfigValuesRoundTripPreservesExistingKeys(t *testing.T) {
 	}
 	if got := roundTripValues[keyTuiPlanDataRefreshIntervalSeconds]; got.Int == nil || *got.Int != plan {
 		t.Fatalf("round-trip plan value = %#v, want %d", got, plan)
+	}
+	if got := roundTripValues[keyTuiTheme]; got.String == nil || *got.String != theme {
+		t.Fatalf("round-trip theme value = %#v, want %q", got, theme)
 	}
 	if got := roundTripValues[keyPlanningMaxPlanAutoRefinePasses]; got.Int == nil || *got.Int != refinePasses {
 		t.Fatalf("round-trip planning value = %#v, want %d", got, refinePasses)
@@ -327,5 +359,11 @@ func TestSaveConfigValuesRejectsWrongType(t *testing.T) {
 		keyExecutionStopAfterEachTask: {Int: &value},
 	}); err == nil {
 		t.Fatalf("expected error for wrong value type")
+	}
+
+	if err := SaveConfigValues(path, map[string]RawOptionValue{
+		keyTuiTheme: {Int: &value},
+	}); err == nil {
+		t.Fatalf("expected error for theme wrong value type")
 	}
 }

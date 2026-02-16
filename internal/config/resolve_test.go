@@ -7,6 +7,7 @@ func TestResolveConfigPrecedence(t *testing.T) {
 		TUI: &RawTUI{
 			RunDataRefreshIntervalSeconds:  intPtr(12),
 			PlanDataRefreshIntervalSeconds: nil,
+			Theme:                          stringPtr(ThemeIDHighContrast),
 		},
 		Planning: &RawPlanning{
 			MaxPlanAutoRefinePasses: intPtr(0),
@@ -20,6 +21,7 @@ func TestResolveConfigPrecedence(t *testing.T) {
 		TUI: &RawTUI{
 			RunDataRefreshIntervalSeconds:  intPtr(20),
 			PlanDataRefreshIntervalSeconds: intPtr(9),
+			Theme:                          stringPtr(ThemeIDBlackbird),
 		},
 		Planning: &RawPlanning{
 			MaxPlanAutoRefinePasses: intPtr(2),
@@ -36,6 +38,9 @@ func TestResolveConfigPrecedence(t *testing.T) {
 	}
 	if resolved.TUI.PlanDataRefreshIntervalSeconds != 9 {
 		t.Fatalf("plan interval = %d, want 9", resolved.TUI.PlanDataRefreshIntervalSeconds)
+	}
+	if resolved.TUI.Theme != ThemeIDHighContrast {
+		t.Fatalf("theme = %q, want %q", resolved.TUI.Theme, ThemeIDHighContrast)
 	}
 	if resolved.Planning.MaxPlanAutoRefinePasses != 0 {
 		t.Fatalf("maxPlanAutoRefinePasses = %d, want 0", resolved.Planning.MaxPlanAutoRefinePasses)
@@ -55,6 +60,9 @@ func TestResolveConfigDefaults(t *testing.T) {
 	}
 	if resolved.TUI.PlanDataRefreshIntervalSeconds != DefaultPlanDataRefreshIntervalSeconds {
 		t.Fatalf("plan interval = %d, want %d", resolved.TUI.PlanDataRefreshIntervalSeconds, DefaultPlanDataRefreshIntervalSeconds)
+	}
+	if resolved.TUI.Theme != ThemeIDBlackbird {
+		t.Fatalf("theme = %q, want %q", resolved.TUI.Theme, ThemeIDBlackbird)
 	}
 	if resolved.Planning.MaxPlanAutoRefinePasses != DefaultMaxPlanAutoRefinePasses {
 		t.Fatalf("maxPlanAutoRefinePasses = %d, want %d", resolved.Planning.MaxPlanAutoRefinePasses, DefaultMaxPlanAutoRefinePasses)
@@ -193,10 +201,52 @@ func TestResolveConfigClampGlobalWhenProjectMissing(t *testing.T) {
 	}
 }
 
+func TestResolveConfigThemeInvalidLayerSkip(t *testing.T) {
+	t.Run("invalid local falls back to valid global", func(t *testing.T) {
+		project := RawConfig{
+			TUI: &RawTUI{
+				Theme: stringPtr("unknown-local"),
+			},
+		}
+		global := RawConfig{
+			TUI: &RawTUI{
+				Theme: stringPtr(ThemeIDHighContrast),
+			},
+		}
+
+		resolved := ResolveConfig(project, global)
+		if resolved.TUI.Theme != ThemeIDHighContrast {
+			t.Fatalf("theme = %q, want %q", resolved.TUI.Theme, ThemeIDHighContrast)
+		}
+	})
+
+	t.Run("invalid local and global fall back to blackbird", func(t *testing.T) {
+		project := RawConfig{
+			TUI: &RawTUI{
+				Theme: stringPtr("unknown-local"),
+			},
+		}
+		global := RawConfig{
+			TUI: &RawTUI{
+				Theme: stringPtr("unknown-global"),
+			},
+		}
+
+		resolved := ResolveConfig(project, global)
+		if resolved.TUI.Theme != ThemeIDBlackbird {
+			t.Fatalf("theme = %q, want %q", resolved.TUI.Theme, ThemeIDBlackbird)
+		}
+	})
+}
+
 func intPtr(value int) *int {
 	return &value
 }
 
 func boolPtr(value bool) *bool {
+	return &value
+}
+
+func stringPtr(value string) *string {
 	return &value
 }

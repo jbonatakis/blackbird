@@ -248,6 +248,83 @@ func TestRenderSettingsParentReviewOptionRowAndDescription(t *testing.T) {
 	assertContains(t, row, "true (global)")
 }
 
+func TestRenderSettingsCategoricalInvalidRawCellsWarnAndTruncate(t *testing.T) {
+	option := config.OptionMetadata{
+		KeyPath:       "tui.theme",
+		DisplayName:   "TUI Theme",
+		Type:          config.OptionTypeCategorical,
+		DefaultString: config.ThemeIDBlackbird,
+		AllowedValues: []string{config.ThemeIDHighContrast, config.ThemeIDBlackbird},
+		Description:   "TUI color theme",
+	}
+	invalidLocal := "bad-local-theme-value-over-twenty"
+	invalidGlobal := "bad-global-theme-value-over-twenty"
+	expectedLocal := "bad-local-theme-valu..."
+	expectedGlobal := "bad-global-theme-val..."
+
+	state := SettingsState{
+		Options:  []config.OptionMetadata{option},
+		Selected: 0,
+		Resolution: config.SettingsResolution{
+			Project: config.SettingsLayer{
+				Values: map[string]config.RawOptionValue{
+					option.KeyPath: {String: stringPtr(invalidLocal)},
+				},
+			},
+			Global: config.SettingsLayer{
+				Values: map[string]config.RawOptionValue{
+					option.KeyPath: {String: stringPtr(invalidGlobal)},
+				},
+			},
+			Applied: map[string]config.AppliedOption{
+				option.KeyPath: {
+					Value:  config.RawOptionValue{String: stringPtr(config.ThemeIDBlackbird)},
+					Source: config.ConfigSourceDefault,
+				},
+			},
+			OptionWarnings: []config.OptionWarning{
+				{
+					Source:    config.ConfigSourceLocal,
+					KeyPath:   option.KeyPath,
+					Kind:      config.OptionWarningInvalidValue,
+					RawString: stringPtr(invalidLocal),
+				},
+				{
+					Source:    config.ConfigSourceGlobal,
+					KeyPath:   option.KeyPath,
+					Kind:      config.OptionWarningInvalidValue,
+					RawString: stringPtr(invalidGlobal),
+				},
+			},
+		},
+	}
+
+	out := renderSettingsTable(state)
+	stripped := stripANSI(out)
+	row := findLineContaining(strings.Split(stripped, "\n"), "TUI Theme")
+	if row == "" {
+		t.Fatalf("expected categorical row")
+	}
+
+	assertContains(t, row, expectedLocal)
+	assertContains(t, row, expectedGlobal)
+	assertContains(t, row, config.ThemeIDBlackbird)
+	assertContains(t, row, "blackbird (default)")
+	if strings.Contains(row, invalidLocal) || strings.Contains(row, invalidGlobal) {
+		t.Fatalf("expected long invalid raw values to be truncated in row %q", row)
+	}
+	if !strings.Contains(out, settingsWarningCellStyle().Render(expectedLocal)) {
+		t.Fatalf("expected local invalid value to use warning cell style")
+	}
+	if !strings.Contains(out, settingsWarningCellStyle().Render(expectedGlobal)) {
+		t.Fatalf("expected global invalid value to use warning cell style")
+	}
+
+	footer := strings.Join(renderSettingsFooter(state), "\n")
+	assertContains(t, footer, "type: categorical")
+	assertContains(t, footer, "allowed: blackbird, high-contrast")
+}
+
 func findLineContaining(lines []string, needle string) string {
 	for _, line := range lines {
 		if strings.Contains(line, needle) {
@@ -262,6 +339,10 @@ func intPtr(value int) *int {
 }
 
 func boolPtr(value bool) *bool {
+	return &value
+}
+
+func stringPtr(value string) *string {
 	return &value
 }
 

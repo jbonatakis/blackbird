@@ -3,16 +3,23 @@ package tui
 import "github.com/jbonatakis/blackbird/internal/config"
 
 type SettingsState struct {
-	ProjectRoot string
-	Options     []config.OptionMetadata
-	Resolved    config.ResolvedConfig
-	Resolution  config.SettingsResolution
-	Selected    int
-	Column      SettingsColumn
-	Editing     bool
-	EditValue   string
-	SaveErr     error
-	Err         error
+	ProjectRoot  string
+	Options      []config.OptionMetadata
+	Resolved     config.ResolvedConfig
+	Resolution   config.SettingsResolution
+	PendingTheme *PendingThemeSelection
+	Selected     int
+	Column       SettingsColumn
+	Editing      bool
+	EditValue    string
+	SaveErr      error
+	Err          error
+}
+
+type PendingThemeSelection struct {
+	Column SettingsColumn
+	Value  string
+	Token  uint64
 }
 
 func NewSettingsState(projectRoot string, resolved config.ResolvedConfig) SettingsState {
@@ -70,6 +77,13 @@ func settingsDefaultOptionValue(option config.OptionMetadata) config.RawOptionVa
 		value := option.DefaultInt
 		return config.RawOptionValue{Int: &value}
 	}
-	value := option.DefaultBool
-	return config.RawOptionValue{Bool: &value}
+	if option.Type == config.OptionTypeBool {
+		value := option.DefaultBool
+		return config.RawOptionValue{Bool: &value}
+	}
+	if option.Type == config.OptionTypeCategorical {
+		value := option.DefaultString
+		return config.RawOptionValue{String: &value}
+	}
+	return config.RawOptionValue{}
 }

@@ -74,6 +74,16 @@ func TestRenderExecutionViewActiveRun(t *testing.T) {
 	assertContains(t, out, "Blocked: 1")
 }
 
+func TestRenderRunStatus_UsesBlackbirdSemanticStyle(t *testing.T) {
+	theme := ResolveTheme(ThemeIDBlackbird)
+	got := renderRunStatus(theme, execution.RunStatusWaitingUser)
+	want := runStatusStyleForTheme(theme, execution.RunStatusWaitingUser).Render(string(execution.RunStatusWaitingUser))
+
+	if got != want {
+		t.Fatalf("renderRunStatus = %q, want %q", got, want)
+	}
+}
+
 func TestRenderExecutionViewEmptyState(t *testing.T) {
 	model := Model{}
 	out := RenderExecutionView(model)

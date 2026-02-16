@@ -277,6 +277,33 @@ func TestRenderTreeView_ReviewingMarkerPersistsWithoutColor(t *testing.T) {
 	}
 }
 
+func TestRenderTreeLine_UsesBlackbirdReadinessAndReviewStyles(t *testing.T) {
+	theme := ResolveTheme(ThemeIDBlackbird)
+	model := Model{
+		theme:      theme,
+		selectedID: "other-task",
+		executionState: execution.ExecutionStageState{
+			Stage:          execution.ExecutionStageReviewing,
+			ReviewedTaskID: "task-1",
+		},
+	}
+	item := plan.WorkItem{
+		ID:    "task-1",
+		Title: "Styled task",
+	}
+
+	line := renderTreeLine(model, item, "READY", false, true)
+	wantReady := readinessLabelStyleForTheme(theme, "READY").Render("R")
+	wantReview := reviewMarkerStyleForTheme(theme).Render(reviewingRowMarker)
+
+	if !strings.Contains(line, wantReady) {
+		t.Fatalf("expected readiness token %q in line %q", wantReady, line)
+	}
+	if !strings.Contains(line, wantReview) {
+		t.Fatalf("expected review marker token %q in line %q", wantReview, line)
+	}
+}
+
 func TestFilterMatch(t *testing.T) {
 	tests := []struct {
 		name      string

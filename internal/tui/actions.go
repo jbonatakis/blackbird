@@ -16,20 +16,18 @@ type ActionOutput struct {
 }
 
 // RenderActionOutput renders action output or error messages
-func RenderActionOutput(output *ActionOutput, width int) string {
+func RenderActionOutput(theme Theme, output *ActionOutput, width int) string {
 	if output == nil {
 		return ""
 	}
 
+	theme = themeOrDefault(theme)
+	emphasis := actionOutputEmphasis(output)
+
 	style := lipgloss.NewStyle().
 		Padding(1).
-		Border(lipgloss.RoundedBorder())
-
-	if output.IsError {
-		style = style.BorderForeground(lipgloss.Color("196")) // red
-	} else {
-		style = style.BorderForeground(lipgloss.Color("46")) // green
-	}
+		Border(lipgloss.RoundedBorder()).
+		Inherit(modalBorderStyleForTheme(theme, emphasis))
 
 	if width > 0 {
 		style = style.Width(width - 4)
@@ -38,12 +36,20 @@ func RenderActionOutput(output *ActionOutput, width int) string {
 	return style.Render(output.Message)
 }
 
+func actionOutputEmphasis(output *ActionOutput) ModalEmphasis {
+	if output != nil && output.IsError {
+		return ModalEmphasisDanger
+	}
+	return ModalEmphasisSuccess
+}
+
 // RenderSetStatusModal renders the status selection modal
 func RenderSetStatusModal(m Model) string {
 	taskID := m.pendingStatusID
 	if taskID == "" {
 		return ""
 	}
+	theme := themeOrDefault(m.theme)
 
 	item, ok := m.plan.Items[taskID]
 	if !ok {
@@ -61,9 +67,9 @@ func RenderSetStatusModal(m Model) string {
 		plan.StatusSkipped,
 	}
 
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69"))
+	titleStyle := modalTitleStyleForTheme(theme, ModalEmphasisAccent)
 	itemStyle := lipgloss.NewStyle().Padding(0, 2)
-	currentStyle := itemStyle.Copy().Foreground(lipgloss.Color("46"))
+	currentStyle := modalEmphasisStyleForTheme(theme, ModalEmphasisSuccess).Copy().Padding(0, 2)
 
 	title := titleStyle.Render(fmt.Sprintf("Set status for %s:", taskID))
 	subtitle := fmt.Sprintf("Current: %s", item.Status)
@@ -96,7 +102,7 @@ func RenderSetStatusModal(m Model) string {
 
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("69")).
+		Inherit(modalBorderStyleForTheme(theme, ModalEmphasisAccent)).
 		Padding(1, 2).
 		Width(modalWidth)
 

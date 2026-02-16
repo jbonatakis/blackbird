@@ -15,6 +15,11 @@ func ResolveConfig(project RawConfig, global RawConfig) ResolvedConfig {
 		valueFromRaw(global, func(tui RawTUI) *int { return tui.PlanDataRefreshIntervalSeconds }),
 		defaults.TUI.PlanDataRefreshIntervalSeconds,
 	)
+	theme := resolveTheme(
+		valueFromRawTheme(project, func(tui RawTUI) *string { return tui.Theme }),
+		valueFromRawTheme(global, func(tui RawTUI) *string { return tui.Theme }),
+		defaults.TUI.Theme,
+	)
 	maxPlanAutoRefinePasses := resolvePlanAutoRefinePasses(
 		valueFromRawPlanning(project, func(planning RawPlanning) *int { return planning.MaxPlanAutoRefinePasses }),
 		valueFromRawPlanning(global, func(planning RawPlanning) *int { return planning.MaxPlanAutoRefinePasses }),
@@ -36,6 +41,7 @@ func ResolveConfig(project RawConfig, global RawConfig) ResolvedConfig {
 		TUI: ResolvedTUI{
 			RunDataRefreshIntervalSeconds:  runInterval,
 			PlanDataRefreshIntervalSeconds: planInterval,
+			Theme:                          theme,
 		},
 		Planning: ResolvedPlanning{
 			MaxPlanAutoRefinePasses: maxPlanAutoRefinePasses,
@@ -48,6 +54,13 @@ func ResolveConfig(project RawConfig, global RawConfig) ResolvedConfig {
 }
 
 func valueFromRaw(cfg RawConfig, pick func(RawTUI) *int) *int {
+	if cfg.TUI == nil {
+		return nil
+	}
+	return pick(*cfg.TUI)
+}
+
+func valueFromRawTheme(cfg RawConfig, pick func(RawTUI) *string) *string {
 	if cfg.TUI == nil {
 		return nil
 	}
@@ -96,6 +109,19 @@ func resolvePlanAutoRefinePasses(projectVal *int, globalVal *int, defaultVal int
 		return clampPlanAutoRefinePasses(*globalVal)
 	}
 	return clampPlanAutoRefinePasses(defaultVal)
+}
+
+func resolveTheme(projectVal *string, globalVal *string, defaultVal string) string {
+	if projectVal != nil && isBuiltInThemeID(*projectVal) {
+		return *projectVal
+	}
+	if globalVal != nil && isBuiltInThemeID(*globalVal) {
+		return *globalVal
+	}
+	if isBuiltInThemeID(defaultVal) {
+		return defaultVal
+	}
+	return ThemeIDBlackbird
 }
 
 func clampInterval(value int) int {

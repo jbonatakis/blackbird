@@ -32,7 +32,7 @@ func TestNewStartupModelLoadsConfigFromProjectRoot(t *testing.T) {
 	}
 
 	path := filepath.Join(configDir, "config.json")
-	data := []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":12,"planDataRefreshIntervalSeconds":34}}`)
+	data := []byte(`{"schemaVersion":1,"tui":{"runDataRefreshIntervalSeconds":12,"planDataRefreshIntervalSeconds":34,"theme":"high-contrast"}}`)
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
@@ -46,6 +46,12 @@ func TestNewStartupModelLoadsConfigFromProjectRoot(t *testing.T) {
 	}
 	if model.config.TUI.PlanDataRefreshIntervalSeconds != 34 {
 		t.Fatalf("expected plan refresh interval 34, got %d", model.config.TUI.PlanDataRefreshIntervalSeconds)
+	}
+	if model.config.TUI.Theme != config.ThemeIDHighContrast {
+		t.Fatalf("expected resolved config theme %q, got %q", config.ThemeIDHighContrast, model.config.TUI.Theme)
+	}
+	if model.theme.ID != ThemeIDHighContrast {
+		t.Fatalf("expected active theme %q, got %q", ThemeIDHighContrast, model.theme.ID)
 	}
 	if model.config.SchemaVersion != config.SchemaVersion {
 		t.Fatalf("expected schema version %d, got %d", config.SchemaVersion, model.config.SchemaVersion)
@@ -79,8 +85,35 @@ func TestNewStartupModelUsesDefaultConfigWhenMissing(t *testing.T) {
 	if model.config.SchemaVersion != defaults.SchemaVersion {
 		t.Fatalf("expected schema version %d, got %d", defaults.SchemaVersion, model.config.SchemaVersion)
 	}
+	if model.theme.ID != ThemeIDBlackbird {
+		t.Fatalf("expected default active theme %q, got %q", ThemeIDBlackbird, model.theme.ID)
+	}
 	appliedValue, ok := model.settings.Resolution.Applied["tui.runDataRefreshIntervalSeconds"]
 	if !ok || appliedValue.Value.Int == nil || *appliedValue.Value.Int != defaults.TUI.RunDataRefreshIntervalSeconds {
 		t.Fatalf("expected settings applied run refresh interval %d, got %#v", defaults.TUI.RunDataRefreshIntervalSeconds, appliedValue)
+	}
+}
+
+func TestNewStartupModelUnknownThemeFallsBackToBlackbird(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
+
+	configDir := filepath.Join(root, ".blackbird")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("create config dir: %v", err)
+	}
+
+	path := filepath.Join(configDir, "config.json")
+	data := []byte(`{"schemaVersion":1,"tui":{"theme":"unknown-theme-id"}}`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	model := newStartupModel(root)
+	if model.config.TUI.Theme != config.ThemeIDBlackbird {
+		t.Fatalf("expected resolved config fallback theme %q, got %q", config.ThemeIDBlackbird, model.config.TUI.Theme)
+	}
+	if model.theme.ID != ThemeIDBlackbird {
+		t.Fatalf("expected active theme fallback %q, got %q", ThemeIDBlackbird, model.theme.ID)
 	}
 }

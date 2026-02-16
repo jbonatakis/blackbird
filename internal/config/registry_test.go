@@ -1,12 +1,15 @@
 package config
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestOptionRegistryIncludesKnownOptions(t *testing.T) {
 	defaults := DefaultResolvedConfig()
 	options := OptionRegistry()
-	if len(options) != 5 {
-		t.Fatalf("options count = %d, want 5", len(options))
+	if len(options) != 6 {
+		t.Fatalf("options count = %d, want 6", len(options))
 	}
 
 	byKey := map[string]OptionMetadata{}
@@ -58,6 +61,26 @@ func TestOptionRegistryIncludesKnownOptions(t *testing.T) {
 	}
 	if plan.Description != "Plan data refresh interval in seconds" {
 		t.Fatalf("plan description = %q, want %q", plan.Description, "Plan data refresh interval in seconds")
+	}
+
+	theme := requireOption(t, byKey, "tui.theme")
+	if theme.DisplayName != "TUI Theme" {
+		t.Fatalf("theme display name = %q, want %q", theme.DisplayName, "TUI Theme")
+	}
+	if theme.Type != OptionTypeCategorical {
+		t.Fatalf("theme type = %q, want %q", theme.Type, OptionTypeCategorical)
+	}
+	if theme.DefaultString != defaults.TUI.Theme {
+		t.Fatalf("theme default = %q, want %q", theme.DefaultString, defaults.TUI.Theme)
+	}
+	if theme.Bounds != nil {
+		t.Fatalf("theme bounds = %v, want nil", theme.Bounds)
+	}
+	if !reflect.DeepEqual(theme.AllowedValues, BuiltInThemeIDs()) {
+		t.Fatalf("theme allowed values = %#v, want %#v", theme.AllowedValues, BuiltInThemeIDs())
+	}
+	if theme.Description != "TUI color theme" {
+		t.Fatalf("theme description = %q, want %q", theme.Description, "TUI color theme")
 	}
 
 	planning := requireOption(t, byKey, "planning.maxPlanAutoRefinePasses")

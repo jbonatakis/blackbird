@@ -58,56 +58,41 @@ func countPlanStatuses(g plan.WorkGraph) planStatusCounts {
 
 // homeStatusStyle returns the same colors as tree view readinessLabelStyle
 // so status counts on the home screen match the plan view.
-func homeStatusStyle(label string) lipgloss.Style {
-	style := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	switch label {
-	case "READY":
-		style = style.Foreground(lipgloss.Color("39"))
-	case "DONE":
-		style = style.Foreground(lipgloss.Color("42"))
-	case "IN_PROGRESS":
-		style = style.Foreground(lipgloss.Color("214"))
-	case "BLOCKED":
-		style = style.Foreground(lipgloss.Color("196"))
-	case "FAILED":
-		style = style.Foreground(lipgloss.Color("196"))
-	case "QUEUED", "WAITING_USER", "SKIPPED":
-		style = style.Foreground(lipgloss.Color("240"))
-	}
-	return style
+func homeStatusStyle(theme Theme, label string) lipgloss.Style {
+	return readinessLabelStyleForTheme(theme, label)
 }
 
 // formatPlanStatusLines returns multiple styled lines for the plan summary.
-func formatPlanStatusLines(total int, c planStatusCounts) []string {
-	checkStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+func formatPlanStatusLines(theme Theme, total int, c planStatusCounts) []string {
+	checkStyle := successTextStyleForTheme(theme)
+	mutedStyle := mutedTextStyleForTheme(theme)
 
 	line1 := checkStyle.Render("✓") + " " + mutedStyle.Render(fmt.Sprintf("Plan found: %d items", total))
 
 	var chunks []string
 	if c.Ready > 0 {
-		chunks = append(chunks, homeStatusStyle("READY").Render(fmt.Sprintf("%d ready", c.Ready)))
+		chunks = append(chunks, homeStatusStyle(theme, "READY").Render(fmt.Sprintf("%d ready", c.Ready)))
 	}
 	if c.Blocked > 0 {
-		chunks = append(chunks, homeStatusStyle("BLOCKED").Render(fmt.Sprintf("%d blocked", c.Blocked)))
+		chunks = append(chunks, homeStatusStyle(theme, "BLOCKED").Render(fmt.Sprintf("%d blocked", c.Blocked)))
 	}
 	if c.InProgress > 0 {
-		chunks = append(chunks, homeStatusStyle("IN_PROGRESS").Render(fmt.Sprintf("%d in progress", c.InProgress)))
+		chunks = append(chunks, homeStatusStyle(theme, "IN_PROGRESS").Render(fmt.Sprintf("%d in progress", c.InProgress)))
 	}
 	if c.Queued > 0 {
-		chunks = append(chunks, homeStatusStyle("QUEUED").Render(fmt.Sprintf("%d queued", c.Queued)))
+		chunks = append(chunks, homeStatusStyle(theme, "QUEUED").Render(fmt.Sprintf("%d queued", c.Queued)))
 	}
 	if c.WaitingUser > 0 {
-		chunks = append(chunks, homeStatusStyle("WAITING_USER").Render(fmt.Sprintf("%d waiting", c.WaitingUser)))
+		chunks = append(chunks, homeStatusStyle(theme, "WAITING_USER").Render(fmt.Sprintf("%d waiting", c.WaitingUser)))
 	}
 	if c.Done > 0 {
-		chunks = append(chunks, homeStatusStyle("DONE").Render(fmt.Sprintf("%d done", c.Done)))
+		chunks = append(chunks, homeStatusStyle(theme, "DONE").Render(fmt.Sprintf("%d done", c.Done)))
 	}
 	if c.Failed > 0 {
-		chunks = append(chunks, homeStatusStyle("FAILED").Render(fmt.Sprintf("%d failed", c.Failed)))
+		chunks = append(chunks, homeStatusStyle(theme, "FAILED").Render(fmt.Sprintf("%d failed", c.Failed)))
 	}
 	if c.Skipped > 0 {
-		chunks = append(chunks, homeStatusStyle("SKIPPED").Render(fmt.Sprintf("%d skipped", c.Skipped)))
+		chunks = append(chunks, homeStatusStyle(theme, "SKIPPED").Render(fmt.Sprintf("%d skipped", c.Skipped)))
 	}
 
 	lines := []string{line1}
@@ -130,30 +115,27 @@ func planOperationInProgress(m Model) bool {
 }
 
 func RenderHomeView(m Model) string {
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69"))
-	taglineStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	mutedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
-	actionStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("42"))
-	shortcutStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
-	errorStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("196")).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("196")).
-		Padding(0, 1)
+	theme := themeOrDefault(m.theme)
+	titleStyle := sectionHeaderStyleForTheme(theme)
+	taglineStyle := mutedTextStyleForTheme(theme)
+	mutedStyle := mutedTextStyleForTheme(theme)
+	warnStyle := dangerTextStyleForTheme(theme)
+	actionStyle := successTextStyleForTheme(theme)
+	shortcutStyle := accentTextStyleForTheme(theme)
+	errorStyle := errorBannerStyleForTheme(theme)
 
 	// When generating/refining, show progress message and spinner; otherwise show plan status or no plan
 	showPlanInfo := m.planExists && !planOperationInProgress(m)
 	var statusLines []string
 	if planOperationInProgress(m) {
-		progressStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("69"))
+		progressStyle := accentTextStyleForTheme(theme)
 		frame := spinnerFrames[m.spinnerIndex%len(spinnerFrames)]
 		statusLines = []string{
 			progressStyle.Render(frame + " " + m.actionName),
 		}
 	} else if showPlanInfo {
 		c := countPlanStatuses(m.plan)
-		statusLines = formatPlanStatusLines(len(m.plan.Items), c)
+		statusLines = formatPlanStatusLines(theme, len(m.plan.Items), c)
 	} else {
 		statusLines = []string{mutedStyle.Render("⊘ No plan found")}
 	}

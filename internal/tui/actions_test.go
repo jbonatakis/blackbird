@@ -236,7 +236,7 @@ func TestRenderActionOutput(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := RenderActionOutput(tt.output, tt.width)
+			got := RenderActionOutput(ResolveTheme(ThemeIDBlackbird), tt.output, tt.width)
 			if tt.output == nil && got != "" {
 				t.Errorf("expected empty string for nil output, got %q", got)
 			}
@@ -244,5 +244,14 @@ func TestRenderActionOutput(t *testing.T) {
 				t.Errorf("expected non-empty output, got empty string")
 			}
 		})
+	}
+}
+
+func TestActionOutputEmphasis(t *testing.T) {
+	if got, want := actionOutputEmphasis(&ActionOutput{IsError: false}), ModalEmphasisSuccess; got != want {
+		t.Fatalf("success emphasis = %v, want %v", got, want)
+	}
+	if got, want := actionOutputEmphasis(&ActionOutput{IsError: true}), ModalEmphasisDanger; got != want {
+		t.Fatalf("error emphasis = %v, want %v", got, want)
 	}
 }

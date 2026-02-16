@@ -25,10 +25,11 @@ func agentSelectionHighlightIndex(m Model) int {
 
 // RenderAgentSelectionModal renders the agent selection modal.
 func RenderAgentSelectionModal(m Model) string {
-	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("69"))
-	itemStyle := lipgloss.NewStyle().Padding(0, 2)
-	highlightStyle := itemStyle.Copy().Foreground(lipgloss.Color("46")).Background(lipgloss.Color("236"))
-	currentStyle := itemStyle.Copy().Foreground(lipgloss.Color("240"))
+	theme := themeOrDefault(m.theme)
+	titleStyle := modalTitleStyleForTheme(theme, ModalEmphasisAccent)
+	itemStyle := lipgloss.NewStyle().Padding(0, 2).Foreground(theme.Colors.TextPrimary)
+	highlightStyle := itemStyle.Copy().Foreground(theme.Colors.Success).Background(theme.Colors.SurfaceMuted).Bold(true)
+	currentStyle := itemStyle.Copy().Inherit(mutedTextStyleForTheme(theme))
 
 	title := titleStyle.Render("Select agent:")
 	current := fmt.Sprintf("Current: %s", agentLabel(m))
@@ -66,7 +67,7 @@ func RenderAgentSelectionModal(m Model) string {
 
 	modalStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("69")).
+		Inherit(modalBorderStyleForTheme(theme, ModalEmphasisAccent)).
 		Padding(1, 2).
 		Width(modalWidth)
 
