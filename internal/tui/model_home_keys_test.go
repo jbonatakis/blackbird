@@ -32,6 +32,25 @@ func TestHomeKeyToggleView(t *testing.T) {
 	}
 }
 
+func TestMainViewEscapeReturnsHome(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
+	model := Model{
+		viewMode:   ViewModeMain,
+		planExists: true,
+	}
+
+	updated, _ := model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if updated.(Model).viewMode != ViewModeHome {
+		t.Fatalf("expected esc to return to home from main view")
+	}
+
+	model.viewMode = ViewModeHome
+	updated, _ = model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	if updated.(Model).viewMode != ViewModeHome {
+		t.Fatalf("expected esc on home view to be a no-op")
+	}
+}
+
 func TestHomeKeyGeneratePlan(t *testing.T) {
 	t.Setenv(agent.EnvProvider, "")
 	model := Model{

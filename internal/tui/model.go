@@ -704,6 +704,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.viewMode = ViewModeHome
 			}
 			return m, nil
+		case "esc":
+			if m.viewMode == ViewModeMain {
+				m.viewMode = ViewModeHome
+				return m, nil
+			}
 		}
 		if m.viewMode == ViewModeHome && m.actionMode == ActionModeNone {
 			switch key {
