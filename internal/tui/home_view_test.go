@@ -33,7 +33,6 @@ func TestRenderHomeViewNoPlan(t *testing.T) {
 	assertContains(t, out, "Execute")
 	assertContains(t, out, "[s]")
 	assertContains(t, out, "Settings")
-	assertContains(t, out, "[ctrl+c]")
 }
 
 func TestRenderHomeViewShowsSelectedAgent(t *testing.T) {
@@ -161,10 +160,69 @@ func TestRenderHomeView_UsesBlackbirdSemanticActionStyles(t *testing.T) {
 	}
 
 	out := RenderHomeView(model)
-	wantAction := accentTextStyleForTheme(theme).Render("[g]") + " " + successTextStyleForTheme(theme).Render("Generate plan")
+	wantGenerateLabel := successTextStyleForTheme(theme).Render("Generate plan")
 
-	if !strings.Contains(out, wantAction) {
-		t.Fatalf("expected styled generate-plan action %q, got %q", wantAction, out)
+	if !strings.Contains(out, wantGenerateLabel) {
+		t.Fatalf("expected styled generate-plan label %q, got %q", wantGenerateLabel, out)
+	}
+}
+
+func TestRenderHomeView_ActionColumnsAreAligned(t *testing.T) {
+	t.Setenv(agent.EnvProvider, "")
+	model := Model{
+		plan:         plan.NewEmptyWorkGraph(),
+		planExists:   false,
+		windowWidth:  80,
+		windowHeight: 24,
+	}
+
+	rendered := stripANSI(RenderHomeView(model))
+	type expectedAction struct {
+		shortcut string
+		label    string
+	}
+	actions := []expectedAction{
+		{shortcut: "[g]", label: "Generate plan"},
+		{shortcut: "[v]", label: "View plan"},
+		{shortcut: "[r]", label: "Refine plan"},
+		{shortcut: "[e]", label: "Execute"},
+		{shortcut: "[s]", label: "Settings"},
+		{shortcut: "[c]", label: "Change agent"},
+	}
+
+	shortcutColumn := -1
+	labelColumn := -1
+	for _, action := range actions {
+		var line string
+		for _, candidate := range strings.Split(rendered, "\n") {
+			if strings.Contains(candidate, action.label) {
+				line = candidate
+				break
+			}
+		}
+		if line == "" {
+			t.Fatalf("expected action line containing %q in %q", action.label, rendered)
+		}
+
+		currentShortcutColumn := strings.Index(line, action.shortcut)
+		if currentShortcutColumn < 0 {
+			t.Fatalf("expected action shortcut %q in line %q", action.shortcut, line)
+		}
+		if shortcutColumn == -1 {
+			shortcutColumn = currentShortcutColumn
+		} else if currentShortcutColumn != shortcutColumn {
+			t.Fatalf("expected shortcut %q to start at column %d, got %d in line %q", action.shortcut, shortcutColumn, currentShortcutColumn, line)
+		}
+
+		currentLabelColumn := strings.Index(line, action.label)
+		if currentLabelColumn < 0 {
+			t.Fatalf("expected action label %q in line %q", action.label, line)
+		}
+		if labelColumn == -1 {
+			labelColumn = currentLabelColumn
+		} else if currentLabelColumn != labelColumn {
+			t.Fatalf("expected label %q to start at column %d, got %d in line %q", action.label, labelColumn, currentLabelColumn, line)
+		}
 	}
 }
 

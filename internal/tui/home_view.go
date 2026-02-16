@@ -22,6 +22,12 @@ type planStatusCounts struct {
 	LeafDone    int
 }
 
+type homeActionOption struct {
+	shortcut string
+	label    string
+	enabled  bool
+}
+
 func countPlanStatuses(g plan.WorkGraph) planStatusCounts {
 	var c planStatusCounts
 	for _, it := range g.Items {
@@ -161,16 +167,16 @@ func RenderHomeView(m Model) string {
 
 	// When generating/refining, gray out all options except quit
 	inProgress := planOperationInProgress(m)
-	lines = append(lines,
-		"",
-		renderActionLine("[g]", "Generate plan", !inProgress, shortcutStyle, actionStyle, mutedStyle),
-		renderActionLine("[v]", "View plan", showPlanInfo, shortcutStyle, actionStyle, mutedStyle),
-		renderActionLine("[r]", "Refine plan", showPlanInfo, shortcutStyle, actionStyle, mutedStyle),
-		renderActionLine("[e]", "Execute", m.canExecute() && !inProgress, shortcutStyle, actionStyle, mutedStyle),
-		renderActionLine("[s]", "Settings", !inProgress, shortcutStyle, actionStyle, mutedStyle),
-		renderActionLine("[c]", "Change agent", !inProgress, shortcutStyle, actionStyle, mutedStyle),
-		renderActionLine("[ctrl+c]", "Quit", true, shortcutStyle, actionStyle, mutedStyle),
-	)
+	actionOptions := []homeActionOption{
+		{shortcut: "[g]", label: "Generate plan", enabled: !inProgress},
+		{shortcut: "[v]", label: "View plan", enabled: showPlanInfo},
+		{shortcut: "[r]", label: "Refine plan", enabled: showPlanInfo},
+		{shortcut: "[e]", label: "Execute", enabled: m.canExecute() && !inProgress},
+		{shortcut: "[s]", label: "Settings", enabled: !inProgress},
+		{shortcut: "[c]", label: "Change agent", enabled: !inProgress},
+	}
+	lines = append(lines, "")
+	lines = append(lines, renderActionLines(actionOptions, shortcutStyle, actionStyle, mutedStyle)...)
 
 	content := strings.Join(lines, "\n")
 	if m.windowWidth <= 0 || m.windowHeight <= 0 {
@@ -179,9 +185,39 @@ func RenderHomeView(m Model) string {
 	return lipgloss.Place(m.windowWidth, m.windowHeight, lipgloss.Center, lipgloss.Center, content)
 }
 
-func renderActionLine(shortcut string, label string, enabled bool, shortcutStyle lipgloss.Style, actionStyle lipgloss.Style, mutedStyle lipgloss.Style) string {
-	if !enabled {
-		return mutedStyle.Render(shortcut + " " + label)
+func renderActionLines(options []homeActionOption, shortcutStyle lipgloss.Style, actionStyle lipgloss.Style, mutedStyle lipgloss.Style) []string {
+	shortcutWidth := 0
+	labelWidth := 0
+	for _, option := range options {
+		width := lipgloss.Width(option.shortcut)
+		if width > shortcutWidth {
+			shortcutWidth = width
+		}
+		labelDisplayWidth := lipgloss.Width(option.label)
+		if labelDisplayWidth > labelWidth {
+			labelWidth = labelDisplayWidth
+		}
 	}
-	return shortcutStyle.Render(shortcut) + " " + actionStyle.Render(label)
+
+	lines := make([]string, 0, len(options))
+	for _, option := range options {
+		lines = append(lines, renderActionLine(option.shortcut, option.label, option.enabled, shortcutWidth, labelWidth, shortcutStyle, actionStyle, mutedStyle))
+	}
+	return lines
+}
+
+func renderActionLine(shortcut string, label string, enabled bool, shortcutWidth int, labelWidth int, shortcutStyle lipgloss.Style, actionStyle lipgloss.Style, mutedStyle lipgloss.Style) string {
+	paddedShortcut := shortcut
+	if pad := shortcutWidth - lipgloss.Width(shortcut); pad > 0 {
+		paddedShortcut += strings.Repeat(" ", pad)
+	}
+	paddedLabel := label
+	if pad := labelWidth - lipgloss.Width(label); pad > 0 {
+		paddedLabel += strings.Repeat(" ", pad)
+	}
+
+	if !enabled {
+		return mutedStyle.Render(paddedShortcut + " " + paddedLabel)
+	}
+	return shortcutStyle.Render(paddedShortcut) + " " + actionStyle.Render(paddedLabel)
 }
