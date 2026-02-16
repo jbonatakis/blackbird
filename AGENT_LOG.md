@@ -1,5 +1,40 @@
 # AGENT_LOG
 
+## 2026-02-16 — Removed Quit row from Home menu actions
+
+- Updated `internal/tui/home_view.go` to remove `[ctrl+c] Quit` from the rendered Home action list.
+- Kept keyboard quit behavior unchanged (`ctrl+c` still exits via key handling in the model update path).
+- Updated home-view tests in `internal/tui/home_view_test.go` to match new Home menu contents (no quit row) while preserving alignment checks for remaining actions.
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+
+## 2026-02-16 — Fixed home action misalignment under centered placement
+
+- Follow-up to home action alignment: observed diagonal shortcut drift in real TUI rendering due to `lipgloss.Place` centering each line independently when line widths differed.
+- Updated `internal/tui/home_view.go` action rendering to pad both shortcut and label columns to shared max widths across all action rows.
+  - This makes each action row equal display width, so centered placement keeps the `[` shortcut column vertically aligned.
+- Hardened `TestRenderHomeView_ActionColumnsAreAligned` in `internal/tui/home_view_test.go` to run with non-zero window dimensions (`80x24`), exercising the same `lipgloss.Place` path used at runtime.
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+
+## 2026-02-16 — Aligned home action option columns
+
+- Updated `internal/tui/home_view.go` home action rendering to use a shared shortcut column width derived from the longest shortcut (`[ctrl+c]`).
+- Action rows now render through `renderActionLines` + updated `renderActionLine` so:
+  - all shortcut `[` markers stay on one vertical column,
+  - all action labels (`Generate plan`, `View plan`, etc.) start on one vertical column.
+- Added regression test `TestRenderHomeView_ActionColumnsAreAligned` in `internal/tui/home_view_test.go` to assert both shortcut and label column alignment across all home actions.
+- Updated semantic style assertion test (`TestRenderHomeView_UsesBlackbirdSemanticActionStyles`) to remain valid with padded shortcut rendering.
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+
+## 2026-02-16 — Audited TUI home action alignment behavior (analysis-only)
+
+- Reviewed home renderer and related tests to explain option placement/alignment for `Generate plan`, `View plan`, `Refine plan`, etc.
+- Confirmed home action rows are emitted as plain left-aligned lines via `renderActionLine` and then centered as a single multiline block with `lipgloss.Place`.
+- Verified action enable/disable gating semantics (`planExists`, in-progress state, and ready-task checks) that affect styling but not horizontal layout.
+- No runtime code changes and no test runs (analysis-only pass).
+
 ## 2026-02-15 — Clarified int-warning branch in settings resolution
 
 - Refactored `internal/config/settings_resolution.go` `collectOptionWarnings` to use a positive guard (`if value.Int != nil`) for int clamping warnings.
