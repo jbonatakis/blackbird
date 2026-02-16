@@ -1,5 +1,14 @@
 # AGENT_LOG
 
+## 2026-02-16 — Fixed plan-review test cwd leak writing blackbird.plan.json
+
+- Updated `internal/tui/plan_review_modal_test.go` `TestPlanReviewAcceptAnywayWithBlocking` to isolate file writes by switching into `t.TempDir()` before running `SavePlanCmd`.
+- Added cwd safety/cleanup in the test with `os.Getwd`, `os.Chdir(tempDir)`, and `t.Cleanup` restoring the original directory.
+- Added an assertion that `blackbird.plan.json` is written in the temp working directory during the test run.
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -run TestPlanReviewAcceptAnywayWithBlocking -count=1`
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+
 ## 2026-02-16 — Removed Quit row from Home menu actions
 
 - Updated `internal/tui/home_view.go` to remove `[ctrl+c] Quit` from the rendered Home action list.

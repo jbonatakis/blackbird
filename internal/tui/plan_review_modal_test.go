@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -464,6 +465,16 @@ func TestPlanReviewReject(t *testing.T) {
 }
 
 func TestPlanReviewAcceptAnywayWithBlocking(t *testing.T) {
+	tempDir := t.TempDir()
+	oldWD, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("failed to get working directory: %v", err)
+	}
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("failed to chdir to temp dir: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(oldWD) })
+
 	testPlan := createTestPlan()
 	m := NewModel(plan.NewEmptyWorkGraph())
 	m.windowWidth = 100
@@ -504,6 +515,9 @@ func TestPlanReviewAcceptAnywayWithBlocking(t *testing.T) {
 	}
 	if updated.viewMode != ViewModeMain {
 		t.Fatalf("expected overridden save to return to main view, got %v", updated.viewMode)
+	}
+	if _, err := os.Stat("blackbird.plan.json"); err != nil {
+		t.Fatalf("expected save to write plan file in temp dir: %v", err)
 	}
 }
 
