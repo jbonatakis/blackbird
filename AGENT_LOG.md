@@ -2983,3 +2983,11 @@ Verification:
 Verification:
 - `rg -n "lipgloss\\.Color\\(" internal/tui/actions.go internal/tui/file_picker_render.go internal/tui/plan_generate_modal.go internal/tui/plan_refine_modal.go internal/tui/plan_review_modal.go internal/tui/review_checkpoint_modal.go internal/tui/parent_review_modal.go internal/tui/agent_question_modal.go internal/tui/agent_selection_modal.go` (no matches)
 - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+
+## 2026-02-16 — Release workflow Homebrew Formula path update
+
+- Updated `.github/workflows/release.yml` `update-homebrew` job to target `tap/Formula/blackbird.rb` (Homebrew tap formula moved from repo root into `Formula/`).
+- Updated the commit step to stage `Formula/blackbird.rb` after `cd tap` so the workflow commits the correct file path.
+
+Verification:
+- `rg -n "tap/Formula/blackbird.rb|git add Formula/blackbird.rb" .github/workflows/release.yml`
