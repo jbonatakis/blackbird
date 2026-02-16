@@ -1,5 +1,14 @@
 # AGENT_LOG
 
+## 2026-02-16 — Added `esc` shortcut to return from plan view to home
+
+- Updated `internal/tui/model.go` key handling so pressing `esc` in `ViewModeMain` now switches to `ViewModeHome`, matching the existing navigation intent of `h` for leaving the plan view.
+- Added regression coverage in `internal/tui/model_home_keys_test.go`:
+  - `TestMainViewEscapeReturnsHome` verifies `esc` returns to home from main view.
+  - Also asserts `esc` on home view remains a no-op (does not toggle into main view).
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+
 ## 2026-02-16 — Fixed plan-review test cwd leak writing blackbird.plan.json
 
 - Updated `internal/tui/plan_review_modal_test.go` `TestPlanReviewAcceptAnywayWithBlocking` to isolate file writes by switching into `t.TempDir()` before running `SavePlanCmd`.
