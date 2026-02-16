@@ -1,5 +1,32 @@
 # AGENT_LOG
 
+## 2026-02-16 — Restored Home bottom-bar metadata (agent + readiness)
+
+- Follow-up adjustment to Home bottom bar behavior:
+  - kept left-side hints as quit-only (`[ctrl+c]quit`),
+  - restored right-side metadata display (`agent` and ready/blocked counts when a plan exists).
+- `internal/tui/bottom_bar.go` now uses:
+  - Home without plan: `agent:<label>`,
+  - Home with plan: existing `agent + ready/blocked` formatting logic.
+- Updated `internal/tui/bottom_bar_test.go` to assert:
+  - Home with plan shows quit-only hint plus agent/readiness metadata,
+  - Home without plan shows quit-only hint plus agent label and no readiness counts.
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+
+## 2026-02-16 — Simplified Home bottom-bar hints to quit-only
+
+- Updated `internal/tui/bottom_bar.go` so `ViewModeHome` now renders quit-only bottom-bar content:
+  - left-side hints return only `[ctrl+c]quit`,
+  - right-side metadata is hidden (no `agent`, `ready`, or `blocked` values).
+- Removed Home bottom-bar hint gating for generate/view/refine/execute/settings/change actions (no longer needed).
+- Updated `internal/tui/bottom_bar_test.go` Home-view assertions to:
+  - expect `[ctrl+c]quit` on Home,
+  - assert prior Home hints are absent,
+  - assert Home metadata is absent.
+- Verification:
+  - `GOCACHE=/tmp/blackbird-go-cache go test ./internal/tui -count=1`
+
 ## 2026-02-16 — Added `esc` shortcut to return from plan view to home
 
 - Updated `internal/tui/model.go` key handling so pressing `esc` in `ViewModeMain` now switches to `ViewModeHome`, matching the existing navigation intent of `h` for leaving the plan view.
