@@ -150,26 +150,7 @@ func actionHints(model Model, readyCount int) []string {
 		return []string{"[esc]back", "[h]ome", "[ctrl+c]quit"}
 	}
 	if model.viewMode == ViewModeHome {
-		actions = []string{
-			"[g]enerate",
-			"[v]iew",
-			"[r]efine",
-			"[e]xecute",
-			"[s]ettings",
-			"[c]hange",
-			"[ctrl+c]quit",
-		}
-		if agentIsFromEnv() {
-			actions = removeAction(actions, "[c]hange")
-		}
-		if !model.planExists {
-			actions = removeAction(actions, "[v]iew")
-			actions = removeAction(actions, "[r]efine")
-		}
-		if !model.canExecute() {
-			actions = removeAction(actions, "[e]xecute")
-		}
-		return actions
+		return []string{"[ctrl+c]quit"}
 	}
 	actions = []string{
 		"[h]ome",
