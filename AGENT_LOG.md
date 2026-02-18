@@ -3071,3 +3071,35 @@ Verification:
 
 Verification:
 - `rg -n "tap/Formula/blackbird.rb|git add Formula/blackbird.rb" .github/workflows/release.yml`
+
+## 2026-02-16 — Investigated Codex/Claude startup behavior outside Git repos (analysis-only)
+
+- Reviewed provider launch argument construction across runtime and execution flows:
+  - `internal/agent/runtime.go` `applyProviderArgs`:
+    - Codex: `exec --full-auto --skip-git-repo-check`
+    - Claude: `--permission-mode bypassPermissions`
+  - `internal/execution/launcher.go` `buildLaunchArgs`:
+    - Codex: `exec --full-auto` (no `--skip-git-repo-check`)
+    - Claude: `--permission-mode bypassPermissions` (plus optional `--session-id`)
+  - `internal/execution/resume_feedback.go` `resumeArgs`:
+    - Codex: `exec --full-auto resume <sessionRef>` (no `--skip-git-repo-check`)
+    - Claude: `--permission-mode bypassPermissions --resume <sessionRef>`
+- Conclusion from code inspection:
+  - Codex explicitly supports running outside a Git repo in agent-runtime flows (plan/deps requests).
+  - Codex execution/resume flows do not pass the skip-repo-check flag, so outside-repo behavior is not guaranteed there.
+  - Claude launch paths include no Git-repo-check flag in either flow.
+- No code logic changes and no tests run (investigation only).
+
+## 2026-02-18 — Documented Claude/Codex schema and session-id learnings
+
+- Added `docs/CODEX_CLAUDE_SCHEMA_AND_SESSION_LEARNINGS.md` capturing observed behavior and command patterns for structured outputs and resume handling.
+- Confirmed current Blackbird runtime behavior:
+  - Claude: `--json-schema` is currently wired from `RequestMetadata.JSONSchema`.
+  - Codex: `--output-schema` is not yet wired in runtime; tests showed Codex supports it directly.
+- Observed operational behavior from direct CLI checks:
+  - Codex with `--json` emits NDJSON stream events (`thread.started`, `item.completed`, `turn.completed`).
+  - Codex without `--json` emits a single final JSON body.
+  - Codex requires strict schemas (`additionalProperties: false`), and this caused rejection of permissive object schemas.
+  - Claude was most reliable with explicit schema-aware invocation in observed environment (`--json-schema` + output-format behavior where supported).
+- Session/Resume insight: Codex session id is exposed in output stream or stderr banner (`session id: ...`), so resume support should parse and persist it from runtime output.
+- No code changes to runtime were made in this docs-only pass.
