@@ -1,5 +1,26 @@
 # AGENT_LOG
 
+## 2026-02-18 — Added Codex/Claude planning schema compatibility spec
+
+- Added `specs/improvements/CODEX_PLAN_SCHEMA_COMPATIBILITY.md` to define implementation requirements for:
+  - making Blackbird's default planning JSON schema Codex-strict while staying Claude-compatible,
+  - enforcing Codex schema usage in planning flows via `--output-schema`,
+  - keeping planning response parsing deterministic (single JSON object + existing decode/validate pipeline).
+- Scoped the spec to planning entrypoints in CLI/TUI and runtime/provider flag wiring.
+- Included explicit testing and acceptance criteria for schema strictness, runtime flag behavior, and planning-flow coverage.
+- Source note reviewed: `docs/notes/CODEX_CLAUDE_SCHEMA_AND_SESSION_LEARNINGS.md`.
+
+## 2026-02-18 — Combined Codex schema compatibility and stream/session handling spec
+
+- Merged `specs/improvements/CODEX_PLAN_SCHEMA_COMPATIBILITY.md` and `specs/improvements/CODEX_STREAMED_SESSION_AND_OUTPUT_HANDLING.md` into one implementation spec covering:
+  - Codex/Codex-compatible schema strictness updates (`additionalProperties: false` changes).
+  - Codex structured invocation via `--output-schema`.
+  - Codex NDJSON stream parsing (`thread.started` + final `item.completed.agent_message.text`).
+  - Canonical `thread_id` capture and resume flow persistence.
+  - Claude compatibility requirements to avoid regressions.
+- Replaced `specs/improvements/CODEX_STREAMED_SESSION_AND_OUTPUT_HANDLING.md` with merged spec content in `specs/improvements/CODEX_PLAN_SCHEMA_COMPATIBILITY.md`.
+- Relevant reference: `docs/notes/CODEX_CLAUDE_SCHEMA_AND_SESSION_LEARNINGS.md`.
+
 ## 2026-02-16 — Restored Home bottom-bar metadata (agent + readiness)
 
 - Follow-up adjustment to Home bottom bar behavior:
@@ -3103,3 +3124,19 @@ Verification:
   - Claude was most reliable with explicit schema-aware invocation in observed environment (`--json-schema` + output-format behavior where supported).
 - Session/Resume insight: Codex session id is exposed in output stream or stderr banner (`session id: ...`), so resume support should parse and persist it from runtime output.
 - No code changes to runtime were made in this docs-only pass.
+
+## 2026-02-18 — Shifted scope to schema-spec only for Codex compatibility
+
+- Confirmed we should not implement code changes in this pass; focusing on specification only.
+- Added `specs/improvements/CODEX_PLAN_SCHEMA_COMPATIBILITY.md` with a strict-schema change plan to satisfy Codex `additionalProperties` requirements without touching runtime behavior yet.
+- Clarified in-scope/out-of-scope so resume/session parsing work remains separate.
+
+## 2026-02-18 — Generated implementation plan for Codex plan schema compatibility
+
+- Reviewed `OVERVIEW.md`, recent `AGENT_LOG.md` history, and `specs/improvements/CODEX_PLAN_SCHEMA_COMPATIBILITY.md`.
+- Produced a balanced `plan_generate` work graph focused on:
+  - strict default planning schema updates,
+  - Codex `--output-schema` runtime wiring with temp-file lifecycle,
+  - shared planning metadata helper adoption across CLI/TUI planning paths,
+  - regression coverage for schema propagation and runtime flags.
+- No code changes were made in this step; planning output only.
